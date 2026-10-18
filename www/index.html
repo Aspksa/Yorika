@@ -1,20 +1,19 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Yorika</title><link rel="stylesheet" href="./styles.css"><script type="module" src="./main.js"></script></head>
-<body><main id="app"><div class="mark">YORIKA</div><div id="status" role="status"></div></main>
-<button id="menu-toggle" aria-label="Открыть меню" aria-expanded="false">☰ <span id="update-dot" hidden>●</span></button>
-<aside id="side-menu" hidden><h2>Yorika</h2><button id="open-updates">↻ Обновление</button></aside>
-<section id="update-panel" hidden aria-label="Обновление проекта">
-<header><h2>Обновление проекта</h2><button id="close-updates" aria-label="Закрыть">✕</button></header>
-<p class="muted">Источник: <a href="https://github.com/Aspksa/Yorika" target="_blank" rel="noopener">Aspksa/Yorika</a></p>
-<div class="panel"><h3>Состояние</h3><p id="update-status" role="status">Проверка не запускалась</p><p id="update-details" class="muted"></p>
-<button id="check-update">Проверить обновления</button><button id="stage-update" disabled>Скачать и проверить</button><button id="apply-update" disabled>Установка временно отключена</button></div>
-<div class="panel"><h3>Настройки обновления</h3>
-<label>Канал<select id="update-channel"><option value="fresh">Свежий (последние изменения)</option><option value="stable">Стабильный (только выпуски)</option></select></label>
-<p class="muted">Свежий — последние изменения main. Стабильный — опубликованные выпуски GitHub.</p>
-<label>Автопроверка<select id="update-interval"><option value="3600000">Каждый час</option><option value="86400000">Раз в сутки</option><option value="0">Выключена</option></select></label>
-<p class="muted">Автопроверка только узнаёт о новой версии. Ничего не скачивается без согласия.</p>
-<label>Токен GitHub<input type="password" id="github-token" autocomplete="off" placeholder="ghp_… или github_pat_…"></label>
-<p class="muted">Токен для приватного репозитория хранится локально в защищённом хранилище Windows (DPAPI), а при запросах отправляется только GitHub. Не вставляйте токен в адрес сайта.</p>
-<p id="token-status" class="muted"></p><button id="save-token">Сохранить</button><button id="delete-token">Удалить</button>
-</div><p class="muted">Архив скачивается во временную папку и проверяется до изменений. Применение пакета с откатом будет включено только после испытаний на Windows; текущая версия не заменяется автоматически.</p>
-</section></body></html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#faf8f8"><title>Yorika</title><link rel="stylesheet" href="./styles.css"><script type="module" src="./main.js"></script></head>
+<body>
+<main id="app" aria-label="Рабочее пространство Yorika"><div class="welcome"><div class="welcome-emblem">✦</div><h1>Yorika</h1><p>Локальное рабочее пространство</p></div></main>
+<button class="launcher" id="menu-toggle" aria-label="Открыть навигацию" aria-expanded="false"><span class="launcher-icon">☰</span><span id="update-dot" class="notice-dot" hidden></span></button>
+<div id="shade" class="shade" hidden></div>
+<aside class="navigation" id="side-menu" hidden aria-label="Навигация"><div class="nav-head"><div class="brand-icon">✦</div><div><strong>Yorika</strong><small>Рабочее пространство</small></div><button id="close-menu" class="icon-button" aria-label="Закрыть меню">×</button></div><div class="nav-caption">СИСТЕМА</div><button id="open-updates" class="nav-item"><span class="nav-symbol">↻</span><span>Обновление</span><span class="nav-arrow">›</span></button><div class="nav-footer"><span class="online-indicator"></span> Локальное приложение</div></aside>
+<section id="update-panel" class="updates" hidden aria-label="Обновление проекта">
+<div class="updates-head"><button id="back-to-menu" class="icon-button" aria-label="Назад в меню">‹</button><div><span class="eyebrow">СИСТЕМА</span><h2>Обновление</h2></div><button id="close-updates" class="icon-button" aria-label="Закрыть">×</button></div>
+<div class="updates-body">
+<div class="source-card"><div class="source-icon">↻</div><div><strong>Обновление Yorika</strong><small>Репозиторий <a href="https://github.com/Aspksa/Yorika" target="_blank" rel="noopener noreferrer">Aspksa/Yorika ↗</a></small></div></div>
+<div class="section-label">СОСТОЯНИЕ ОБНОВЛЕНИЙ</div>
+<div class="panel"><div class="state-line"><span class="pulse"></span><strong id="update-status" role="status">Готово к проверке</strong></div><p id="update-details" class="muted">Проверка выполняется только через GitHub.</p><div class="button-row"><button class="primary" id="check-update">Проверить сейчас</button><button class="secondary" id="stage-update" disabled>Скачать пакет</button></div><button id="apply-update" hidden disabled>Установка временно недоступна</button></div>
+<div class="section-label">НАСТРОЙКИ ОБНОВЛЕНИЯ</div>
+<div class="panel settings-panel"><label for="update-channel"><strong>Канал</strong><small>Выберите источник обновлений</small></label><select id="update-channel"><option value="fresh">Свежий — последние изменения</option><option value="stable">Стабильный — опубликованные выпуски</option></select><div class="field-divider"></div><label for="update-interval"><strong>Автопроверка</strong><small>Скачивание — только после подтверждения</small></label><select id="update-interval"><option value="3600000">Каждый час</option><option value="86400000">Раз в сутки</option><option value="0">Выключена</option></select></div>
+<div class="section-label">ДОСТУП К GITHUB</div><div class="panel settings-panel"><label for="github-token"><strong>Токен GitHub</strong><small>Нужен для доступа к приватному репозиторию</small></label><input type="password" id="github-token" autocomplete="off" placeholder="Вставьте токен доступа"><p id="token-status" class="muted">Проверка токена…</p><div class="button-row"><button class="primary" id="save-token">Сохранить</button><button class="ghost" id="delete-token">Удалить</button></div></div>
+<div class="safety-note">Пакеты скачиваются и проверяются во временной папке. Установка временно отключена, пока не завершены испытания отката.</div>
+</div></section>
+</body></html>

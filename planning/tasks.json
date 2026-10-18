@@ -827,6 +827,18 @@
       ],
       "completed_at": null,
       "notes": "Fixes escaped whitespace in explicit memory matcher and rejects NaN/infinite timestamps. Tests added but not run on CI/Windows."
+    },
+    {
+      "id": "QA-004",
+      "title": "SQLite chat concurrency and non-destructive restore regression suite",
+      "priority": "P0",
+      "depends_on": [],
+      "status": "in_progress",
+      "evidence": [
+        "tests/test_chat_restore_stress.py"
+      ],
+      "completed_at": null,
+      "notes": "Added cross-connection CAS contention, snapshot round-trip and tampering scenarios. Remote CI runner has failed before job steps; full suite and Windows checks not yet verified."
     }
   ]
 }

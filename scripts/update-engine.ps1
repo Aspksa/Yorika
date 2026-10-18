@@ -1,5 +1,7 @@
 ﻿param([ValidateSet('settings','save-settings','save-token','delete-token','check','stage')][string]$Action,[string]$Channel='fresh',[int]$Interval=86400000,[string]$Token='')
 $ErrorActionPreference='Stop'
+# Windows PowerShell 5.1: explicitly load DPAPI assembly before using ProtectedData.
+Add-Type -AssemblyName System.Security
 $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $work=Join-Path $root '.yorika'
 [IO.Directory]::CreateDirectory($work)|Out-Null

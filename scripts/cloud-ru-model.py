@@ -20,7 +20,7 @@ from backend.persona_profile import load_persona_capsule
 from backend.persona_bank import choose_example
 from backend.persona_dialogues import choose_scenario
 from backend.persona_growth import learn_reply, generated_example
-from backend.persona_creativity import scenario_hint
+from backend.persona_creativity import branching_hint
 from backend.persona_auto import reserve
 from backend.cloud_stream import collect_stream
 
@@ -64,7 +64,7 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
             recent_messages = load_history(db, conversation_id)
             saved_preferences = preference_context(db)
             grown_example = generated_example(db, query)
-            dynamic_scene = scenario_hint(db, query)
+            dynamic_scene = branching_hint(db, query, conversation_id)
             try:
                 scenario_example = choose_scenario(db, query, conversation_id=conversation_id)
             except (OSError, ValueError, KeyError, TypeError):

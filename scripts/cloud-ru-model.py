@@ -160,13 +160,17 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
         with Store(directory) as db:
             save_turn(db, query, output, conversation_id)
             learn_reply(db, query, output)
-            should_expand = reserve(db, query)
+            try:
+                should_expand = reserve(db, query)
+            except (OSError, ValueError):
+                should_expand = False
         if should_expand:
             try:
                 worker = Path(__file__).with_name('auto-persona-worker.py')
                 child = subprocess.Popen([sys.executable, str(worker)], stdin=subprocess.PIPE,
                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                         cwd=str(worker.parent.parent))
+                                         cwd=str(worker.parent.parent),
+                                         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
                 child.stdin.write(query.encode('utf-8'))
                 child.stdin.close()
             except (OSError, BrokenPipeError):

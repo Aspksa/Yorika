@@ -35,10 +35,10 @@ class Store:
         try:
             self.connection.execute("PRAGMA busy_timeout=15000")
             self.connection.execute("PRAGMA foreign_keys=ON")
-            self.connection.execute("PRAGMA journal_mode=WAL")
             result = self.connection.execute("PRAGMA quick_check").fetchone()[0]
             if result != "ok":
                 raise RuntimeError("SQLite integrity check failed: " + str(result))
+            self.connection.execute("PRAGMA journal_mode=WAL")
             self._migrate()
         except BaseException:
             self.connection.close()

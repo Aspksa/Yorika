@@ -117,6 +117,36 @@ class Store:
         self.put("memories", record_id, value)
         return value
 
+    def find_memory_conflicts(self, subject: str, limit: int = 100) -> list[dict]:
+        """Flag different explicit values of the same subject for human review.
+
+        Does not infer truth or automatically delete/merge memories.
+        """
+        if not isinstance(subject, str) or not subject.strip() or len(subject) > 256:
+            raise ValueError("subject must be a non-empty string up to 256 characters")
+        if type(limit) is not int or not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        records = self.connection.execute(
+            "SELECT record_id,payload FROM records WHERE namespace=? ORDER BY record_id",
+            ("memories",),
+        )
+        matching = []
+        for record_id, raw in records:
+            value = json.loads(raw)
+            if not isinstance(value, dict):
+                continue
+            if value.get("subject") != subject or not isinstance(value.get("claim"), str):
+                continue
+            matching.append({"record_id": record_id, "claim": value["claim"],
+                             "source": value.get("source", "unknown"),
+                             "source_id": value.get("source_id", "")})
+            if len(matching) > limit:
+                raise ValueError("Too many claims for this subject; narrow review scope")
+        variants = {item["claim"].strip().casefold() for item in matching}
+        if len(variants) < 2:
+            return []
+        return matching
+
     def get(self, namespace: str, record_id: str) -> dict | None:
         row = self.connection.execute(
             "SELECT payload FROM records WHERE namespace=? AND record_id=?",

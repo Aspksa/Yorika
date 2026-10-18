@@ -36,7 +36,7 @@ class GatewayBoundsTests(unittest.TestCase):
             def answer(query, conversation_id=None, stream=False, on_delta=None):
                 return {"answer": "x" * 8001}
         with patch.object(gateway, "read_request", return_value=("hi", None)), \
-             patch.object(gateway.importlib.util, "spec_from_file_location", return_value=object()), \
+             patch.object(gateway.importlib.util, "spec_from_file_location", return_value=type("FakeSpec", (), {"loader": type("FakeLoader", (), {"exec_module": lambda self, module: None})()})()), \
              patch.object(gateway.importlib.util, "module_from_spec", return_value=FakeModel):
             with self.assertRaisesRegex(ValueError, "completed"):
                 gateway.main()
@@ -48,7 +48,7 @@ class GatewayBoundsTests(unittest.TestCase):
                 on_delta("x" * 8001)
                 return {"answer": "x"}
         with patch.object(gateway, "read_request", return_value=("hi", None)), \
-             patch.object(gateway.importlib.util, "spec_from_file_location", return_value=object()), \
+             patch.object(gateway.importlib.util, "spec_from_file_location", return_value=type("FakeSpec", (), {"loader": type("FakeLoader", (), {"exec_module": lambda self, module: None})()})()), \
              patch.object(gateway.importlib.util, "module_from_spec", return_value=FakeModel):
             with self.assertRaisesRegex(ValueError, "exceeds"):
                 gateway.main()

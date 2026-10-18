@@ -752,6 +752,22 @@
       ],
       "completed_at": "2026-10-18T13:02:47.904Z",
       "notes": "Narrow standalone utility only. Does not complete DATA-003 (automatic backups, restore workflow, encryption and Windows validation)."
+    },
+    {
+      "id": "DATA-005",
+      "title": "Read-only SQLite restore candidate preview and checksum verification",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [
+        "DATA-004"
+      ],
+      "evidence": [
+        "scripts/sqlite_restore_preview.py",
+        "tests/test_sqlite_restore_preview.py",
+        "Equivalent local SQLite smoke check: immutable read, valid schema, SHA mismatch, Unicode content on 2026-10-18"
+      ],
+      "completed_at": "2026-10-18T13:05:30.612Z",
+      "notes": "Only non-destructive backup preview; full recovery, Windows execution and DATA-003 remain open. Added tests in repo, but actual repository test suite not executed in this session."
     }
   ]
 }

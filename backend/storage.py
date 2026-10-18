@@ -236,6 +236,61 @@ class Store:
                     break
         return matches
 
+    def search_records_fts(self, namespace: str, query: str, limit: int = 20) -> list[dict]:
+        """Rank words from local JSON text using a temporary FTS5 index.
+
+        Index is rebuilt from the selected namespace, never persisted or sent away.
+        """
+        if not isinstance(namespace, str) or not namespace:
+            raise ValueError("namespace must be non-empty")
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError("query must be a non-empty string")
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        import re
+        words = re.findall(r"[^\\W_]+", query.casefold(), flags=re.UNICODE)
+        if not words:
+            return []
+        if len(words) > 20 or any(len(word) > 100 for word in words):
+            raise ValueError("FTS query too large")
+        # Escape input into literal FTS5 tokens, never accept query operators.
+        expression = " AND ".join('"' + token.replace('"', '""') + '"' for token in words)
+        def flatten(obj):
+            if isinstance(obj, str):
+                yield obj
+            elif isinstance(obj, dict):
+                for child in obj.values():
+                    yield from flatten(child)
+            elif isinstance(obj, list):
+                for child in obj:
+                    yield from flatten(child)
+        with sqlite3.connect(":memory:") as fts:
+            try:
+                fts.execute("CREATE VIRTUAL TABLE docs USING fts5(record_id UNINDEXED, body, tokenize='unicode61')")
+            except sqlite3.OperationalError as exc:
+                raise RuntimeError("SQLite build lacks FTS5 support") from exc
+            rows = self.connection.execute(
+                "SELECT record_id,payload,updated_at FROM records WHERE namespace=?",
+                (namespace,),
+            )
+            metadata = {}
+            for record_id, payload, updated_at in rows:
+                value = json.loads(payload)
+                metadata[record_id] = (value, updated_at)
+                fts.execute(
+                    "INSERT INTO docs(record_id,body) VALUES(?,?)",
+                    (record_id, " ".join(flatten(value))),
+                )
+            ranked = fts.execute(
+                "SELECT record_id,bm25(docs) AS rank FROM docs WHERE docs MATCH ? "
+                "ORDER BY rank ASC, record_id ASC LIMIT ?", (expression, limit),
+            ).fetchall()
+            return [
+                {"record_id": rid, "value": metadata[rid][0],
+                 "updated_at": metadata[rid][1], "rank": score}
+                for rid, score in ranked
+            ]
+
     def export_records(self, namespace: str) -> dict:
         """Export all records from one namespace, including stable IDs and timestamps."""
         if not isinstance(namespace, str) or not namespace:

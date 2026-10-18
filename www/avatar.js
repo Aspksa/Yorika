@@ -219,7 +219,7 @@
   input.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();submit()}});
   panel.addEventListener("keydown",function(e){if(e.key==="Escape")setOpen(false)});
   // Keep the same conversation in other open Yorika tabs.
-  window.addEventListener("storage",function(e){if(e.key===KEY){history=mergeHistories(history,load());dirty=true;changeSerial++;if(!panel.hidden)render();syncHistory()}if(e.key===POS){pos=readPos();applyPos()}});
+  window.addEventListener("storage",function(e){if(e.key===KEY){var other=load();history=other.length?mergeHistories(history,other):[];if(!panel.hidden)render()}if(e.key===POS){pos=readPos();applyPos()}});
   function applyLook(){
    var v=readLook(),src=srcOf(v);
    if(face.getAttribute("src")!==src){face.src=src;hface.src=src}

@@ -141,8 +141,20 @@ class Store:
         )
         matches = []
         for record_id, payload, updated_at in rows:
-            if term in payload.casefold():
-                matches.append({"record_id": record_id, "value": json.loads(payload),
+            value = json.loads(payload)
+            # Search user-facing text values, not JSON field names or syntax.
+            def texts(obj):
+                if isinstance(obj, str):
+                    yield obj
+                elif isinstance(obj, dict):
+                    for child in obj.values():
+                        yield from texts(child)
+                elif isinstance(obj, list):
+                    for child in obj:
+                        yield from texts(child)
+
+            if any(term in text.casefold() for text in texts(value)):
+                matches.append({"record_id": record_id, "value": value,
                                 "updated_at": updated_at})
                 if len(matches) == limit:
                     break

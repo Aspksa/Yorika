@@ -217,6 +217,46 @@ class Store:
             return []
         return matching
 
+    def review_memory_claims(self, subject: str, limit: int = 100) -> dict:
+        """Conservative conflict triage, never a semantic truth judgement.
+
+        Only structured subject/claim memories participate. Opposite explicit
+        negations receive a stronger flag; other differences need human review.
+        """
+        if not isinstance(subject, str) or not subject.strip() or len(subject) > 256:
+            raise ValueError("subject must be a non-empty string up to 256 characters")
+        if type(limit) is not int or not 2 <= limit <= 100:
+            raise ValueError("limit must be between 2 and 100")
+        rows = self.find_memory_conflicts(subject, limit=limit)
+        if not rows:
+            return {"subject": subject, "status": "no_disagreement", "pairs": []}
+
+        def canonical(text):
+            return " ".join(text.casefold().strip().split()).rstrip(".!?")
+
+        def polarity(text):
+            # Intentionally narrow. These are cues, not a language understanding model.
+            for prefix in ("не ", "not "):
+                if text.startswith(prefix):
+                    return (text[len(prefix):], False)
+            return (text, True)
+
+        pairs = []
+        for i, left in enumerate(rows):
+            for right in rows[i + 1:]:
+                a, ap = polarity(canonical(left["claim"]))
+                b, bp = polarity(canonical(right["claim"]))
+                if a == b and ap == bp:
+                    continue
+                pairs.append({
+                    "left_id": left["record_id"], "right_id": right["record_id"],
+                    "left_source": left["source"], "right_source": right["source"],
+                    "classification": "explicit_negation" if a == b and ap != bp
+                                      else "different_claims",
+                    "resolution": "manual_review",
+                })
+        return {"subject": subject, "status": "review_required", "pairs": pairs}
+
     def get(self, namespace: str, record_id: str) -> dict | None:
         row = self.connection.execute(
             "SELECT payload FROM records WHERE namespace=? AND record_id=?",

@@ -34,7 +34,7 @@ if(look){
 
 // Avatar pictures, choice and size live in this browser; avatar.js shows them on every page.
 const avatar=window.YorikaAvatar;
-const MAX_PICTURES=12,MAX_SIDE=420;
+const MAX_PICTURES=50,MAX_SIDE=360;
 const avatarStatus=text=>{el("avatar-status").textContent=text};
 function saveAvatar(v){
  try{avatar.write(v);return true}
@@ -61,7 +61,7 @@ function showAvatars(){
  list.replaceChildren(card("default",avatar.defaultSrc,"Yorika",false),...v.items.map(i=>card(i.id,i.src,i.name||"Своя",true)));
  el("avatar-size").value=v.size;el("avatar-size-value").textContent=v.size+" px";
 }
-// Pictures are scaled down before saving so a dozen of them fit in browser storage.
+// Pictures are scaled down before saving so fifty of them fit in browser storage.
 function shrink(file){
  return new Promise((resolve,reject)=>{
   const url=URL.createObjectURL(file),img=new Image();
@@ -69,7 +69,7 @@ function shrink(file){
    const k=Math.min(1,MAX_SIDE/Math.max(img.naturalWidth,img.naturalHeight));
    const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(img.naturalWidth*k));canvas.height=Math.max(1,Math.round(img.naturalHeight*k));
    canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);URL.revokeObjectURL(url);
-   let data=canvas.toDataURL("image/webp",0.86);
+   let data=canvas.toDataURL("image/webp",0.82);
    if(!data.startsWith("data:image/webp"))data=canvas.toDataURL("image/png");
    resolve(data);
   };
@@ -82,10 +82,10 @@ if(avatar){
  el("avatar-size").oninput=e=>{const size=Number(e.target.value);el("avatar-size-value").textContent=size+" px";saveAvatar({...avatar.read(),size})};
  el("avatar-file").onchange=async e=>{
   const files=[...e.target.files];e.target.value="";
-  let added=0,lastId=null;
+  let added=0,lastId=null,full=false;
   for(const file of files){
    const now=avatar.read();
-   if(now.items.length>=MAX_PICTURES){avatarStatus(`Можно хранить до ${MAX_PICTURES} картинок. Удалите лишние, чтобы добавить новые.`);break}
+   if(now.items.length>=MAX_PICTURES){full=true;break}
    try{
     const src=await shrink(file),id="a"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
     const name=file.name.replace(/\.[^.]+$/,"").slice(0,40)||"Своя";
@@ -94,7 +94,9 @@ if(avatar){
    }catch(err){avatarStatus(`${file.name}: ${err.message}`)}
   }
   showAvatars();
-  if(added)avatarStatus(added===1?"Картинка загружена и выбрана":`Загружено картинок: ${added}, выбрана последняя`);
+  const limit=full?`Можно хранить до ${MAX_PICTURES} картинок. Удалите лишние, чтобы добавить новые.`:"";
+  if(added)avatarStatus((added===1?"Картинка загружена и выбрана.":`Загружено картинок: ${added}, выбрана последняя.`)+(limit?" "+limit:""));
+  else if(limit)avatarStatus(limit);
   if(lastId)document.querySelector(`input[name="avatar-pick"][value="${lastId}"]`)?.focus();
  };
  el("reset-avatar").onclick=()=>{saveAvatar({...avatar.read(),selected:"default",size:avatar.size.def});showAvatars();avatarStatus("")};

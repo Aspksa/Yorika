@@ -58,7 +58,11 @@ def read_credentials():
     if not path.is_file():
         return None
     value = json.loads(_crypt(path.read_bytes(), decrypt=True).decode("utf-8"))
-    if not isinstance(value, dict) or not isinstance(value.get("key"), str):
+    if (not isinstance(value, dict) or not isinstance(value.get("key"), str)
+            or not 1 <= len(value["key"]) <= 8192
+            or any(ord(char) in (10, 13) for char in value["key"])
+            or not isinstance(value.get("model"), str)
+            or not MODEL_PATTERN.fullmatch(value["model"])):
         raise RuntimeError("Corrupt Cloud.ru credential vault")
     return value
 

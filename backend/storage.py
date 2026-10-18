@@ -134,6 +134,29 @@ class Store:
             )
             return cursor.rowcount == 1
 
+    def delete_record_if_unchanged(
+        self, namespace: str, record_id: str, expected_value: dict
+    ) -> bool:
+        """Delete only an unchanged record, avoiding stale editor deletions."""
+        if not isinstance(namespace, str) or not namespace:
+            raise ValueError("namespace must be non-empty")
+        if not isinstance(record_id, str) or not record_id:
+            raise ValueError("record_id must be non-empty")
+        if not isinstance(expected_value, dict):
+            raise ValueError("expected_value must be an object")
+        with self.connection:
+            row = self.connection.execute(
+                "SELECT payload FROM records WHERE namespace=? AND record_id=?",
+                (namespace, record_id),
+            ).fetchone()
+            if row is None or json.loads(row[0]) != expected_value:
+                return False
+            cursor = self.connection.execute(
+                "DELETE FROM records WHERE namespace=? AND record_id=? AND payload=?",
+                (namespace, record_id, row[0]),
+            )
+            return cursor.rowcount == 1
+
     def delete_record(self, namespace: str, record_id: str) -> bool:
         """Delete one local record by exact namespace and ID; return whether it existed."""
         if not isinstance(namespace, str) or not namespace:

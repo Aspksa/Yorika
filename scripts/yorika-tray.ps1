@@ -112,7 +112,7 @@ try{
        $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
        Log ('Chat memory: '+$_.Exception.Message)
       }
-     }elseif($path -match '^/api/cloud-ru/(status|save|check|delete)
+     }elseif($path -match '^/api/cloud-ru/(status|save|check|delete|diagnostics)
       try{
        if($requestHost -ne "127.0.0.1:$port" -or $origin -ne "http://127.0.0.1:$port" -or $method -ne 'POST'){throw 'Доступ запрещён'}
        if($len -lt 1 -or $len -gt 4096){throw 'Неверная длина запроса'}
@@ -298,8 +298,8 @@ finally{
       $action=$Matches[1]
       try{
        if($requestHost -ne "127.0.0.1:$port"){throw 'Недопустимый Host'}
-       if($action -eq 'status' -and $method -ne 'GET'){throw 'Недопустимый метод'}
-       if($action -ne 'status' -and ($method -ne 'POST' -or $origin -ne "http://127.0.0.1:$port")){throw 'Доступ запрещён'}
+       if($action -in @('status','diagnostics') -and $method -ne 'GET'){throw 'Недопустимый метод'}
+       if($action -notin @('status','diagnostics') -and ($method -ne 'POST' -or $origin -ne "http://127.0.0.1:$port")){throw 'Доступ запрещён'}
        if($len -lt 0 -or $len -gt 16384){throw 'Слишком большой запрос'}
        $body=''
        if($len -gt 0){

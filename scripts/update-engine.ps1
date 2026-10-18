@@ -100,35 +100,3 @@ switch($Action){
    }finally{if(Test-Path $temp){Remove-Item -LiteralPath $temp -Force}}
  }
 }
-){throw 'Не подтверждён доступ к ветке main'}
-   $bytes=[Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes($Token),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)
-   [IO.File]::WriteAllBytes($secret,$bytes);Output @{ok=$true}}
- 'delete-token' {if(Test-Path $secret){Remove-Item -LiteralPath $secret -Force};Output @{ok=$true}}
- 'check' {$target=Target $Channel
-   $installed=Join-Path $work 'installed.json'
-   $known='';if(Test-Path $installed){try{$known=(Get-Content $installed -Raw|ConvertFrom-Json).sha}catch{}}
-   Output @{available=($target.sha -ne $known);sha=$target.sha;detail=("GitHub: "+$target.label+"; локальная установленная ревизия: "+$(if($known){$known}else{'не определена'}))}}
- 'stage' {
-   $target=Target $Channel
-   $dir=Join-Path $work 'staging'
-   [IO.Directory]::CreateDirectory($dir)|Out-Null
-   $destination=Join-Path $dir ($target.sha+'.zip')
-   $temp=Join-Path $env:TEMP ('yorika-'+[guid]::NewGuid().ToString('N')+'.zip')
-   try{
-     $headers=Request $target.archive -Binary
-     Invoke-WebRequest -Uri $target.archive -Headers $headers -OutFile $temp -TimeoutSec 180 -MaximumRedirection 3 -UseBasicParsing
-     if((Get-Item -LiteralPath $temp).Length -lt 128){throw 'Архив подозрительно мал'}
-     Add-Type -AssemblyName System.IO.Compression
-     $zip=[IO.Compression.ZipFile]::OpenRead($temp)
-     try {
-       $names=@($zip.Entries|ForEach-Object FullName)
-       if(-not($names|Where-Object {$_ -match '^[^/]+/Yorika\.bat$'}) -or -not($names|Where-Object {$_ -match '^[^/]+/www/index\.html$'})){throw 'Архив не содержит обязательных файлов'}
-       foreach($entry in $zip.Entries){$name=$entry.FullName;if($name.Contains('..') -or $name.StartsWith('/') -or $name.Contains('\')){throw 'Опасный путь в архиве'}}
-     }finally{$zip.Dispose()}
-     $hash=(Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash
-     Move-Item -LiteralPath $temp -Destination $destination -Force
-     [IO.File]::WriteAllText((Join-Path $dir ($target.sha+'.json')),(@{sha=$target.sha;hash=$hash}|ConvertTo-Json -Compress),[Text.Encoding]::UTF8)
-     Output @{ok=$true;sha=$target.sha;detail=("Архив подготовлен: "+$target.label+"; SHA-256: "+$hash+"; установленная версия не изменена")}
-   }finally{if(Test-Path $temp){Remove-Item -LiteralPath $temp -Force}}
- }
-}

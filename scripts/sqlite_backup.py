@@ -35,13 +35,13 @@ def verify_snapshot(path: Path) -> dict:
 
 
 def create_verified_backup(source: Path, target: Path) -> dict:
-    source, target = Path(source).resolve(), Path(target).resolve()
+    source, target = Path(source).resolve(), Path(target).expanduser().absolute()
     if source == target:
         raise ValueError("Backup cannot overwrite source database")
     if not source.is_file():
         raise FileNotFoundError(source)
     target.parent.mkdir(parents=True, exist_ok=True)
-    if target.exists():
+    if target.exists() or target.is_symlink():
         raise FileExistsError("Backup destination already exists")
     fd, tmp_name = tempfile.mkstemp(prefix=".yorika-backup-", suffix=".sqlite3", dir=target.parent)
     os.close(fd)
@@ -52,7 +52,8 @@ def create_verified_backup(source: Path, target: Path) -> dict:
             with sqlite3.connect(str(temporary)) as destination:
                 active.backup(destination)
         report = verify_snapshot(temporary)
-        os.replace(temporary, target)
+        # Exclusive creation: never replace another file created during backup.
+        os.link(temporary, target)
         report["path"] = str(target)
         return report
     finally:

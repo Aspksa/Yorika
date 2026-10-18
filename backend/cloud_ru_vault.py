@@ -8,6 +8,7 @@ from ctypes import wintypes
 from pathlib import Path
 
 DEFAULT_MODEL = "ai-sage/GigaChat3-10B-A1.8B"
+MAX_CREDENTIAL_FILE_BYTES = 32768
 MODEL_PATTERN = re.compile(r"^[a-zA-Z0-9_./:-]{1,150}$")
 
 
@@ -53,11 +54,15 @@ def _crypt(data: bytes, *, decrypt: bool) -> bytes:
 
 def read_credentials():
     path = credential_path()
-    if path.is_symlink():
-        raise RuntimeError("Refusing linked credential file")
+    if path.is_symlink() or path.parent.is_symlink():
+        raise RuntimeError("Refusing linked credential path")
     if not path.is_file():
         return None
-    value = json.loads(_crypt(path.read_bytes(), decrypt=True).decode("utf-8"))
+    with path.open("rb") as stream:
+        ciphertext = stream.read(MAX_CREDENTIAL_FILE_BYTES + 1)
+    if len(ciphertext) > MAX_CREDENTIAL_FILE_BYTES:
+        raise RuntimeError("Cloud.ru credential file too large")
+    value = json.loads(_crypt(ciphertext, decrypt=True).decode("utf-8"))
     if (not isinstance(value, dict) or not isinstance(value.get("key"), str)
             or not 1 <= len(value["key"]) <= 8192
             or any(ord(char) in (10, 13) for char in value["key"])
@@ -94,8 +99,8 @@ def save_credentials(key: str, model: str):
 
 def delete_credentials():
     path = credential_path()
-    if path.is_symlink():
-        raise RuntimeError("Refusing linked credential file")
+    if path.is_symlink() or path.parent.is_symlink():
+        raise RuntimeError("Refusing linked credential path")
     if path.exists():
         path.unlink()
     return True

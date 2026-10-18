@@ -28,6 +28,12 @@ def run(action, data=None, *, test_call=None):
     if action == "delete":
         delete_credentials()
         return public_status()
+    if action == "diagnostics":
+        value = public_status()
+        value["python_ok"] = True
+        value["key_accessible"] = value["configured"]
+        value["live_check_required"] = True
+        return value
     if action == "check":
         credential = read_credentials()
         if credential is None:

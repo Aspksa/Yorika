@@ -14,7 +14,17 @@ if(Test-Path -LiteralPath $pointer){
   $active=[IO.Path]::GetFullPath([string]$selection.path)
   $parent=[IO.Path]::GetFullPath((Split-Path -Parent $ProjectRoot))
   $expected=Join-Path $parent ('Yorika-release-'+([string]$selection.sha).Substring(0,12))
-  if($selection.sha -notmatch '^[0-9a-f]{40}
+  if(-not $selection.sha -or ([string]$selection.sha).Length -ne 40 -or $active -ne $expected){throw 'Invalid release pointer'}
+  $activeLauncher=Join-Path $active 'scripts\start.ps1'
+  if(-not(Test-Path -LiteralPath $activeLauncher)){throw 'Release missing launcher'}
+  & $activeLauncher
+  if($LASTEXITCODE -ne 0){throw 'Release launcher failed'}
+  exit 0
+ }catch{
+  Write-Host ("[YORIKA] Release failed, returning to previous version: "+$_.Exception.Message)
+  Remove-Item -LiteralPath $pointer -Force -ErrorAction SilentlyContinue
+ }
+}
 function IsLive([string]$address) {
   if ($address -notmatch '^http://127\.0\.0\.1:\d+/$') { return $false }
   try {

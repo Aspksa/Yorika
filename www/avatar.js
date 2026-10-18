@@ -24,7 +24,8 @@
 
  function build(){
   var history=load(),serverReady=false,serverBusy=false,dirty=false,needsSync=false;
-  var revision=0,changeSerial=0,clearPending=false;
+  var revision=0,changeSerial=0,clearPending=false,UNSYNCED="yorika.chat.unsynced";
+  function markPending(flag){try{if(flag)localStorage.setItem(UNSYNCED,"1");else localStorage.removeItem(UNSYNCED)}catch(e){}}
   function sameMessage(a,b){return a.from===b.from&&a.text===b.text&&a.ts===b.ts}
   function mergeHistories(remote,local){
    var out=Array.isArray(remote)?remote.slice():[];
@@ -33,7 +34,7 @@
    return out;
   }
   function changed(){
-   dirty=true;changeSerial++;
+   dirty=true;changeSerial++;markPending(true);
    store(history);
    syncHistory();
   }
@@ -64,6 +65,7 @@
      if(result.ok!==true||!Number.isInteger(result.revision))throw Error("Invalid SQLite response");
      revision=result.revision;
      clearPending=false;
+     if(serial===changeSerial)markPending(false);
      api.label("Память SQLite");
      if(serial===changeSerial){dirty=false;return}
      // A new user message arrived while this snapshot was being written.
@@ -83,13 +85,14 @@
     if(!Number.isInteger(value.revision)||value.revision<0||!(value.history===null||Array.isArray(value.history)))throw Error("Invalid SQLite history");
     revision=value.revision;
     var saved=Array.isArray(value.history)?value.history:[];
-    var combined=mergeHistories(saved,history);
+    var pending=false;try{pending=localStorage.getItem(UNSYNCED)==="1"}catch(e){}
+    var combined=(value.history===null||pending||dirty)?mergeHistories(saved,history):saved;
     // Never silently replace browser-only messages from the current origin.
     var needImport=value.history===null||combined.length!==saved.length;
     history=combined;store(history);
     serverReady=true;api.label("Память SQLite");
     if(!panel.hidden)render();
-    if(needImport||dirty)syncHistory();
+    if(needImport||dirty){markPending(true);syncHistory()}else markPending(false);
    }catch(e){serverReady=false;api.label("Память браузера — SQLite недоступна");}
   }
   var root=make("div","yc");

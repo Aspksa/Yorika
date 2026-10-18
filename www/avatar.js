@@ -133,7 +133,7 @@
   async function submit(){
    var text=input.value.trim();if(!text||busy)return;
    busy=true;send.disabled=true;input.value="";grow();
-   history.push({from:"me",text:text,ts:Date.now()});store(history);bubble(history[history.length-1]);
+   dirty=true;history.push({from:"me",text:text,ts:Date.now()});store(history);bubble(history[history.length-1]);
    var typing=make("div","yc-msg yc-bot yc-typing");typing.appendChild(make("p","yc-text","…"));log.appendChild(typing);log.scrollTop=log.scrollHeight;
    var reply;
    try{reply=await responder(text,history.slice())}catch(e){reply="Не удалось получить ответ: "+(e&&e.message||e)}
@@ -179,7 +179,7 @@
   input.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();submit()}});
   panel.addEventListener("keydown",function(e){if(e.key==="Escape")setOpen(false)});
   // Keep the same conversation in other open Yorika tabs.
-  window.addEventListener("storage",function(e){if(e.key===KEY){history=load();if(!panel.hidden)render()}if(e.key===POS){pos=readPos();applyPos()}});
+  window.addEventListener("storage",function(e){if(e.key===KEY){history=load();dirty=true;if(!panel.hidden)render();syncHistory()}if(e.key===POS){pos=readPos();applyPos()}});
   function applyLook(){
    var v=readLook(),src=srcOf(v);
    if(face.getAttribute("src")!==src){face.src=src;hface.src=src}

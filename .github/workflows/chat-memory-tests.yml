@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
   pull_request:
     paths:
       - 'scripts/chat-store.py'
@@ -35,11 +36,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Python tests
+      - name: Full Python and SQLite acceptance checks
         shell: bash
         run: |
-          python -m unittest discover -s tests -v 2>&1 | tee python-tests.log
-          exit ${PIPESTATUS[0]}
+          python scripts/run-acceptance.py --report yorika-acceptance.json
+          cat yorika-acceptance.json
       - name: Validate task checkboxes
         run: python scripts/check-plan.py
       - name: JavaScript syntax
@@ -57,6 +58,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: python-tests-${{ matrix.os }}
-          path: python-tests.log
+          path: yorika-acceptance.json
           if-no-files-found: ignore
           retention-days: 7

@@ -3,11 +3,22 @@
 // Uploaded pictures, the chosen one and the size are managed on settings.html through YorikaAvatar.
 (function(){
  var KEY="yorika.chat",POS="yorika.avatar",LOOK="yorika.avatars",SIZE={min:70,max:240,def:140},LIMIT=200,IMG="./assets/yorika-avatar.webp",MARGIN=12,GAP=12;
+ var THREAD_KEY="yorika.cloud.thread";
+ function newThread(){
+  var bytes=new Uint8Array(16);crypto.getRandomValues(bytes);
+  return "c"+Array.from(bytes,function(b){return b.toString(16).padStart(2,"0")}).join("");
+ }
+ function threadId(){
+  var id;try{id=localStorage.getItem(THREAD_KEY)}catch(e){}
+  if(id&&/^c[0-9a-f]{32}$/.test(id))return id;
+  id=newThread();try{localStorage.setItem(THREAD_KEY,id)}catch(e){}
+  return id;
+ }
  var responder=async function(text){
   try{
    var generated=await fetch("/api/chat/respond",{
     method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({query:text}),cache:"no-store"
+    body:JSON.stringify({query:text,conversation_id:threadId()}),cache:"no-store"
    });
    if(generated.ok){
     var completed=await generated.json();
@@ -244,7 +255,7 @@
   });
   window.addEventListener("resize",applyPos);
   close.addEventListener("click",function(){setOpen(false)});
-  clear.addEventListener("click",function(){clearPending=true;history=[];changed();render();input.focus()});
+  clear.addEventListener("click",function(){clearPending=true;history=[];try{localStorage.setItem(THREAD_KEY,newThread())}catch(e){}changed();render();input.focus()});
   form.addEventListener("submit",function(e){e.preventDefault();submit()});
   input.addEventListener("input",grow);
   input.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();submit()}});

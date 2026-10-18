@@ -16,9 +16,9 @@ function Get-Token {
  $bytes=[IO.File]::ReadAllBytes($secret)
  return [Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser))
 }
-function Request($uri,[switch]$Binary){
+function Request($uri,[switch]$Binary,[string]$CandidateToken=''){
  $headers=@{'User-Agent'='Yorika-Updater';'Accept'='application/vnd.github+json';'X-GitHub-Api-Version'='2022-11-28'}
- $t=Get-Token
+ $t=if($CandidateToken){$CandidateToken}else{Get-Token}
  if($t){$headers.Authorization="Bearer $t"}
  if($Binary){return $headers}
  try {
@@ -28,7 +28,7 @@ function Request($uri,[switch]$Binary){
   try { $statusCode=[int]$_.Exception.Response.StatusCode } catch {}
   if($statusCode -eq 404) {
    if($uri.EndsWith('/releases/latest')) { throw 'Стабильные выпуски ещё не опубликованы. Выберите канал Свежий.' }
-   throw 'GitHub не предоставил доступ к приватному репозиторию Yorika. Проверьте сохранённый токен и разрешение Contents: Read.'
+   throw 'GitHub вернул 404: токен не видит Aspksa/Yorika или ветку main. Проверьте владельца токена, выбор репозитория и разрешение Contents: Read.'
   }
   if($statusCode -eq 401) { throw 'GitHub отклонил токен доступа. Укажите действующий токен.' }
   if($statusCode -eq 403) { throw 'GitHub запретил запрос. Проверьте разрешения токена или лимит API.' }
@@ -53,6 +53,8 @@ switch($Action){
    $json=@{channel=$Channel;interval=$Interval}|ConvertTo-Json -Compress
    [IO.File]::WriteAllText($settings,$json,[Text.Encoding]::UTF8);Output @{ok=$true}}
  'save-token' {if(-not $Token -or $Token.Length -gt 512){throw 'Пустой или слишком длинный токен'}
+   $validated=Request 'https://api.github.com/repos/Aspksa/Yorika/commits/main' -CandidateToken $Token
+   if(-not $validated.sha){throw 'Токен не подтверждён GitHub'}
    $bytes=[Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes($Token),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)
    [IO.File]::WriteAllBytes($secret,$bytes);Output @{ok=$true}}
  'delete-token' {if(Test-Path $secret){Remove-Item -LiteralPath $secret -Force};Output @{ok=$true}}

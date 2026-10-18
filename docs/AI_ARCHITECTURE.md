@@ -1,5 +1,9 @@
 # Yorika AI architecture: verified baseline and growth design
 
+## Historical snapshot warning
+
+This document's initial baseline describes an earlier commit. For up-to-date capabilities read current code and [YORIKA_VISION.md](YORIKA_VISION.md). Current main already contains experimental SQLite/PowerShell chat integration (PR #16), but Windows end-to-end behavior is not verified. Never interpret historical text below as live status.
+
 ## Verified baseline
 As of 2026-10-18, main head f3b2efca11ec10b979f61eff175ef313fe7d8588: a PowerShell static localhost site via Yorika.bat → scripts/start.ps1 → scripts/yorika-tray.ps1; updater, settings, floating fox avatar and shared chat UI. IndexedDB in www/core/database.js contains settings/projects/memories/conversations/messages/tasks. www/avatar.js stores last 200 messages in localStorage and exposes window.YorikaChat.setResponder(...). **No local AI inference, model training, SQLite or proactive engine is installed.** Windows end-to-end runtime needs real-device tests.
 

@@ -435,6 +435,299 @@
       "evidence": [],
       "completed_at": null,
       "notes": ""
+    },
+    {
+      "id": "VISION-001",
+      "title": "Сверить фактически готовое приложение с docs/YORIKA_VISION.md и матрицей A01–A20",
+      "priority": "P1",
+      "depends_on": [],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "UX-001",
+      "title": "Мастер первого запуска: язык, обращение, разрешения на память/инициативу/голос",
+      "priority": "P1",
+      "depends_on": [
+        "API-002"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "UX-002",
+      "title": "Доступность интерфейса: клавиатура, экранный диктор, контраст и reduced-motion",
+      "priority": "P1",
+      "depends_on": [],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "UX-003",
+      "title": "Анимации и состояния взрослого персонажа кицунэ; пользовательское изменение образа",
+      "priority": "P2",
+      "depends_on": [
+        "LIFE-003"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "DIALOG-001",
+      "title": "Показывать происхождение утверждений, статус ошибок, использованные инструменты",
+      "priority": "P1",
+      "depends_on": [
+        "CHAT-001",
+        "MEMORY-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "MEMORY-004",
+      "title": "Разрешение конфликтов вкладок, версии и транзакционная синхронизация чата",
+      "priority": "P0",
+      "depends_on": [
+        "DATA-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "MEMORY-005",
+      "title": "Управление приватностью: просмотр, исправление, экспорт и удаление записей",
+      "priority": "P1",
+      "depends_on": [
+        "MEMORY-001",
+        "DATA-003"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "MEMORY-006",
+      "title": "Восстановление памяти на новом порту с проверкой и сохранением старых origin",
+      "priority": "P0",
+      "depends_on": [
+        "DATA-002"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "BRAIN-005",
+      "title": "Паспорт поколения модели: hash, datasets, seed, hardware, scores, rollback",
+      "priority": "P2",
+      "depends_on": [
+        "BRAIN-004"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "BRAIN-006",
+      "title": "Генерация ответа из собственного обученного checkpoint, без ложных заглушек",
+      "priority": "P2",
+      "depends_on": [
+        "BRAIN-003",
+        "CHAT-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "BRAIN-007",
+      "title": "Поддержка ограничений RAM/VRAM и безопасного CPU fallback",
+      "priority": "P2",
+      "depends_on": [
+        "BRAIN-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "WORLD-001",
+      "title": "Изолированный виртуальный мир с действиями и наблюдаемыми результатами",
+      "priority": "P3",
+      "depends_on": [
+        "LAB-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "WORLD-002",
+      "title": "Модель мира: прогноз следующего состояния и измерение ошибки",
+      "priority": "P3",
+      "depends_on": [
+        "WORLD-001",
+        "BRAIN-004"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "PLASTIC-001",
+      "title": "Реплей и оценка катастрофического забывания при непрерывном обучении",
+      "priority": "P2",
+      "depends_on": [
+        "BRAIN-004"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "PLASTIC-002",
+      "title": "Эксперименты с архитектурным ростом, специалистами и метаобучением",
+      "priority": "P3",
+      "depends_on": [
+        "LAB-002",
+        "PLASTIC-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "SENSE-001",
+      "title": "Разрешённый мультимодальный ввод с явными индикаторами камеры/микрофона",
+      "priority": "P3",
+      "depends_on": [
+        "API-002",
+        "CHAT-003"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "POWER-001",
+      "title": "Гомеостаз ресурсов: нагрузка GPU/RAM, паузы, budget, остановка задач",
+      "priority": "P2",
+      "depends_on": [
+        "LIFE-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "SEC-001",
+      "title": "Security-review localhost: Origin, Host, CSRF, rate limits и локальная сессия",
+      "priority": "P0",
+      "depends_on": [
+        "API-002"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "SEC-002",
+      "title": "Приватность: PII, срок хранения, очистка секретов из логов и обучающих данных",
+      "priority": "P1",
+      "depends_on": [
+        "DATA-001",
+        "API-002"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "QA-002",
+      "title": "Матрица приёмки A01–A20 с автоматическими тестами и Windows протоколом",
+      "priority": "P1",
+      "depends_on": [
+        "QA-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "MAINT-001",
+      "title": "Долговременные миграции, экспорт и периодический аудит совместимости",
+      "priority": "P3",
+      "depends_on": [
+        "MEMORY-003",
+        "QA-002"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "DATASET-001",
+      "title": "Лицензии корпусов, provenance, train/validation/test split и удаление секретов",
+      "priority": "P2",
+      "depends_on": [
+        "BRAIN-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "INIT-001",
+      "title": "Тихие часы, cooldown, дневные лимиты и журнал причин инициативных сообщений",
+      "priority": "P1",
+      "depends_on": [
+        "CHAT-002"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "LAB-003",
+      "title": "Подпись/проверка checkpoint и безопасный откат нейронного поколения",
+      "priority": "P2",
+      "depends_on": [
+        "BRAIN-005",
+        "LAB-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
     }
   ]
 }

@@ -839,6 +839,20 @@
       ],
       "completed_at": null,
       "notes": "Added cross-connection CAS contention, snapshot round-trip and tampering scenarios. Remote CI runner has failed before job steps; full suite and Windows checks not yet verified."
+    },
+    {
+      "id": "QA-005",
+      "title": "Run reproducible full Python and SQLite acceptance report on Linux and Windows",
+      "priority": "P0",
+      "depends_on": [],
+      "status": "in_progress",
+      "evidence": [
+        "scripts/run-acceptance.py",
+        "tests/test_acceptance_runner.py",
+        ".github/workflows/chat-memory-tests.yml"
+      ],
+      "completed_at": null,
+      "notes": "Test runner and workflow_dispatch added. Actual GitHub-hosted runner still fails pre-step; results cannot be claimed passed. MEMORY-004, DATA-006 and QA-004 require measured results and Windows verification."
     }
   ]
 }

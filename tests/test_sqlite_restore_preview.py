@@ -36,6 +36,16 @@ class RestorePreviewTests(unittest.TestCase):
                 preview(root / "snapshot.db", "0" * 64)
             self.assertEqual(preview(root / "snapshot.db", report["sha256"])["schema_version"], 1)
 
+    def test_large_backup_streaming_hash(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            with Store(root / "live") as live:
+                live.put("memories", "large", {"text": "Ё" * (1024 * 1024)})
+                report = create_verified_backup(live.path, root / "snapshot.db")
+            result = preview(root / "snapshot.db", report["sha256"])
+            self.assertEqual(result["sha256"], report["sha256"])
+            self.assertEqual(result["counts"]["records"], 1)
+
     def test_reject_arbitrary_sqlite_database(self):
         with tempfile.TemporaryDirectory() as folder:
             file = Path(folder) / "other.db"

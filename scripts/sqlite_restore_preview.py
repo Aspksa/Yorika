@@ -19,7 +19,11 @@ def preview(path: Path, expected_sha256: str | None = None) -> dict:
     path = Path(path).expanduser().resolve(strict=True)
     if not path.is_file():
         raise ValueError("Expected a regular SQLite file")
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    hasher = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    digest = hasher.hexdigest()
     if expected_sha256 is not None:
         if len(expected_sha256) != 64 or any(c not in "0123456789abcdef" for c in expected_sha256.lower()):
             raise ValueError("Invalid SHA256 digest")

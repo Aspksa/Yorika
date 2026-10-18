@@ -78,6 +78,9 @@ def save_credentials(key: str, model: str):
     if not isinstance(model, str) or not MODEL_PATTERN.fullmatch(model):
         raise ValueError("Invalid Cloud.ru model")
     path = credential_path()
+    # Reject linked directories before mkdir, which otherwise follows the link.
+    if path.is_symlink() or path.parent.is_symlink():
+        raise RuntimeError("Refusing unsafe Cloud.ru credential path")
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_symlink() or path.parent.is_symlink():
         raise RuntimeError("Refusing unsafe Cloud.ru credential path")

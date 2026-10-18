@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Same-origin server helper for Cloud.ru key management; never prints secrets."""
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from backend.cloud_ru_vault import (read_credentials, save_credentials,
+                                   delete_credentials, public_status)
+from backend.storage import Store
+
+
+def run(action, data=None, *, test_call=None):
+    if action == "status":
+        return public_status()
+    if action == "save":
+        if not isinstance(data, dict):
+            raise ValueError("Missing settings")
+        key = data.get("key")
+        model = data.get("model")
+        if key is None:
+            old = read_credentials()
+            if old is None:
+                raise ValueError("Key required")
+            key = old["key"]
+        save_credentials(key, model)
+        return public_status()
+    if action == "delete":
+        delete_credentials()
+        return public_status()
+    if action == "check":
+        credential = read_credentials()
+        if credential is None:
+            raise ValueError("Cloud.ru key not configured")
+        if test_call is None:
+            import importlib.util
+            target = Path(__file__).with_name("cloud-ru-model.py")
+            spec = importlib.util.spec_from_file_location("yorika_cloud_model", target)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            test_call = module.answer
+        # This makes one billable API request only when the user presses Check.
+        response = test_call("Ответь одним словом: готово", model=credential["model"],
+                             api_key=credential["key"])
+        return {"connected": bool(response.get("answer")), "model": credential["model"]}
+    raise ValueError("Unknown action")
+
+
+def main():
+    action = sys.argv[1] if len(sys.argv) == 2 else ""
+    data = json.load(sys.stdin) if action == "save" else None
+    result = run(action, data)
+    print(json.dumps(result, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (ValueError, RuntimeError, OSError, TypeError, KeyError) as exc:
+        # Avoid reflecting arbitrary provider exceptions containing sensitive details.
+        print(json.dumps({"error": str(exc) if isinstance(exc, ValueError)
+                          else "Cloud.ru operation failed"}, ensure_ascii=False))
+        sys.exit(1)

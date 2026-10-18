@@ -23,6 +23,7 @@ const toggleUpdates = open => {
   el("update-panel").hidden = !open;
   el("shade").hidden = !open;
   el("menu-toggle").setAttribute("aria-expanded", String(open));
+  if(open) { el("close-updates").focus(); } else { el("menu-toggle").focus(); }
 };
 el("menu-toggle").onclick = () => toggleUpdates(el("update-panel").hidden);
 el("shade").onclick = () => toggleUpdates(false);
@@ -30,6 +31,14 @@ el("close-updates").onclick = () => toggleUpdates(false);
 document.addEventListener("keydown", event => {
   if (event.key === "Escape") toggleUpdates(false);
 });
+el("toggle-token").onclick=()=>{
+ const field=el("github-token"), button=el("toggle-token");
+ const visible=field.type==="password";
+ field.type=visible?"text":"password";
+ button.textContent=visible?"Скрыть":"Показать";
+ button.setAttribute("aria-pressed",String(visible));
+ button.setAttribute("aria-label",visible?"Скрыть токен":"Показать токен");
+};
 el("check-update").onclick=check;
 el("update-channel").onchange=configure;el("update-interval").onchange=configure;
 el("save-token").onclick=async()=>{try{const result=await api("/api/updates/token",{method:"POST",body:JSON.stringify({token:el("github-token").value})});el("github-token").value="";el("token-status").textContent=result.detail||"Токен проверен и сохранён";check()}catch(e){el("token-status").textContent=e.message}};

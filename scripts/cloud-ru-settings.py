@@ -8,11 +8,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from backend.cloud_ru_vault import (read_credentials, save_credentials,
                                    delete_credentials, public_status)
 from backend.storage import Store
+from backend.memory_controls import (set_preference, list_preferences, list_memories,
+                                     delete_record, update_memory)
 from backend.persona_growth import stats, list_replies, remove_reply, set_enabled
 from backend.persona_vocabulary import vocabulary_stats
 
 
 def run(action, data=None, *, test_call=None):
+    if action in ("memory-status", "memory-set", "memory-delete", "memory-edit"):
+        with Store() as store:
+            if action == "memory-status":
+                return {"memories": list_memories(store), "preferences": list_preferences(store)}
+            if not isinstance(data, dict):
+                raise ValueError("Missing memory data")
+            if action == "memory-set":
+                return set_preference(store, data.get("key"), data.get("text"))
+            if action == "memory-delete":
+                return delete_record(store, data.get("namespace"), data.get("id"))
+            return update_memory(store, data.get("id"), data.get("text"))
     if action == "persona-status":
         with Store() as store:
             return {**stats(store), "replies": list_replies(store, 20),
@@ -70,7 +83,7 @@ def run(action, data=None, *, test_call=None):
 
 def main():
     action = sys.argv[1] if len(sys.argv) == 2 else ""
-    data = json.load(sys.stdin) if action in ("save", "persona-config", "persona-delete") else None
+    data = json.load(sys.stdin) if action in ("save", "persona-config", "persona-delete", "memory-set", "memory-delete", "memory-edit") else None
     result = run(action, data)
     print(json.dumps(result, ensure_ascii=False))
 

@@ -63,7 +63,19 @@ if __name__ == "__main__":
     try:
         main()
     except (ValueError, RuntimeError, OSError, TypeError, KeyError) as exc:
-        # Avoid reflecting arbitrary provider exceptions containing sensitive details.
-        print(json.dumps({"error": str(exc) if isinstance(exc, ValueError)
-                          else "Cloud.ru operation failed"}, ensure_ascii=False))
+        # Provider errors are classified without echoing responses, credentials, or URLs.
+        message = str(exc)
+        if isinstance(exc, ValueError):
+            safe = message if len(message) < 160 else "Invalid configuration"
+        elif "HTTP 401" in message:
+            safe = "Cloud.ru отклонил API-ключ (401). Проверьте ключ."
+        elif "HTTP 403" in message:
+            safe = "Недостаточно разрешений Cloud.ru (403)."
+        elif "HTTP 429" in message:
+            safe = "Cloud.ru ограничил частоту запросов (429)."
+        elif "unavailable" in message.lower():
+            safe = "Cloud.ru недоступен. Проверьте сеть и модель."
+        else:
+            safe = "Операция Cloud.ru не выполнена"
+        print(json.dumps({"error": safe}, ensure_ascii=False))
         sys.exit(1)

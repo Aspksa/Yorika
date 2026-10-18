@@ -25,7 +25,8 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None)
     name = model if model is not None else os.environ.get("YORIKA_CLOUD_RU_MODEL", DEFAULT_MODEL)
     if api_key is None:
         from backend.cloud_ru_vault import read_credentials
-        stored = read_credentials()
+        # DPAPI is Windows-only. In development/CI use the environment fallback.
+        stored = read_credentials() if sys.platform == "win32" and os.environ.get("LOCALAPPDATA") else None
         if stored:
             key = stored["key"]
             if model is None:

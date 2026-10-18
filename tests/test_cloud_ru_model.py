@@ -46,6 +46,24 @@ class CloudRuTests(unittest.TestCase):
             self.assertNotIn("секрет Ёрика", data["messages"][0]["content"])
             self.assertFalse(data["stream"])
 
+    def test_environment_credential_fallback_without_dpapi(self):
+        from unittest.mock import patch
+        import os
+        with tempfile.TemporaryDirectory() as root:
+            captured = []
+            def fake(req, timeout):
+                captured.append(req)
+                return FakeResponse()
+            with patch.object(module.sys, "platform", "linux"), \
+                 patch.dict(os.environ, {
+                     "YORIKA_CLOUD_RU_API_KEY": "env-test-secret",
+                     "YORIKA_CLOUD_RU_MODEL": "ai-sage/GigaChat3-10B-A1.8B",
+                 }):
+                result = module.answer("Привет", Path(root), opener=fake)
+            self.assertEqual(result["provider"], "cloud-ru-foundation-models")
+            self.assertEqual(captured[0].get_header("Authorization"),
+                             "Bearer env-test-secret")
+
     def test_invalid_credentials_and_query_never_call_network(self):
         with tempfile.TemporaryDirectory() as root:
             def blocked(*args, **kwargs):

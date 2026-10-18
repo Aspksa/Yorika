@@ -7,6 +7,77 @@ from backend.storage import Store
 
 
 class StorageTests(unittest.TestCase):
+    def test_import_records_roundtrip_preview_and_namespace_isolation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            with Store(root / "original") as source:
+                source.put("memories", "greeting", {"text": "Привет, Ёрика"})
+                bundle = source.export_records("memories")
+            with Store(root / "destination") as target:
+                target.put("settings", "greeting", {"secret": "preserve"})
+                preview = target.import_records(bundle)
+                self.assertEqual(preview["eligible"], 1)
+                self.assertEqual(preview["applied"], 0)
+                self.assertIsNone(target.get("memories", "greeting"))
+                result = target.import_records(bundle, dry_run=False)
+                self.assertEqual(result["applied"], 1)
+                self.assertEqual(target.get("memories", "greeting"),
+                                 {"text": "Привет, Ёрика"})
+                self.assertEqual(target.export_records("memories"), bundle)
+                self.assertEqual(target.get("settings", "greeting"),
+                                 {"secret": "preserve"})
+                with self.assertRaisesRegex(ValueError, "conflicts"):
+                    target.import_records(bundle, dry_run=False)
+                skipped = target.import_records(bundle, dry_run=False,
+                                                on_conflict="skip")
+                self.assertEqual(skipped["applied"], 0)
+                self.assertEqual(skipped["conflicts"], 1)
+
+    def test_import_records_rejects_invalid_batches_without_writes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with Store(Path(temp)) as target:
+                item = {"record_id": "one", "value": {"text": "Ёрика"},
+                        "updated_at": "2026-10-19T00:00:00+00:00"}
+                good = {"format": "yorika-records-v1", "namespace": "memories",
+                        "records": [item]}
+                invalid = [
+                    {}, {**good, "format": "unknown"},
+                    {**good, "namespace": ""},
+                    {**good, "records": "bad"},
+                    {**good, "records": [item, item]},
+                    {**good, "records": [{**item, "record_id": ""}]},
+                    {**good, "records": [{**item, "value": ["wrong"]}]},
+                    {**good, "records": [{**item, "value": {"n": float("nan")}}]},
+                    {**good, "records": [{**item, "updated_at": ""}]},
+                ]
+                for bundle in invalid:
+                    with self.assertRaises((ValueError, TypeError)):
+                        target.import_records(bundle, dry_run=False)
+                with self.assertRaises(ValueError):
+                    target.import_records(good, dry_run="false")
+                with self.assertRaises(ValueError):
+                    target.import_records(good, on_conflict="overwrite")
+                self.assertEqual(target.export_records("memories")["records"], [])
+
+    def test_import_records_skips_existing_ids_without_overwriting(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with Store(Path(temp)) as target:
+                target.put("memories", "same", {"text": "keep"})
+                bundle = {
+                    "format": "yorika-records-v1", "namespace": "memories",
+                    "records": [
+                        {"record_id": "same", "value": {"text": "replace"},
+                         "updated_at": "2026-10-19"},
+                        {"record_id": "new", "value": {"text": "add"},
+                         "updated_at": "2026-10-19"},
+                    ],
+                }
+                result = target.import_records(bundle, dry_run=False, on_conflict="skip")
+                self.assertEqual(result["conflicts"], 1)
+                self.assertEqual(result["applied"], 1)
+                self.assertEqual(target.get("memories", "same"), {"text": "keep"})
+                self.assertEqual(target.get("memories", "new"), {"text": "add"})
+
     def test_unicode_persistence_and_upsert(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

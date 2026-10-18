@@ -150,9 +150,9 @@ try{
        try{
         if($action -eq 'save'){$proc.StandardInput.Write($body)}
         $proc.StandardInput.Close()
+        if(-not $proc.WaitForExit(28000)){try{$proc.Kill()}catch{};throw 'Истекло время ожидания'}
         $output=$proc.StandardOutput.ReadToEnd()
         $null=$proc.StandardError.ReadToEnd()
-        if(-not $proc.WaitForExit(28000)){try{$proc.Kill()}catch{};throw 'Истекло время ожидания'}
         if($proc.ExitCode -ne 0){
          $status='400 Bad Request'
          $remote=$null
@@ -199,9 +199,9 @@ try{
        $proc=[Diagnostics.Process]::Start($psi)
        try{
         $proc.StandardInput.Write($question);$proc.StandardInput.Close()
+        if(-not $proc.WaitForExit(25000)){try{$proc.Kill()}catch{};throw 'Истекло время ответа модели'}
         $output=$proc.StandardOutput.ReadToEnd()
         $null=$proc.StandardError.ReadToEnd()
-        if(-not $proc.WaitForExit(25000)){try{$proc.Kill()}catch{};throw 'Истекло время ответа модели'}
         if($proc.ExitCode -ne 0){$status='503 Service Unavailable';throw 'Cloud.ru недоступен или ключ не настроен'}
         $bytes=[Text.Encoding]::UTF8.GetBytes($output.Trim())
        }finally{$proc.Dispose()}

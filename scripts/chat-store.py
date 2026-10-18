@@ -33,7 +33,7 @@ def valid_history(obj):
 
 
 # Only explicit user instructions are captured. Never mine arbitrary private chat.
-REMEMBER_PATTERN = re.compile(r"^\\s*(?:запомни\\s*[:：,]?|remember\\s*[:：,]?)\\s*(.+?)\\s*$", re.I | re.S)
+REMEMBER_PATTERN = re.compile(r"^\s*(?:запомни\s*[:：,]?|remember\s*[:：,]?)\s*(.+?)\s*$", re.I | re.S)
 
 def capture_explicit_memories(db, old_history, new_history):
     """Add source-linked memories from new explicit user requests only."""

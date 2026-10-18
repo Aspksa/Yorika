@@ -234,7 +234,7 @@ cloudStatus().catch(error=>{el("cloud-ru-status").textContent="Настройк�
 async function refreshPersonaGrowth(){
  const report=await api("/api/cloud-ru/persona-status");
  el("persona-growth-enabled").checked=report.enabled;
- el("persona-growth-status").textContent="Сохранено новых реплик: "+report.count;
+ el("persona-growth-status").textContent="Сохранено новых реплик: "+report.count+"; различных слов: "+(report.vocabulary?.unique_words??0);
  const list=el("persona-growth-replies");
  list.replaceChildren(...report.replies.map(item=>{
   const li=document.createElement("li");

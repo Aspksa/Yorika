@@ -111,21 +111,25 @@ def _ensure_index(db):
     db.execute("CREATE TABLE IF NOT EXISTS persona_growth_indexed ("
                "reply_id TEXT PRIMARY KEY)")
     # Incremental backfill makes upgrades safe for existing installations.
-    rows = db.execute(
-        "SELECT record_id,payload FROM records WHERE namespace=? AND record_id NOT IN "
-        "(SELECT reply_id FROM persona_growth_indexed)", (NAMESPACE,)
-    ).fetchall()
-    for reply_id, raw in rows:
-        try:
-            entry = json.loads(raw)
-            category = entry["category_id"]
-            words = _words(entry["text"])
-        except (ValueError, TypeError, KeyError, AttributeError):
-            words, category = set(), ""
-        for word in words:
-            db.execute("INSERT OR IGNORE INTO persona_growth_words VALUES(?,?,?)",
-                       (word, category, reply_id))
-        db.execute("INSERT OR IGNORE INTO persona_growth_indexed VALUES(?)", (reply_id,))
+    # Fully backfill before deduplication, but never materialize all records in RAM.
+    while True:
+        rows = db.execute(
+            "SELECT record_id,payload FROM records WHERE namespace=? AND record_id NOT IN "
+            "(SELECT reply_id FROM persona_growth_indexed) LIMIT 128", (NAMESPACE,)
+        ).fetchall()
+        if not rows:
+            break
+        for reply_id, raw in rows:
+            try:
+                entry = json.loads(raw)
+                category = entry["category_id"]
+                words = _words(entry["text"])
+            except (ValueError, TypeError, KeyError, AttributeError):
+                words, category = set(), ""
+            for word in words:
+                db.execute("INSERT OR IGNORE INTO persona_growth_words VALUES(?,?,?)",
+                           (word, category, reply_id))
+            db.execute("INSERT OR IGNORE INTO persona_growth_indexed VALUES(?)", (reply_id,))
 
 
 def learn_reply(store, query, response):

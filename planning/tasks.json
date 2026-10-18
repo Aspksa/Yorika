@@ -736,6 +736,22 @@
       "evidence": [],
       "completed_at": null,
       "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+    },
+    {
+      "id": "DATA-004",
+      "title": "Verified, non-destructive SQLite online snapshot CLI",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [
+        "BASE-003"
+      ],
+      "evidence": [
+        "scripts/sqlite_backup.py",
+        "tests/test_sqlite_backup.py",
+        "Local Python unittest: 3/3 passed on 2026-10-18; tests cover WAL snapshot, UTF-8 restore, existing-file protection and corruption rejection"
+      ],
+      "completed_at": "2026-10-18T13:02:47.904Z",
+      "notes": "Narrow standalone utility only. Does not complete DATA-003 (automatic backups, restore workflow, encryption and Windows validation)."
     }
   ]
 }

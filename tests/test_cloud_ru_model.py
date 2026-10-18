@@ -64,6 +64,19 @@ class CloudRuTests(unittest.TestCase):
             self.assertEqual(captured[0].get_header("Authorization"),
                              "Bearer env-test-secret")
 
+    def test_deleted_windows_dpapi_key_cannot_fall_back_to_environment(self):
+        from unittest.mock import patch
+        import os
+        with tempfile.TemporaryDirectory() as root:
+            with patch.object(module.sys, "platform", "win32"), \
+                 patch.dict(os.environ, {"LOCALAPPDATA": root,
+                                         "YORIKA_CLOUD_RU_API_KEY": "stale-key"}), \
+                 patch("backend.cloud_ru_vault.read_credentials", return_value=None):
+                with self.assertRaisesRegex(RuntimeError, "not configured"):
+                    module.answer("Привет", Path(root), model="ai-sage/test",
+                                  include_memory=False,
+                                  opener=lambda *a, **kw: self.fail("Unexpected network request"))
+
     def test_connection_check_does_not_read_or_send_memories(self):
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as folder:

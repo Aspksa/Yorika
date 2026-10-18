@@ -32,7 +32,8 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
             if model is None:
                 name = stored["model"]
         else:
-            key = os.environ.get("YORIKA_CLOUD_RU_API_KEY", "")
+            # A deleted DPAPI key must not silently revive an older environment key.
+            key = os.environ.get("YORIKA_CLOUD_RU_API_KEY", "") if sys.platform != "win32" else ""
     else:
         key = api_key
     if not isinstance(name, str) or not name or len(name) > 150 or any(

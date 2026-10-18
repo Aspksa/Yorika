@@ -185,7 +185,8 @@ try{
         $received+=[Text.Encoding]::UTF8.GetByteCount($chunk)
        }
        if($received -ne $len){throw 'Неверная длина'}
-       $request=$builder.ToString()|ConvertFrom-Json
+       $body=$builder.ToString()
+       $request=$body|ConvertFrom-Json
        $question=[string]$request.query
        if([string]::IsNullOrWhiteSpace($question) -or $question.Length -gt 4000){throw 'Неверный запрос'}
        $python=Get-Command python.exe -ErrorAction SilentlyContinue
@@ -200,7 +201,7 @@ try{
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
        $proc=[Diagnostics.Process]::Start($psi)
        try{
-        $proc.StandardInput.Write($question);$proc.StandardInput.Close()
+        $proc.StandardInput.Write($body);$proc.StandardInput.Close()
         $stdoutTask=$proc.StandardOutput.ReadToEndAsync()
         $stderrTask=$proc.StandardError.ReadToEndAsync()
         if(-not $proc.WaitForExit(25000)){try{$proc.Kill()}catch{};throw 'Истекло время ответа модели'}

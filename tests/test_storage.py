@@ -253,6 +253,29 @@ class StorageTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     db.search_records("memories", "   ")
 
+    def test_fts_recall_ranks_text_without_leaking_namespaces(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with Store(Path(folder)) as db:
+                try:
+                    db.connection.execute("CREATE VIRTUAL TABLE temp.fts_probe USING fts5(body)")
+                except sqlite3.OperationalError:
+                    self.skipTest("This SQLite build has no FTS5")
+                db.put("memories", "one", {"text": ["Ёрика помнит разговор", "важный разговор"]})
+                db.put("memories", "two", {"text": "Ёрика привет"})
+                db.put("memories", "key-only", {"разговор": 5})
+                db.put("private", "hidden", {"text": "Ёрика разговор"})
+                matches = db.search_records_fts("memories", "Ёрика разговор")
+                self.assertEqual([m["record_id"] for m in matches], ["one"])
+                self.assertEqual(matches[0]["value"]["text"][0], "Ёрика помнит разговор")
+                self.assertIn("rank", matches[0])
+                self.assertEqual(db.search_records_fts("memories", "несуществующее"), [])
+                self.assertEqual(db.search_records_fts("memories", '" OR *'), [])
+                for invalid in ("", "   "):
+                    with self.assertRaises(ValueError):
+                        db.search_records_fts("memories", invalid)
+                with self.assertRaises(ValueError):
+                    db.search_records_fts("memories", "Ёрика", limit=0)
+
     def test_search_ignores_json_keys_but_finds_nested_text_values(self):
         with tempfile.TemporaryDirectory() as folder:
             with Store(Path(folder)) as db:

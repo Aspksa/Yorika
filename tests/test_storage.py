@@ -121,6 +121,27 @@ class StorageTests(unittest.TestCase):
                     db.import_records(bundle, dry_run=False)
                 self.assertEqual(db.export_records("memories")["records"], [])
 
+    def test_conservative_conflict_review_never_resolves_automatically(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with Store(Path(temp)) as db:
+                db.put("memories", "a", {"subject": "plan", "claim": "готов",
+                                         "source": "user"})
+                db.put("memories", "b", {"subject": "plan", "claim": "не готов",
+                                         "source": "user"})
+                db.put("memories", "c", {"subject": "plan", "claim": "готов завтра",
+                                         "source": "user"})
+                review = db.review_memory_claims("plan")
+                self.assertEqual(review["status"], "review_required")
+                classifications = {p["classification"] for p in review["pairs"]}
+                self.assertEqual(classifications, {"explicit_negation", "different_claims"})
+                self.assertTrue(all(p["resolution"] == "manual_review"
+                                    for p in review["pairs"]))
+                self.assertEqual(len(db.list_records("memories")), 3)
+                self.assertEqual(db.review_memory_claims("other")["status"],
+                                 "no_disagreement")
+                with self.assertRaises(ValueError):
+                    db.review_memory_claims("plan", limit=1)
+
     def test_conflicting_explicit_claims_need_review(self):
         with tempfile.TemporaryDirectory() as root:
             with Store(Path(root)) as db:

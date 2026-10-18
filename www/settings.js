@@ -184,3 +184,39 @@ el("clear-data").onclick=async()=>{
  try{db=await Database.open();await showStores()}
  catch(e){const li=document.createElement("li");li.className="store-empty";li.textContent="Хранилище недоступно: "+e.message;el("store-list").replaceChildren(li)}
 })();
+
+async function cloudStatus(){
+ const result=await api("/api/cloud-ru/status");
+ el("cloud-ru-model").value=result.model;
+ el("cloud-ru-status").textContent=result.configured?"Ключ зашифрован и сохранён на этом компьютере.":"Ключ пока не сохранён.";
+}
+el("cloud-ru-form").onsubmit=async event=>{
+ event.preventDefault();
+ const key=el("cloud-ru-key").value,model=el("cloud-ru-model").value.trim();
+ const button=el("cloud-ru-save");button.disabled=true;
+ try{
+  await api("/api/cloud-ru/save",{method:"POST",body:JSON.stringify({key:key||null,model})});
+  el("cloud-ru-key").value="";
+  await cloudStatus();
+ }catch(error){el("cloud-ru-status").textContent="Не удалось сохранить настройки: "+error.message}
+ finally{button.disabled=false}
+};
+el("cloud-ru-check").onclick=async()=>{
+ if(!confirm("Отправить короткий проверочный запрос в Cloud.ru? Запрос может тарифицироваться."))return;
+ const button=el("cloud-ru-check");button.disabled=true;
+ el("cloud-ru-status").textContent="Проверка Cloud.ru…";
+ try{
+  const result=await api("/api/cloud-ru/check",{method:"POST",body:"{}"});
+  el("cloud-ru-status").textContent=result.connected?"Подключение работает. Модель: "+result.model:"Cloud.ru не подтвердил ответ.";
+ }catch(error){el("cloud-ru-status").textContent="Проверка не пройдена: "+error.message}
+ finally{button.disabled=false}
+};
+el("cloud-ru-delete").onclick=async()=>{
+ if(!confirm("Удалить сохранённый ключ Cloud.ru с этого компьютера? На стороне Cloud.ru ключ останется действующим."))return;
+ try{
+  await api("/api/cloud-ru/delete",{method:"POST",body:"{}"});
+  el("cloud-ru-key").value="";
+  await cloudStatus();
+ }catch(error){el("cloud-ru-status").textContent="Ошибка удаления: "+error.message}
+};
+cloudStatus().catch(error=>{el("cloud-ru-status").textContent="Настройки Cloud.ru недоступны: "+error.message});

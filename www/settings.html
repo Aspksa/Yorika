@@ -54,6 +54,23 @@
   </section>
  </div>
 
+ <section class="panel appearance-panel" aria-labelledby="cloud-ru-title">
+  <header class="panel-head"><span class="panel-index">03</span><h2 id="cloud-ru-title">Cloud.ru — ИИ</h2></header>
+  <p class="support-text">API-ключ шифруется Windows DPAPI для текущего пользователя. В браузере ключ не хранится и повторно не показывается. Отправка сообщений и выбранных воспоминаний в Cloud.ru может тарифицироваться.</p>
+  <form id="cloud-ru-form" autocomplete="off">
+   <label class="token-label" for="cloud-ru-key">Ключ Cloud.ru Foundation Models</label>
+   <div class="token-field"><input id="cloud-ru-key" type="password" autocomplete="new-password" placeholder="Оставьте пустым, чтобы сохранить действующий ключ" maxlength="8192"></div>
+   <label class="token-label" for="cloud-ru-model">ID модели</label>
+   <div class="token-field"><input id="cloud-ru-model" type="text" maxlength="150" value="ai-sage/GigaChat3-10B-A1.8B" required></div>
+   <p id="cloud-ru-status" class="setting-note" role="status" aria-live="polite">Проверка сохранённых настроек…</p>
+   <div class="button-row">
+    <button id="cloud-ru-save" class="secondary" type="submit">Сохранить ключ и модель</button>
+    <button id="cloud-ru-check" class="ghost" type="button">Проверить подключение</button>
+    <button id="cloud-ru-delete" class="ghost danger" type="button">Удалить ключ</button>
+   </div>
+  </form>
+ </section>
+
  <section class="panel appearance-panel" aria-labelledby="look-title">
   <header class="panel-head"><span class="panel-index">03</span><h2 id="look-title">Внешний вид</h2></header>
   <p class="support-text">Тема, цвет, скругления и размер интерфейса. Меняются сразу, хранятся в этом браузере.</p>

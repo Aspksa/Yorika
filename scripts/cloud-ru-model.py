@@ -23,7 +23,17 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None)
     if not isinstance(query, str) or not query.strip() or len(query) > MAX_QUERY:
         raise ValueError("Invalid query")
     name = model if model is not None else os.environ.get("YORIKA_CLOUD_RU_MODEL", DEFAULT_MODEL)
-    key = api_key if api_key is not None else os.environ.get("YORIKA_CLOUD_RU_API_KEY", "")
+    if api_key is None:
+        from backend.cloud_ru_vault import read_credentials
+        stored = read_credentials()
+        if stored:
+            key = stored["key"]
+            if model is None:
+                name = stored["model"]
+        else:
+            key = os.environ.get("YORIKA_CLOUD_RU_API_KEY", "")
+    else:
+        key = api_key
     if not isinstance(name, str) or not name or len(name) > 150 or any(
         c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_./:-" for c in name
     ):

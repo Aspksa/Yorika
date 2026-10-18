@@ -15,8 +15,8 @@ function Log([string]$message) {
 }
 $mutex = [System.Threading.Mutex]::new($false, 'Local\Yorika-Tray-Launcher')
 if (-not $mutex.WaitOne(0)) {
-  Log 'Yorika is already running.'
-  Write-Host '[YORIKA] Another Yorika instance is already running.'
+  Log 'Yorika is already running. The existing instance may be in another folder.'
+  Write-Host '[YORIKA] Yorika is already running.'
   exit 0
 }
 $listener = $null

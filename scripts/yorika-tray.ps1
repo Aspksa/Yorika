@@ -61,7 +61,58 @@ try{
       if($line -match '^Host:\s*(.+)\z'){$requestHost=$Matches[1].Trim()}
      }while($null -ne $line -and $line.Length -gt 0)
      $status='200 OK';$mime='application/json; charset=utf-8';$bytes=[byte[]]@()
-     if($path -match '^/api/updates/(settings|token|check|stage|apply)\z'){
+     if($path -eq '/api/chat/history'){
+      $mime='application/json; charset=utf-8'
+      try{
+       if($requestHost -ne "127.0.0.1:$port"){throw 'Неверный адрес'}
+       if($method -notin @('GET','POST')){throw 'Неверный метод'}
+       if($method -eq 'POST' -and $origin -ne "http://127.0.0.1:$port"){throw 'Доступ запрещён'}
+       if($len -gt 262144 -or $len -lt 0){throw 'Слишком большой запрос'}
+       if($method -eq 'POST' -and $len -le 0){throw 'Пустой запрос'}
+       $python=Get-Command python.exe -ErrorAction SilentlyContinue
+       if(-not $python){$status='503 Service Unavailable';throw 'Python не установлен'}
+       $action=if($method -eq 'GET'){'get'}else{'put'}
+       $body=''
+       if($method -eq 'POST'){
+        $builder=New-Object Text.StringBuilder
+        $received=0
+        while($received -lt $len){
+         $chars=New-Object char[] ([Math]::Min(4096,$len-$received))
+         $n=$reader.Read($chars,0,$chars.Length)
+         if($n -le 0){throw 'Неполное тело'}
+         $chunk=[string]::new($chars,0,$n)
+         [void]$builder.Append($chunk)
+         $received+=[Text.Encoding]::UTF8.GetByteCount($chunk)
+        }
+        if($received -ne $len){throw 'Неверная длина'}
+        $body=$builder.ToString()
+       }
+       $psi=New-Object Diagnostics.ProcessStartInfo
+       $psi.FileName=$python.Source
+       $psi.Arguments=('"' + (Join-Path $root 'scripts\chat-store.py') + '" ' + $action)
+       $psi.UseShellExecute=$false
+       $psi.CreateNoWindow=$true
+       $psi.RedirectStandardInput=$true
+       $psi.RedirectStandardOutput=$true
+       $psi.RedirectStandardError=$true
+       $psi.StandardInputEncoding=[Text.Encoding]::UTF8
+       $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
+       $proc=[Diagnostics.Process]::Start($psi)
+       try{
+        if($method -eq 'POST'){$proc.StandardInput.Write($body)}
+        $proc.StandardInput.Close()
+        $output=$proc.StandardOutput.ReadToEnd()
+        $errorOutput=$proc.StandardError.ReadToEnd()
+        if(-not $proc.WaitForExit(5000)){try{$proc.Kill()}catch{};throw 'Истекло время ожидания памяти'}
+        if($proc.ExitCode -ne 0){throw 'Ошибка хранилища'}
+        $bytes=[Text.Encoding]::UTF8.GetBytes($output.Trim())
+       }finally{$proc.Dispose()}
+      }catch{
+       if($status -eq '200 OK'){$status='400 Bad Request'}
+       $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
+       Log ('Chat memory: '+$_.Exception.Message)
+      }
+     }elseif($path -match '^/api/updates/(settings|token|check|stage|apply)\z'){
       $action=$Matches[1]
       try {
        if($requestHost -ne "127.0.0.1:$port" -or $len -gt 2048 -or $len -lt 0){throw 'Запрос отклонён'}

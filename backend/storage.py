@@ -156,6 +156,17 @@ class Store:
             "AND r.namespace='memories' WHERE memory_fts MATCH ? "
             "ORDER BY bm25(memory_fts), r.record_id LIMIT ?", (expression, limit)
         ).fetchall()
+        # Strict AND can miss useful memories when the question has extra words.
+        # Fall back to OR only when there are no exact conjunctive matches.
+        if not rows and len(words) > 1:
+            relaxed = " OR ".join('"' + word + '"' for word in words)
+            rows = self.connection.execute(
+                "SELECT r.record_id,r.payload,r.updated_at,bm25(memory_fts) "
+                "FROM memory_fts JOIN records AS r ON r.record_id=memory_fts.record_id "
+                "AND r.namespace='memories' WHERE memory_fts MATCH ? "
+                "ORDER BY bm25(memory_fts), r.record_id LIMIT ?",
+                (relaxed, limit),
+            ).fetchall()
         return [{"record_id": rid, "value": json.loads(payload),
                  "updated_at": timestamp, "rank": rank}
                 for rid, payload, timestamp, rank in rows]

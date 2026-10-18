@@ -298,9 +298,12 @@ class Store:
                 raise ValueError("Memory timestamp must include timezone")
             try:
                 encoded = json.dumps(value, ensure_ascii=False, allow_nan=False)
-            except (TypeError, ValueError, RecursionError) as error:
+            except (TypeError, ValueError, UnicodeError, RecursionError) as error:
                 raise ValueError("Memory value must contain finite JSON data") from error
-            byte_size = len(encoded.encode("utf-8"))
+            try:
+                byte_size = len(encoded.encode("utf-8"))
+            except UnicodeError as error:
+                raise ValueError("Memory value contains invalid Unicode") from error
             if byte_size > 1024 * 1024:
                 raise ValueError("Memory record exceeds 1 MiB")
             total_bytes += byte_size

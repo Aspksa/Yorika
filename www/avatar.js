@@ -23,23 +23,26 @@
  function time(ts){try{return new Date(ts).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}catch(e){return""}}
 
  function build(){
-  var history=load(),serverReady=false,serverBusy=false;
+  var history=load(),serverReady=false,serverBusy=false,dirty=false,needsSync=false;
   async function syncHistory(){
-   if(serverBusy||!serverReady)return;
+   if(!serverReady)return;
+   if(serverBusy){needsSync=true;return;}
    serverBusy=true;
    try{
     var response=await fetch("/api/chat/history",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(history)});
     if(!response.ok)throw Error("SQLite unavailable");
     api.label("Память SQLite");
    }catch(e){serverReady=false;api.label("Память браузера");}
-   finally{serverBusy=false;}
+   finally{serverBusy=false;if(needsSync){needsSync=false;syncHistory();}}
   }
   async function initHistory(){
    try{
     var response=await fetch("/api/chat/history",{cache:"no-store"});
     if(!response.ok)throw Error("SQLite unavailable");
     var value=await response.json();
-    if(value.history===null){
+    if(dirty){
+      serverReady=true;syncHistory();
+    }else if(value.history===null){
       var imported=await fetch("/api/chat/history",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(history)});
       if(!imported.ok)throw Error("Unable to migrate current origin");
     }else if(Array.isArray(value.history)){
@@ -170,7 +173,7 @@
   });
   window.addEventListener("resize",applyPos);
   close.addEventListener("click",function(){setOpen(false)});
-  clear.addEventListener("click",function(){history=[];store(history);render();syncHistory();input.focus()});
+  clear.addEventListener("click",function(){dirty=true;history=[];store(history);render();syncHistory();input.focus()});
   form.addEventListener("submit",function(e){e.preventDefault();submit()});
   input.addEventListener("input",grow);
   input.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();submit()}});

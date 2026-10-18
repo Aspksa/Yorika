@@ -35,6 +35,10 @@ Planned but not yet implemented: automatic process recovery, backups, updates/ro
 
 ## 60-scenario verification
 
-Run `Yorika-Verify.bat` to display a 60-row report. Its results distinguish **PASS**, **FAIL**, and **MANUAL**. Structural PASS results do not mean the scenario has been reproduced and passed on Windows. Manual entries need actual Windows, USB, OneDrive, browser and fault-injection testing. See `docs/FAILURE-MATRIX-60.md`.
+For development, the 60-scenario checks remain in `scripts/verify-60.ps1`. The extra `Yorika-Verify.bat` and `Yorika-Debug.bat` have been removed from the project.
 
 **Current limitations:** This update is not a guarantee of fault-free operation. In particular, the browser IndexedDB is per port and is not durable memory across random-port launches; backing up and restoring data is future work.
+
+## Русский интерфейс трея
+
+Меню значка возле часов: «Открыть Yorika», «Локальный адрес», «Скопировать адрес сайта», «Состояние системы», «Открыть журнал ошибок», «Выйти из Yorika». Основной запуск остаётся через `Yorika.bat`. Вспомогательные BAT диагностики удалены; журнал `.yorika/yorika.log` сохранён. Для проверки перевода перезапустите Yorika через пункт «Выйти из Yorika» и откройте обновлённую версию.

@@ -81,6 +81,21 @@
   <ul id="persona-growth-replies" aria-label="Недавние накопленные реплики"></ul>
  </section>
 
+ <section class="panel appearance-panel" aria-labelledby="memory-controls-title">
+  <header class="panel-head"><h2 id="memory-controls-title">Моя память и предпочтения</h2></header>
+  <p class="support-text">Предпочтения сохраняются только по вашему явному действию. Воспоминания можно исправить или удалить.</p>
+  <label for="memory-preference-key">Название предпочтения (латиница, без пробелов)</label>
+  <input id="memory-preference-key" maxlength="64" placeholder="communication_style">
+  <label for="memory-preference-text">Значение</label>
+  <input id="memory-preference-text" maxlength="500" placeholder="Отвечай кратко">
+  <div class="button-row">
+   <button id="memory-preference-save" class="secondary" type="button">Сохранить предпочтение</button>
+   <button id="memory-controls-refresh" class="ghost" type="button">Обновить память</button>
+  </div>
+  <p id="memory-controls-status" role="status" aria-live="polite"></p>
+  <h3>Предпочтения</h3><ul id="memory-preferences-list"></ul>
+  <h3>Воспоминания</h3><ul id="memory-items-list"></ul>
+ </section>
  <section class="panel appearance-panel" aria-labelledby="look-title">
   <header class="panel-head"><span class="panel-index">03</span><h2 id="look-title">Внешний вид</h2></header>
   <p class="support-text">Тема, цвет, скругления и размер интерфейса. Меняются сразу, хранятся в этом браузере.</p>

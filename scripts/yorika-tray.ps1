@@ -112,11 +112,11 @@ try{
        $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
        Log ('Chat memory: '+$_.Exception.Message)
       }
-     }elseif($path -match '^/api/cloud-ru/(status|save|check|delete|diagnostics|persona-status|persona-config|persona-delete)\z'){
+     }elseif($path -match '^/api/cloud-ru/(status|save|check|delete|diagnostics|persona-status|persona-config|persona-delete|memory-status|memory-set|memory-delete|memory-edit)\z'){
       $action=$Matches[1]
       try{
        if($requestHost -ne "127.0.0.1:$port"){throw 'Недопустимый Host'}
-       if($action -in @('status','diagnostics','persona-status')){
+       if($action -in @('status','diagnostics','persona-status','memory-status')){
         if($method -ne 'GET'){throw 'Недопустимый метод'}
        }elseif($method -ne 'POST' -or $origin -ne "http://127.0.0.1:$port"){
         throw 'Доступ запрещён'
@@ -136,7 +136,7 @@ try{
         if($received -ne $len){throw 'Неверная длина'}
         $body=$builder.ToString()
        }
-       if($action -in @('save','persona-config','persona-delete') -and -not $body){throw 'Настройки не переданы'}
+       if($action -in @('save','persona-config','persona-delete','memory-set','memory-delete','memory-edit') -and -not $body){throw 'Настройки не переданы'}
        $python=Get-Command python.exe -ErrorAction SilentlyContinue
        if(-not $python){$status='503 Service Unavailable';throw 'Python недоступен'}
        $psi=New-Object Diagnostics.ProcessStartInfo

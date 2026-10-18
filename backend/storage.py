@@ -90,6 +90,76 @@ class Store:
                 if any(actual.get(name) != spec for name, spec in columns.items()):
                     raise RuntimeError("Yorika database schema mismatch: " + table)
 
+    def ensure_memory_index(self) -> bool:
+        """Install a durable FTS5 index for explicit text memories (optional SQLite feature)."""
+        if self.connection.in_transaction:
+            raise RuntimeError("Finish current transaction before creating memory index")
+        present = self.connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='memory_fts'"
+        ).fetchone() is not None
+        try:
+            with self.connection:
+                self.connection.execute(
+                    "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING "
+                    "fts5(record_id UNINDEXED, body, tokenize='unicode61')"
+                )
+                if not present:
+                    self.connection.execute(
+                        "INSERT INTO memory_fts(record_id,body) "
+                        "SELECT record_id,json_extract(payload,'$.text') FROM records "
+                        "WHERE namespace='memories' AND json_type(payload,'$.text')='text'"
+                    )
+                self.connection.execute(
+                    "CREATE TRIGGER IF NOT EXISTS memory_fts_insert AFTER INSERT ON records "
+                    "WHEN NEW.namespace='memories' BEGIN "
+                    "INSERT INTO memory_fts(record_id,body) "
+                    "SELECT NEW.record_id,json_extract(NEW.payload,'$.text') "
+                    "WHERE json_type(NEW.payload,'$.text')='text'; END"
+                )
+                self.connection.execute(
+                    "CREATE TRIGGER IF NOT EXISTS memory_fts_update AFTER UPDATE ON records "
+                    "WHEN OLD.namespace='memories' OR NEW.namespace='memories' BEGIN "
+                    "DELETE FROM memory_fts WHERE record_id=OLD.record_id; "
+                    "INSERT INTO memory_fts(record_id,body) "
+                    "SELECT NEW.record_id,json_extract(NEW.payload,'$.text') "
+                    "WHERE NEW.namespace='memories' AND json_type(NEW.payload,'$.text')='text'; END"
+                )
+                self.connection.execute(
+                    "CREATE TRIGGER IF NOT EXISTS memory_fts_delete AFTER DELETE ON records "
+                    "WHEN OLD.namespace='memories' BEGIN "
+                    "DELETE FROM memory_fts WHERE record_id=OLD.record_id; END"
+                )
+        except sqlite3.OperationalError as exc:
+            if "no such module: fts5" in str(exc).lower():
+                return False
+            raise
+        return True
+
+    def search_memory_index(self, query: str, limit: int = 20) -> list[dict]:
+        """Search indexed explicit memories; other namespace records never enter the index."""
+        import re
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError("query must be non-empty")
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("limit must be 1..100")
+        words = re.findall(r"[^\\W_]+", query.casefold(), flags=re.UNICODE)
+        if not words:
+            return []
+        if len(words) > 20 or any(len(word) > 100 for word in words):
+            raise ValueError("FTS query too large")
+        if not self.ensure_memory_index():
+            raise RuntimeError("SQLite build lacks FTS5 support")
+        expression = " AND ".join('"' + word + '"' for word in words)
+        rows = self.connection.execute(
+            "SELECT r.record_id,r.payload,r.updated_at,bm25(memory_fts) "
+            "FROM memory_fts JOIN records AS r ON r.record_id=memory_fts.record_id "
+            "AND r.namespace='memories' WHERE memory_fts MATCH ? "
+            "ORDER BY bm25(memory_fts), r.record_id LIMIT ?", (expression, limit)
+        ).fetchall()
+        return [{"record_id": rid, "value": json.loads(payload),
+                 "updated_at": timestamp, "rank": rank}
+                for rid, payload, timestamp, rank in rows]
+
     def put(self, namespace: str, record_id: str, value: dict) -> None:
         if not namespace or not record_id or not isinstance(value, dict):
             raise ValueError("namespace/record_id must be non-empty and value must be an object")

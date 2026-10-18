@@ -292,6 +292,27 @@ class StorageTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     db.search_records("memories", "   ")
 
+    def test_persistent_fts_tracks_updates_deletes_and_reopen(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)
+            with Store(path) as db:
+                try:
+                    enabled = db.ensure_memory_index()
+                except sqlite3.OperationalError:
+                    self.skipTest("FTS5 or JSON1 unavailable")
+                if not enabled:
+                    self.skipTest("FTS5 unavailable")
+                db.remember("one", "Ёрика помнит синее небо", "user")
+                db.put("private", "secret", {"text": "Ёрика помнит секрет"})
+                self.assertEqual([x["record_id"] for x in db.search_memory_index("синее")], ["one"])
+                db.put("memories", "one", {"text": "зелёная трава"})
+                self.assertEqual(db.search_memory_index("синее"), [])
+                self.assertEqual([x["record_id"] for x in db.search_memory_index("зелёная")], ["one"])
+            with Store(path) as db:
+                self.assertEqual([x["record_id"] for x in db.search_memory_index("трава")], ["one"])
+                self.assertTrue(db.delete_record("memories", "one"))
+                self.assertEqual(db.search_memory_index("трава"), [])
+
     def test_fts_query_tokenizer_handles_cyrillic_and_punctuation(self):
         with tempfile.TemporaryDirectory() as temp:
             with Store(Path(temp)) as db:

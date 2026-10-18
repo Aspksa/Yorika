@@ -93,6 +93,8 @@ class Store:
         """Create a consistent SQLite snapshot (including WAL contents)."""
         # Use the verified exclusive snapshot utility; never overwrite a user backup.
         from scripts.sqlite_backup import create_verified_backup
+        if self.connection.in_transaction:
+            raise RuntimeError("Commit or rollback the current transaction before backup")
         report = create_verified_backup(self.path, destination)
         return Path(report["path"])
 

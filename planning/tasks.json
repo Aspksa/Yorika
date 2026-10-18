@@ -429,12 +429,20 @@
     {
       "id": "DOC-001",
       "title": "Review architecture, roadmap and AGENTS for handoff",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "depends_on": [],
-      "evidence": [],
-      "completed_at": null,
-      "notes": ""
+      "evidence": [
+        "docs/STATUS_AUDIT.md",
+        "docs/ARCHITECTURE.md",
+        "README.md",
+        "AGENTS.md",
+        "docs/ROADMAP.md",
+        "planning/tasks.json",
+        "scripts/check-plan.py (structural validation of registry)"
+      ],
+      "completed_at": "2026-10-18T00:00:00Z",
+      "notes": "Documentation-only acceptance: reviewed current repo code against baseline and target; corrected obsolete claims and wrote evidence/risk inventory. Completion does NOT certify Windows runtime or neural AI functionality. Review verified on 2026-10-18; exact hour unknown."
     },
     {
       "id": "VISION-001",

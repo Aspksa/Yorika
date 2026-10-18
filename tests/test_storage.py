@@ -35,6 +35,24 @@ class StorageTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     db.list_records("")
 
+    def test_search_records_cyrillic_casefold_and_namespace_isolation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with Store(Path(folder)) as db:
+                db.put("memories", "one", {"text": "Ёрика помнит наш разговор"})
+                db.put("memories", "two", {"text": "Совсем другая тема"})
+                db.put("private", "hidden", {"text": "ЁРИКА секрет"})
+                found = db.search_records("memories", "ёРИКА")
+                self.assertEqual([row["record_id"] for row in found], ["one"])
+                self.assertEqual(db.search_records("memories", "нет совпадений"), [])
+                self.assertEqual(db.search_records("memories", "разговор", 1)[0]["record_id"], "one")
+                for bad in (0, 101, True, "2"):
+                    with self.assertRaises(ValueError):
+                        db.search_records("memories", "Ёрика", bad)
+                with self.assertRaises(ValueError):
+                    db.search_records("", "Ёрика")
+                with self.assertRaises(ValueError):
+                    db.search_records("memories", "   ")
+
     def test_events_backup_and_restore(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

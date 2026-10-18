@@ -11,7 +11,7 @@ function IsLive([string]$address) {
     $request = [Net.WebRequest]::Create($address)
     $request.Timeout = 1500
     $response = $request.GetResponse()
-    try { return ([int]$response.StatusCode -eq 200) }
+    try { return (([int]$response.StatusCode -eq 200) -and ($response.Headers['X-Yorika-App'] -eq 'Yorika')) }
     finally { $response.Close() }
   } catch { return $false }
 }

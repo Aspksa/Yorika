@@ -30,7 +30,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Cloud.ru DPAPI Windows tests
-        run: python -m unittest tests.test_windows_dpapi tests.test_cloud_ru_vault tests.test_cloud_settings_regression -v
+        run: python -m unittest discover -s tests -p 'test_*cloud*.py' -v
+      - name: DPAPI restart acceptance
+        run: python -m unittest discover -s tests -p 'test_windows_dpapi.py' -v
       - name: Cloud.ru settings and response syntax
         run: python -m compileall -q backend scripts tests
       - name: Validate updater settings response

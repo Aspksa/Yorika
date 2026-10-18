@@ -19,7 +19,19 @@ function Request($uri,[switch]$Binary){
  $t=Get-Token
  if($t){$headers.Authorization="Bearer $t"}
  if($Binary){return $headers}
- return Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 25 -MaximumRedirection 3
+ try {
+  return Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 25 -MaximumRedirection 3
+ } catch {
+  $statusCode=0
+  try { $statusCode=[int]$_.Exception.Response.StatusCode } catch {}
+  if($statusCode -eq 404) {
+   if($uri.EndsWith('/releases/latest')) { throw 'Стабильные выпуски ещё не опубликованы. Выберите канал Свежий.' }
+   throw 'GitHub не предоставил доступ к приватному репозиторию Yorika. Проверьте сохранённый токен и разрешение Contents: Read.'
+  }
+  if($statusCode -eq 401) { throw 'GitHub отклонил токен доступа. Укажите действующий токен.' }
+  if($statusCode -eq 403) { throw 'GitHub запретил запрос. Проверьте разрешения токена или лимит API.' }
+  throw ('Ошибка соединения с GitHub: ' + $_.Exception.Message)
+ }
 }
 function Target($channel){
  if($channel -eq 'fresh'){

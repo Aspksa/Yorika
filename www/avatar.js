@@ -14,7 +14,28 @@
   id=newThread();try{localStorage.setItem(THREAD_KEY,id)}catch(e){}
   return id;
  }
- var responder=async function(text){
+ var responder=async function(text,history,onChunk){
+  try{
+   var stream=await fetch('/api/chat/stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:text,conversation_id:threadId()}),cache:'no-store'});
+   if(stream.ok&&stream.body){
+    var reader=stream.body.getReader(),decoder=new TextDecoder(),buffer='',full='',finished=false;
+    while(true){
+     var part=await reader.read();if(part.done)break;
+     buffer+=decoder.decode(part.value,{stream:true});
+     if(buffer.length>20000)throw Error('Слишком длинное событие');
+     var lines=buffer.split('\n');buffer=lines.pop();
+     for(var line of lines){if(!line.trim())continue;
+      var evt=JSON.parse(line);
+      if(evt.type==='delta'){full+=evt.text;if(full.length>8000)throw Error('Ответ слишком длинный');if(onChunk)onChunk(full)}
+      else if(evt.type==='done'){finished=true;full=evt.answer||full}
+      else if(evt.type==='error')throw Error('Не удалось завершить поток');
+     }
+    }
+    if(finished&&full.trim())return full;
+    if(full)throw Error('Поток оборвался');
+   }
+  }catch(e){/* Streaming unavailable: try regular response. */}
+
   try{
    var generated=await fetch("/api/chat/respond",{
     method:"POST",headers:{"Content-Type":"application/json"},
@@ -218,7 +239,7 @@
    history.push({from:"me",text:text,ts:Date.now()});changed();bubble(history[history.length-1]);
    var typing=make("div","yc-msg yc-bot yc-typing");typing.appendChild(make("p","yc-text","…"));log.appendChild(typing);log.scrollTop=log.scrollHeight;
    var reply;
-   try{reply=await responder(text,history.slice())}catch(e){reply="Не удалось получить ответ: "+(e&&e.message||e)}
+   try{reply=await responder(text,history.slice(),function(part){typing.firstChild.textContent=part;log.scrollTop=log.scrollHeight})}catch(e){reply="Не удалось получить ответ: "+(e&&e.message||e)}
    typing.remove();
    history.push({from:"bot",text:String(reply||"…"),ts:Date.now()});changed();bubble(history[history.length-1]);
    log.scrollTop=log.scrollHeight;busy=false;send.disabled=false;input.focus();

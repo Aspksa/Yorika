@@ -19,7 +19,7 @@ from scripts.sqlite_restore_preview import preview
 
 def restore_copy(source: Path, destination: Path, sha256: str) -> dict:
     source = Path(source).expanduser().resolve(strict=True)
-    destination = Path(destination).expanduser().resolve()
+    destination = Path(destination).expanduser().absolute()
     if source == destination:
         raise ValueError("Source and destination must differ")
     if destination.exists() or destination.is_symlink():
@@ -38,12 +38,8 @@ def restore_copy(source: Path, destination: Path, sha256: str) -> dict:
             os.fsync(output.fileno())
         preview(temporary, checked["sha256"])
         # Fail closed if another file appeared during copy.
-        try:
-            os.link(temporary, destination)
-        except OSError:
-            if destination.exists():
-                raise FileExistsError("Destination created concurrently")
-            raise
+        # Atomic exclusive link: never replace an existing destination.
+        os.link(temporary, destination)
         return preview(destination, checked["sha256"])
     finally:
         temporary.unlink(missing_ok=True)

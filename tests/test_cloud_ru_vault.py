@@ -68,6 +68,23 @@ class CloudRuVaultTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "linked"):
                     vault.delete_credentials()
 
+    def test_save_rejects_linked_secrets_before_directory_creation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            actual = root / "actual"
+            actual.mkdir()
+            linked = root / "secrets"
+            try:
+                linked.symlink_to(actual, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("Directory symlinks unavailable")
+            path = linked / "cloud.dpapi"
+            with patch.object(vault, "credential_path", return_value=path), \
+                 patch.object(vault, "_crypt", side_effect=AssertionError("DPAPI called")):
+                with self.assertRaisesRegex(RuntimeError, "unsafe"):
+                    vault.save_credentials("fake-secret", "ai-sage/test")
+            self.assertEqual(list(actual.iterdir()), [])
+
     def test_invalid_input_rejected_without_file(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "cloud.dpapi"

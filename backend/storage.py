@@ -293,7 +293,7 @@ class Store:
         if type(limit) is not int or not 1 <= limit <= 100:
             raise ValueError("limit must be between 1 and 100")
         import re
-        words = re.findall(r"[^\\W_]+", query.casefold(), flags=re.UNICODE)
+        words = re.findall(r"[^\W_]+", query.casefold(), flags=re.UNICODE)
         if not words:
             return []
         if len(words) > 20 or any(len(word) > 100 for word in words):

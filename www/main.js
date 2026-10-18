@@ -18,7 +18,7 @@ async function check(){
   }catch(e){status("Не удалось проверить",e.message)}
 }
 async function configure(){try{await api("/api/updates/settings",{method:"POST",body:JSON.stringify({channel:el("update-channel").value,interval:Number(el("update-interval").value)})});schedule()}catch(e){status("Ошибка настроек",e.message)}}
-function schedule(){if(timer)clearInterval(timer);const ms=Number(el("update-interval").value);if(ms>0)timer=setInterval(check,ms)}
+function schedule(){if(timer)clearInterval(timer);const ms=Number(el("update-interval").value);if(ms>0)timer=setInterval(()=>{if(!stagedSha)check()},ms)}
 const toggleUpdates = open => {
   el("update-panel").hidden = !open;
   el("shade").hidden = !open;
@@ -29,7 +29,16 @@ el("menu-toggle").onclick = () => toggleUpdates(el("update-panel").hidden);
 el("shade").onclick = () => toggleUpdates(false);
 el("close-updates").onclick = () => toggleUpdates(false);
 document.addEventListener("keydown", event => {
-  if (event.key === "Escape") toggleUpdates(false);
+  const panel = el("update-panel");
+  if (panel.hidden) return;
+  if (event.key === "Escape") { toggleUpdates(false); return; }
+  if (event.key !== "Tab") return;
+  // Keep keyboard focus inside the modal panel.
+  const focusable = [...panel.querySelectorAll("button,a[href],input,select")].filter(node => !node.disabled && !node.hidden && node.offsetParent !== null);
+  if (!focusable.length) return;
+  const first = focusable[0], last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 });
 el("toggle-token").onclick=()=>{
  const field=el("github-token"), button=el("toggle-token");

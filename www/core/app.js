@@ -17,7 +17,7 @@ export class YorikaCore {
       this.db = await Database.open();
       this.modules = new ModuleRegistry(this.db, this.events);
       this.state = "ready";
-      this.events.emit("core:ready", { time: Date.now(), dbVersion: 1 });
+      this.events.emit("core:ready", { time: Date.now(), dbVersion: Database.version });
       return this;
     } catch (error) {
       this.state = "failed";

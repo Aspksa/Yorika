@@ -55,21 +55,22 @@ try{
      do{
       $line=$reader.ReadLine();$headers++
       if($headers -gt 60 -or ($null -ne $line -and $line.Length -gt 8192)){throw 'Некорректные заголовки'}
-      if($line -match '^Content-Length:\s*(\d+)\s*$'){$len=[int]$Matches[1]}
-      if($line -match '^Origin:\s*(.+)$'){$origin=$Matches[1].Trim()}
-      if($line -match '^Host:\s*(.+)$'){$requestHost=$Matches[1].Trim()}
+      if($line -match '^Content-Length:\s*(\d+)\s*\z'){$len=if($Matches[1].Length -gt 9){[int]::MaxValue}else{[int]$Matches[1]}}
+      if($line -match '^Origin:\s*(.+)\z'){$origin=$Matches[1].Trim()}
+      if($line -match '^Host:\s*(.+)\z'){$requestHost=$Matches[1].Trim()}
      }while($null -ne $line -and $line.Length -gt 0)
      $status='200 OK';$mime='application/json; charset=utf-8';$bytes=[byte[]]@()
-     if($path -match '^/api/updates/(settings|token|check|stage|apply)$'){
+     if($path -match '^/api/updates/(settings|token|check|stage|apply)\z'){
       $action=$Matches[1]
       try {
        if($requestHost -ne "127.0.0.1:$port" -or $len -gt 2048 -or $len -lt 0){throw 'Запрос отклонён'}
        if($method -ne 'GET' -and ($origin -ne "http://127.0.0.1:$port" -or $method -notin @('POST','DELETE'))){throw 'Доступ запрещён'}
        $body=''
        if($len -gt 0){
-        $chars=New-Object char[] $len;$received=0
-        while($received -lt $len){$n=$reader.Read($chars,$received,$len-$received);if($n -le 0){throw 'Неполное тело'};$received+=$n}
-        $body=-join $chars
+        # Content-Length counts UTF-8 bytes; each char is at least one byte, so never over-read.
+        $text=New-Object Text.StringBuilder;$received=0
+        while($received -lt $len){$chars=New-Object char[] ($len-$received);$n=$reader.Read($chars,0,$chars.Length);if($n -le 0){throw 'Неполное тело'};$part=[string]::new($chars,0,$n);[void]$text.Append($part);$received+=[Text.Encoding]::UTF8.GetByteCount($part)}
+        $body=$text.ToString()
        }
        $data=if($body){$body|ConvertFrom-Json}else{$null}
        $engine=Join-Path $PSScriptRoot 'update-engine.ps1'
@@ -81,7 +82,7 @@ try{
        elseif($action -eq 'stage' -and $method -eq 'POST'){$output=& $engine -Action stage -Channel $data.channel}
        elseif($action -eq 'apply' -and $method -eq 'POST'){
         $sha=[string]$data.sha
-        if(-not $sha -or $sha.Length -ne 40 -or $sha -match '[^0-9a-f]'){throw 'Неверная версия'}
+        if(-not $sha -or $sha.Length -ne 40 -or $sha -cmatch '[^0-9a-f]'){throw 'Неверная версия'}
         $installer=Join-Path $PSScriptRoot 'install-release.ps1'
         & $installer -Root $root -Sha $sha
         $result=Join-Path $work 'install-result.json'

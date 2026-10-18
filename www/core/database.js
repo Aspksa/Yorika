@@ -20,6 +20,7 @@ export class Database {
         if (!db.objectStoreNames.contains(store)) db.createObjectStore(store, { keyPath: "id" });
       }
     };
+    request.onblocked = () => console.warn("Yorika database upgrade is blocked by another open tab");
     const db = await requestResult(request);
     const instance = new Database();
     instance.#db = db;
@@ -30,16 +31,28 @@ export class Database {
     if (!STORES.includes(name)) throw new Error("Unknown Yorika store: " + name);
     return this.#db.transaction(name, mode).objectStore(name);
   }
+  /** Resolves only after the transaction commits, so an aborted write is reported as a failure. */
+  #write(name, action) {
+    const store = this.#store(name, "readwrite");
+    const transaction = store.transaction;
+    const request = action(store);
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve(request.result);
+      transaction.onerror = () => reject(transaction.error ?? request.error ?? new Error("IndexedDB write failed"));
+      transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB write aborted"));
+    });
+  }
   async get(name, id) { return requestResult(this.#store(name).get(id)); }
   async all(name) { return requestResult(this.#store(name).getAll()); }
   async put(name, record) {
     if (!record || typeof record !== "object" || typeof record.id !== "string" || !record.id.trim()) {
       throw new TypeError("record must have a nonempty string id");
     }
-    return requestResult(this.#store(name, "readwrite").put(record));
+    return this.#write(name, store => store.put(record));
   }
-  async delete(name, id) { return requestResult(this.#store(name, "readwrite").delete(id)); }
-  async clear(name) { return requestResult(this.#store(name, "readwrite").clear()); }
+  async delete(name, id) { return this.#write(name, store => store.delete(id)); }
+  async clear(name) { return this.#write(name, store => store.clear()); }
   close() { this.#db?.close(); }
   static get stores() { return [...STORES]; }
+  static get version() { return DB_VERSION; }
 }

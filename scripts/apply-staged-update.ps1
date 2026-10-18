@@ -11,7 +11,7 @@ $protected=@('.yorika','.git')
 # Isolated TEMP fixtures remain usable for install/rollback test coverage.
 $rootFull=[IO.Path]::GetFullPath($Root)
 $tempFull=[IO.Path]::GetFullPath($env:TEMP).TrimEnd([IO.Path]::DirectorySeparatorChar)+[IO.Path]::DirectorySeparatorChar
-if(-not $TestOnly -and (-not $rootFull.StartsWith($tempFull,[StringComparison]::OrdinalIgnoreCase) -or (Split-Path -Leaf $rootFull) -notmatch '^yorika-update-test-[a-f0-9]{32}$')){
+if(-not $TestOnly -and (-not $rootFull.StartsWith($tempFull,[StringComparison]::OrdinalIgnoreCase) -or (Split-Path -Leaf $rootFull) -notmatch '^yorika-update-test-[a-f0-9]{32}\z')){
  throw 'Прямая замена рабочей Yorika отключена: сначала требуется безопасное переключение версий.'
 }
 if($Root -notmatch 'yorika-update-test-' -and $SimulateFailure){throw 'Симуляция разрешена только в тестовой папке'}
@@ -20,7 +20,7 @@ function Result($ok,$message){
  [IO.File]::WriteAllText($journal,($report|ConvertTo-Json -Compress),[Text.Encoding]::UTF8)
 }
 try{
- if($Sha -notmatch '^[a-f0-9]{40}$'){throw 'Некорректный SHA'}
+ if($Sha -notmatch '^[a-f0-9]{40}\z'){throw 'Некорректный SHA'}
  if(-not(Test-Path -LiteralPath $archive)){throw 'Архив обновления не найден'}
  $manifestFile=Join-Path $staging ($Sha+'.json')
  if(-not(Test-Path -LiteralPath $manifestFile)){throw 'Нет проверенного манифеста архива'}

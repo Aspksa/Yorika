@@ -1,10 +1,22 @@
 // Yorika's floating avatar and chat panel, shared by every page. History lives per browser in localStorage.
 // A real responder can be plugged in with YorikaChat.setResponder(async (text, history) => "reply").
+// Uploaded pictures, the chosen one and the size are managed on settings.html through YorikaAvatar.
 (function(){
- var KEY="yorika.chat",POS="yorika.avatar",LIMIT=200,IMG="./assets/yorika-avatar.webp",MARGIN=12,GAP=12;
+ var KEY="yorika.chat",POS="yorika.avatar",LOOK="yorika.avatars",SIZE={min:70,max:240,def:140},LIMIT=200,IMG="./assets/yorika-avatar.webp",MARGIN=12,GAP=12;
  var responder=function(){
   return "Я пока не подключена к языковой модели, поэтому отвечать по-настоящему не умею. Но я всё запоминаю: история чата сохраняется в этом браузере.";
  };
+ function readLook(){
+  var v={};try{v=JSON.parse(localStorage.getItem(LOOK))||{}}catch(e){}
+  var items=Array.isArray(v.items)?v.items.filter(function(i){return i&&typeof i.id==="string"&&/^data:image\//.test(i.src)}):[];
+  var size=Math.round(Number(v.size));if(!(size>=SIZE.min&&size<=SIZE.max))size=SIZE.def;
+  var selected=items.some(function(i){return i.id===v.selected})?v.selected:"default";
+  return{items:items,selected:selected,size:size};
+ }
+ // Throws when the browser storage is full, so the Settings page can say so.
+ function writeLook(v){localStorage.setItem(LOOK,JSON.stringify(v));window.dispatchEvent(new Event("yorika-avatar"))}
+ function srcOf(v){for(var i=0;i<v.items.length;i++)if(v.items[i].id===v.selected)return v.items[i].src;return IMG}
+ window.YorikaAvatar={read:readLook,write:writeLook,size:SIZE,defaultSrc:IMG};
  function load(){try{var v=JSON.parse(localStorage.getItem(KEY));return Array.isArray(v)?v:[]}catch(e){return[]}}
  function store(list){try{localStorage.setItem(KEY,JSON.stringify(list.slice(-LIMIT)))}catch(e){}}
  function make(tag,cls,text){var n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n}
@@ -140,7 +152,15 @@
   panel.addEventListener("keydown",function(e){if(e.key==="Escape")setOpen(false)});
   // Keep the same conversation in other open Yorika tabs.
   window.addEventListener("storage",function(e){if(e.key===KEY){history=load();if(!panel.hidden)render()}if(e.key===POS){pos=readPos();applyPos()}});
-  applyPos();
+  function applyLook(){
+   var v=readLook(),src=srcOf(v);
+   if(face.getAttribute("src")!==src){face.src=src;hface.src=src}
+   root.style.setProperty("--yc-size",v.size+"px");
+   applyPos();
+  }
+  window.addEventListener("yorika-avatar",applyLook);
+  window.addEventListener("storage",function(e){if(e.key===LOOK)applyLook()});
+  applyLook();
 
   api.open=function(){setOpen(true)};api.close=function(){setOpen(false)};
   api.label=function(text){sub.textContent=text};if(label)sub.textContent=label;

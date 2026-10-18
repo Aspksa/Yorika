@@ -81,8 +81,27 @@
   <div class="button-row"><button class="ghost" id="reset-look" type="button">Вернуть по умолчанию</button></div>
  </section>
 
+ <section class="panel avatar-panel" aria-labelledby="avatar-title">
+  <header class="panel-head"><span class="panel-index">04</span><h2 id="avatar-title">Аватар</h2></header>
+  <p class="support-text">Картинка, которая живёт на всех страницах и открывает чат. Загруженные картинки хранятся в этом браузере.</p>
+  <fieldset class="choice-group">
+   <legend>Картинка <small>Лучше всего подходит PNG или WebP с прозрачным фоном</small></legend>
+   <div id="avatar-list" class="avatar-list"></div>
+  </fieldset>
+  <div class="button-row avatar-actions">
+   <label class="secondary avatar-upload"><input id="avatar-file" type="file" accept="image/png,image/webp,image/jpeg,image/gif,image/avif" multiple>Загрузить картинку</label>
+  </div>
+  <p id="avatar-status" class="token-status" role="status" aria-live="polite"></p>
+  <div class="avatar-size">
+   <label for="avatar-size"><strong>Размер</strong><small>Меньше или больше на экране</small></label>
+   <input id="avatar-size" type="range" step="5">
+   <output id="avatar-size-value" for="avatar-size"></output>
+  </div>
+  <div class="button-row"><button class="ghost" id="reset-avatar" type="button">Вернуть Yorika и обычный размер</button></div>
+ </section>
+
  <section class="panel data-panel" aria-labelledby="data-title">
-  <header class="panel-head"><span class="panel-index">04</span><h2 id="data-title">Данные браузера</h2></header>
+  <header class="panel-head"><span class="panel-index">05</span><h2 id="data-title">Данные браузера</h2></header>
   <p class="support-text">Хранилище IndexedDB привязано к адресу с портом, поэтому после перезапуска Yorika на другом порту оно начинается заново.</p>
   <ul id="store-list" class="store-list" aria-label="Разделы хранилища"><li class="store-empty">Подсчёт записей…</li></ul>
   <p id="data-status" class="token-status" role="status" aria-live="polite"></p>

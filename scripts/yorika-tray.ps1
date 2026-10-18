@@ -13,7 +13,9 @@ $readyPath = Join-Path $logDir 'ready.url'
 function Log([string]$message) {
   try { [IO.File]::AppendAllText($logPath, ("[{0}] {1}`r`n" -f (Get-Date -Format o), $message), [Text.Encoding]::UTF8) } catch {}
 }
-$mutex = [System.Threading.Mutex]::new($false, 'Local\Yorika-Tray-Launcher')
+$keyBytes = [Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($ProjectRoot.ToLowerInvariant()))
+$instanceKey = [BitConverter]::ToString($keyBytes, 0, 12).Replace('-', '')
+$mutex = [System.Threading.Mutex]::new($false, ('Local\Yorika-' + $instanceKey))
 if (-not $mutex.WaitOne(0)) {
   Log 'Yorika is already running. The existing instance may be in another folder.'
   Write-Host '[YORIKA] Yorika is already running.'

@@ -46,6 +46,12 @@ class Store:
         if current > SCHEMA_VERSION:
             raise RuntimeError("Database was created by a newer Yorika; refusing downgrade")
         if current == 0:
+            # Unversioned databases containing user tables are not blank.
+            # Refuse to claim schema v1 without an explicit migration.
+            existing = {row[0] for row in self.connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
+            if existing:
+                raise RuntimeError("Unversioned database contains tables; refusing automatic migration")
             with self.connection:
                 self.connection.execute(
                     "CREATE TABLE IF NOT EXISTS records ("

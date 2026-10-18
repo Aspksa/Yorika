@@ -20,6 +20,7 @@ from backend.persona_bank import choose_example
 from backend.persona_dialogues import choose_scenario
 from backend.persona_growth import learn_reply, generated_example
 from backend.persona_creativity import scenario_hint
+from backend.persona_auto import reserve
 from backend.cloud_stream import collect_stream
 
 ENDPOINT = "https://foundation-models.api.cloud.ru/v1/chat/completions"
@@ -158,6 +159,7 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
         with Store(directory) as db:
             save_turn(db, query, output, conversation_id)
             learn_reply(db, query, output)
+            reserve(db, query)
     return {"answer": output[:8000], "model": name, "memories_used": memories,
             "provider": "cloud-ru-foundation-models"}
 

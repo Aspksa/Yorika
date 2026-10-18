@@ -105,7 +105,7 @@ try {
               $body = [IO.File]::ReadAllBytes($file)
             }
           }
-          $header = "HTTP/1.1 $status`r`nContent-Type: $mime`r`nContent-Length: $($body.Length)`r`nConnection: close`r`nX-Content-Type-Options: nosniff`r`n`r`n"
+          $header = "HTTP/1.1 $status`r`nContent-Type: $mime`r`nContent-Length: $($body.Length)`r`nConnection: close`r`nX-Yorika-App: Yorika`r`nX-Content-Type-Options: nosniff`r`n`r`n"
           $h = [Text.Encoding]::ASCII.GetBytes($header)
           $stream.Write($h, 0, $h.Length)
           if ($parts[0] -ne 'HEAD') { $stream.Write($body, 0, $body.Length) }

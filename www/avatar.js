@@ -5,6 +5,17 @@
  var KEY="yorika.chat",POS="yorika.avatar",LOOK="yorika.avatars",SIZE={min:70,max:240,def:140},LIMIT=200,IMG="./assets/yorika-avatar.webp",MARGIN=12,GAP=12;
  var responder=async function(text){
   try{
+   var generated=await fetch("/api/chat/respond",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({query:text}),cache:"no-store"
+   });
+   if(generated.ok){
+    var completed=await generated.json();
+    if(typeof completed.answer==="string"&&completed.answer.trim())return completed.answer;
+   }
+  }catch(e){/* Local model is optional; fall back to source-labeled memory search. */}
+
+  try{
    var response=await fetch("/api/memory/recall",{
     method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({query:text}),cache:"no-store"

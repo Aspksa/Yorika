@@ -65,6 +65,7 @@ switch($Action){
      }finally{$zip.Dispose()}
      $hash=(Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash
      Move-Item -LiteralPath $temp -Destination $destination -Force
+     [IO.File]::WriteAllText((Join-Path $dir ($target.sha+'.json')),(@{sha=$target.sha;hash=$hash}|ConvertTo-Json -Compress),[Text.Encoding]::UTF8)
      Output @{ok=$true;detail=("Архив подготовлен: "+$target.label+"; SHA-256: "+$hash+"; установленная версия не изменена")}
    }finally{if(Test-Path $temp){Remove-Item -LiteralPath $temp -Force}}
  }

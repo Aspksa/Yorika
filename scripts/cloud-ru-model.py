@@ -23,7 +23,7 @@ MAX_QUERY = 4000
 DEFAULT_MODEL = "ai-sage/GigaChat3-10B-A1.8B"
 
 
-def answer(query: str, directory=None, *, model=None, api_key=None, opener=None, include_memory=True) -> dict:
+def answer(query: str, directory=None, *, model=None, api_key=None, opener=None, include_memory=True, conversation_id=None) -> dict:
     if not isinstance(query, str) or not query.strip() or len(query) > MAX_QUERY:
         raise ValueError("Invalid query")
     name = model if model is not None else os.environ.get("YORIKA_CLOUD_RU_MODEL", DEFAULT_MODEL)
@@ -52,7 +52,7 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
     scenario_example = None
     if include_memory:
         with Store(directory) as db:
-            recent_messages = load_history(db)
+            recent_messages = load_history(db, conversation_id)
             try:
                 scenario_example = choose_scenario(db, query)
             except (OSError, ValueError, KeyError, TypeError):
@@ -135,14 +135,23 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
         raise RuntimeError("Empty Cloud.ru response")
     if include_memory:
         with Store(directory) as db:
-            save_turn(db, query, output)
+            save_turn(db, query, output, conversation_id)
     return {"answer": output[:8000], "model": name, "memories_used": memories,
             "provider": "cloud-ru-foundation-models"}
 
 
 def main():
-    raw = sys.stdin.read(MAX_QUERY + 1)
-    print(json.dumps(answer(raw), ensure_ascii=False))
+    raw = sys.stdin.read(MAX_QUERY + 256)
+    try:
+        incoming = json.loads(raw)
+    except ValueError:
+        incoming = raw
+    if isinstance(incoming, dict):
+        query = incoming.get("query")
+        conversation_id = incoming.get("conversation_id")
+    else:
+        query, conversation_id = incoming, None
+    print(json.dumps(answer(query, conversation_id=conversation_id), ensure_ascii=False))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
 import tempfile
 import unittest
+from unittest.mock import patch
+import scripts.sqlite_recovery_drill as drill_module
 from pathlib import Path
 
 from backend.storage import Store
@@ -23,6 +25,23 @@ class RecoveryDrillTests(unittest.TestCase):
             self.assertEqual((root / "backup.sqlite3").read_bytes(), data_before)
             with Store(root / "live") as store:
                 self.assertEqual(store.get("memory", "greeting")["text"], "Ёрика помнит")
+
+    def test_changed_source_after_drill_is_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            with Store(root / "live") as store:
+                report = create_verified_backup(store.path, root / "backup.sqlite3")
+            real_restore = drill_module.restore_copy
+            source = root / "backup.sqlite3"
+
+            def mutate_after_restore(source_path, destination, digest):
+                result = real_restore(source_path, destination, digest)
+                source.write_bytes(b"changed after copy")
+                return result
+
+            with patch.object(drill_module, "restore_copy", side_effect=mutate_after_restore):
+                with self.assertRaisesRegex(ValueError, "SHA256 mismatch"):
+                    recovery_drill(source, report["sha256"])
 
     def test_wrong_digest_aborts_drill(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -23,6 +23,25 @@ class CloudSettingsRegression(unittest.TestCase):
         self.assertIn("scripts\\cloud-ru-model.py", content)
         self.assertIn("$origin -ne", content)
 
+    def test_cloud_subprocess_timeout_precedes_blocking_stdout_read(self):
+        content = SERVER.read_text(encoding="utf-8-sig")
+        settings = content.split("}elseif($path -match '^/api/cloud-ru/", 1)[1].split(
+            "}elseif($path -eq '/api/chat/respond')", 1
+        )[0]
+        chat = content.split("}elseif($path -eq '/api/chat/respond')", 1)[1].split(
+            "}elseif($path -eq '/api/memory/recall')", 1
+        )[0]
+        for block, timeout in ((settings, "28000"), (chat, "25000")):
+            with self.subTest(timeout=timeout):
+                self.assertLess(
+                    block.index("WaitForExit(" + timeout + ")"),
+                    block.index("StandardOutput.ReadToEnd()"),
+                )
+                self.assertLess(
+                    block.index("WaitForExit(" + timeout + ")"),
+                    block.index("StandardError.ReadToEnd()"),
+                )
+
     def test_status_diagnostics_and_model_rotation_do_not_return_key(self):
         from backend import cloud_ru_vault as vault
         state = {"key": "test-key", "model": "ai-sage/old"}

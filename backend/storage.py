@@ -123,6 +123,31 @@ class Store:
         return [{"record_id": record_id, "value": json.loads(payload),
                  "updated_at": updated_at} for record_id, payload, updated_at in rows]
 
+    def search_records(self, namespace: str, query: str, limit: int = 20) -> list[dict]:
+        """Case-insensitive literal search in local JSON memories, including Cyrillic."""
+        if not isinstance(namespace, str) or not namespace:
+            raise ValueError("namespace must be non-empty")
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError("query must be a non-empty string")
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        term = query.strip().casefold()
+        # SQLite LIKE is ASCII-only case-insensitive by default; Python casefold
+        # also matches Cyrillic. This is a simple scan, not an indexed FTS search.
+        rows = self.connection.execute(
+            "SELECT record_id, payload, updated_at FROM records "
+            "WHERE namespace=? ORDER BY updated_at DESC, record_id ASC",
+            (namespace,),
+        )
+        matches = []
+        for record_id, payload, updated_at in rows:
+            if term in payload.casefold():
+                matches.append({"record_id": record_id, "value": json.loads(payload),
+                                "updated_at": updated_at})
+                if len(matches) == limit:
+                    break
+        return matches
+
     def append_event(self, event_type: str, value: dict) -> int:
         if not event_type or not isinstance(value, dict):
             raise ValueError("event_type must be non-empty and value must be an object")

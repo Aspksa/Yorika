@@ -55,6 +55,11 @@ def stats(store):
     return {"count": count, **settings(store)}
 
 
+def _index_exists(db):
+    return db.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                      "AND name='persona_growth_indexed'").fetchone() is not None
+
+
 def remove_reply(store, reply_id):
     if not isinstance(reply_id, str) or not re.fullmatch(r"[0-9a-f]{64}", reply_id):
         raise ValueError("Invalid reply ID")
@@ -63,6 +68,9 @@ def remove_reply(store, reply_id):
             "DELETE FROM records WHERE namespace=? AND record_id=?",
             (NAMESPACE, reply_id),
         ).rowcount
+        if _index_exists(store.connection):
+            store.connection.execute("DELETE FROM persona_growth_words WHERE reply_id=?", (reply_id,))
+            store.connection.execute("DELETE FROM persona_growth_indexed WHERE reply_id=?", (reply_id,))
     return {"deleted": bool(changed)}
 
 
@@ -93,6 +101,33 @@ def _near_duplicate(a, b):
     return bool(left and right and len(left & right) / len(left | right) >= 0.78)
 
 
+def _ensure_index(db):
+    """Sidecar inverted index, rebuilt once for pre-existing records."""
+    db.execute("CREATE TABLE IF NOT EXISTS persona_growth_words ("
+               "word TEXT NOT NULL, category TEXT NOT NULL, reply_id TEXT NOT NULL, "
+               "PRIMARY KEY(word, category, reply_id)) WITHOUT ROWID")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_persona_growth_reply "
+               "ON persona_growth_words(reply_id)")
+    db.execute("CREATE TABLE IF NOT EXISTS persona_growth_indexed ("
+               "reply_id TEXT PRIMARY KEY)")
+    # Incremental backfill makes upgrades safe for existing installations.
+    rows = db.execute(
+        "SELECT record_id,payload FROM records WHERE namespace=? AND record_id NOT IN "
+        "(SELECT reply_id FROM persona_growth_indexed)", (NAMESPACE,)
+    ).fetchall()
+    for reply_id, raw in rows:
+        try:
+            entry = json.loads(raw)
+            category = entry["category_id"]
+            words = _words(entry["text"])
+        except (ValueError, TypeError, KeyError, AttributeError):
+            words, category = set(), ""
+        for word in words:
+            db.execute("INSERT OR IGNORE INTO persona_growth_words VALUES(?,?,?)",
+                       (word, category, reply_id))
+        db.execute("INSERT OR IGNORE INTO persona_growth_indexed VALUES(?)", (reply_id,))
+
+
 def learn_reply(store, query, response):
     if not isinstance(query, str) or not isinstance(response, str):
         return False
@@ -111,9 +146,19 @@ def learn_reply(store, query, response):
         if not settings(store)["enabled"]:
             db.rollback()
             return False
-        # Narrow prefilter keeps comparisons limited to the same topical category.
-        rows = db.execute("SELECT record_id,payload FROM records WHERE namespace=?",
-                          (NAMESPACE,)).fetchall()
+        _ensure_index(db)
+        words = _words(text)
+        if not words:
+            db.rollback()
+            return False
+        # Candidate records share at least one normalized word with this category.
+        placeholders = ",".join("?" for _ in words)
+        rows = db.execute(
+            "SELECT DISTINCT r.record_id,r.payload FROM persona_growth_words w "
+            "JOIN records r ON r.record_id=w.reply_id AND r.namespace=? "
+            "WHERE w.category=? AND w.word IN (" + placeholders + ")",
+            (NAMESPACE, category, *sorted(words)),
+        ).fetchall()
         for old_id, raw in rows:
             if old_id == fp:
                 db.rollback()
@@ -130,6 +175,10 @@ def learn_reply(store, query, response):
             (NAMESPACE, fp, json.dumps({"text": text, "category_id": category},
                                        ensure_ascii=False), utc_now()),
         )
+        for word in words:
+            db.execute("INSERT OR IGNORE INTO persona_growth_words VALUES(?,?,?)",
+                       (word, category, fp))
+        db.execute("INSERT OR IGNORE INTO persona_growth_indexed VALUES(?)", (fp,))
         db.commit()
         return True
     except BaseException:

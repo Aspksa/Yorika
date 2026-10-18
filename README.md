@@ -27,7 +27,7 @@ Commands:
 - `Yorika.bat /rollback` — go back to the original version after an installed update.
 - `Yorika.bat /help` — list the commands.
 
-Current limitations: starter website with a local updater API only; no AI API. Windows runtime behavior has not yet been tested on a real Windows computer.
+Current limitations: the updater API and an experimental SQLite chat-history API exist, but there is **no trained neural inference backend**. Python is optional for the chat database feature, and Windows end-to-end behavior remains unverified.
 
 ## Current reliability features
 
@@ -37,13 +37,13 @@ Current limitations: starter website with a local updater API only; no AI API. W
 - UTF-8 for site and diagnostic log; no Python dependency.
 - No separate launcher user interface.
 
-Planned but not yet implemented: automatic process recovery, backups, rollback from the web page, and live AI backend.
+Implemented in code: manual SQLite backup and browser-export utilities; these are not automatic backup/recovery. Still outstanding: process recovery, verified restore, and an actual neural AI backend.
 
 ## 60-scenario verification
 
 For development, the 60-scenario checks remain in `scripts/verify-60.ps1`. The extra `Yorika-Verify.bat` and `Yorika-Debug.bat` have been removed from the project.
 
-**Current limitations:** This update is not a guarantee of fault-free operation. In particular, the browser IndexedDB is per port and is not durable memory across random-port launches; backing up and restoring data is future work.
+**Current limitations:** This update is not a guarantee of fault-free operation. In particular, the browser IndexedDB is per port and is not durable memory across random-port launches; manual export and SQLite backup utilities now exist, but recovery of legacy origins and complete restoration remain unfinished.
 
 ## Русский интерфейс трея
 
@@ -60,3 +60,7 @@ For development, the 60-scenario checks remain in `scripts/verify-60.ps1`. The e
 ## Цель развития Yorika
 
 [Полная спецификация конечного продукта](docs/YORIKA_VISION.md) описывает целевое поведение и критерии приёмки A01–A20; [живой план](docs/ROADMAP.md) и [машинные статусы](planning/tasks.json) показывают, что выполнено, а что только запланировано. Это **не** означает, что собственная обученная нейросеть или автономная инициатива уже работают.
+
+## Проверка реализованного состояния
+
+[Аудит исходников и незавершённые проверки](docs/STATUS_AUDIT.md) поясняют, что реально добавлено, что осталось прототипом и какие Windows-тесты необходимы. Не следует путать наличие SQLite API с готовым искусственным мозгом.

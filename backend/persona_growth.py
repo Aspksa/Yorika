@@ -141,8 +141,10 @@ def generated_example(store, query):
     category = category_for_query(query, {item[0] for item in KEYWORDS} | {"listening"})
     # Sample across the whole category, not just the 200 newest replies.
     rows = store.connection.execute(
-        "SELECT payload FROM records WHERE namespace=? ORDER BY RANDOM() LIMIT 120",
-        (NAMESPACE,),
+        "SELECT payload FROM records WHERE namespace=? "
+        "AND json_extract(payload, '$.category_id')=? "
+        "ORDER BY RANDOM() LIMIT 1",
+        (NAMESPACE, category),
     ).fetchall()
     for (raw,) in rows:
         try:

@@ -58,7 +58,7 @@ switch($Action){
    $validated=Request 'https://api.github.com/repos/Aspksa/Yorika' -CandidateToken $Token -StrictCandidate
    if($validated.full_name -ne 'Aspksa/Yorika'){throw 'Токен не видит нужный репозиторий'}
    $validatedCommit=Request 'https://api.github.com/repos/Aspksa/Yorika/commits/main' -CandidateToken $Token -StrictCandidate
-   if($validatedCommit.sha -notmatch '^[0-9a-f]{40}
+   if(-not $validatedCommit.sha -or $validatedCommit.sha.Length -ne 40){throw 'Не подтверждён доступ к ветке main'}
    $bytes=[Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes($Token),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)
    [IO.File]::WriteAllBytes($secret,$bytes);Output @{ok=$true;verified=$true;detail='Токен проверен: доступ к Yorika/main подтверждён'}}
  'delete-token' {if(Test-Path $secret){Remove-Item -LiteralPath $secret -Force};Output @{ok=$true}}

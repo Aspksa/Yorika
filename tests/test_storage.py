@@ -73,6 +73,20 @@ class StorageTests(unittest.TestCase):
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 0)
                 self.assertNotIn("records", {r[0] for r in db.execute("SELECT name FROM sqlite_master")})
 
+    def test_reject_versioned_but_incomplete_schema(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            db_path = root / "yorika.sqlite3"
+            with sqlite3.connect(db_path) as db:
+                db.execute("CREATE TABLE records (namespace TEXT, record_id TEXT)")
+                db.execute("CREATE TABLE events (event_id INTEGER)")
+                db.execute("PRAGMA user_version=1")
+            with self.assertRaisesRegex(RuntimeError, "schema mismatch"):
+                Store(root)
+            with sqlite3.connect(db_path) as db:
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 1)
+                self.assertEqual(len(db.execute("PRAGMA table_info(records)").fetchall()), 2)
+
     def test_reject_future_schema(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -99,7 +99,8 @@ def run(action, payload=None, directory=None):
             json_value = json.dumps({"history": history, "revision": new_revision},
                                     ensure_ascii=False, allow_nan=False)
             timestamp = datetime.now(timezone.utc).isoformat()
-            capture_explicit_memories(db, current["history"] or [], history) if action == "put" else None
+            if action == "put":
+                capture_explicit_memories(db, current["history"] or [], history)
             db.execute(
                 "INSERT INTO records(namespace,record_id,payload,updated_at) VALUES(?,?,?,?) "
                 "ON CONFLICT(namespace,record_id) DO UPDATE SET "

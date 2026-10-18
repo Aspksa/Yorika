@@ -1,9 +1,8 @@
 import { api } from "./api.js";
 const el=id=>document.getElementById(id);
-const radios=name=>[...document.querySelectorAll(`input[name="${name}"]`)];
-const value=name=>radios(name).find(input=>input.checked)?.value;
-const select=(name,v)=>radios(name).forEach(input=>{input.checked=input.value===String(v)});
-const channel=()=>value("update-channel");
+// Channel and auto-check interval are edited on settings.html; this page only reads them.
+let settings={channel:"fresh",interval:86400000};
+const channel=()=>settings.channel;
 const sources={git:"git-клон на этом компьютере",installed:"установлено через Yorika",folder:"по имени папки архива",files:"сверено по файлам"};
 const states={idle:"Не проверено",checking:"Проверка",current:"Актуально",available:"Есть обновление",unknown:"Версия неизвестна",ready:"Готово к установке",installed:"Установлено",error:"Ошибка"};
 let available=null, timer=null, stagedSha=null;
@@ -26,10 +25,7 @@ async function check(){
     else status("current","У вас последняя версия","Версия совпадает с GitHub. Новых изменений нет.");
   }catch(e){status("error","Не удалось проверить",e.message)}
 }
-async function configure(){try{await api("/api/updates/settings",{method:"POST",body:JSON.stringify({channel:channel(),interval:Number(value("update-interval"))})});schedule()}catch(e){status("error","Ошибка настроек",e.message)}}
-function schedule(){if(timer)clearInterval(timer);const ms=Number(value("update-interval"));if(ms>0)timer=setInterval(()=>{if(!stagedSha)check()},ms)}
-radios("update-channel").forEach(input=>input.onchange=()=>{configure();check()});
-radios("update-interval").forEach(input=>input.onchange=configure);
+function schedule(){if(timer)clearInterval(timer);const ms=Number(settings.interval);if(ms>0)timer=setInterval(()=>{if(!stagedSha)check()},ms)}
 el("toggle-token").onclick=()=>{
  const field=el("github-token"), button=el("toggle-token");
  const visible=field.type==="password";
@@ -59,8 +55,7 @@ el("apply-update").onclick=async()=>{
 (async()=>{
  try{
   const r=await api("/api/updates/settings");
-  select("update-channel",r.channel);
-  select("update-interval",r.interval);
+  settings={channel:r.channel==="stable"?"stable":"fresh",interval:Number(r.interval)||0};
   versions();
   el("token-status").textContent=r.hasToken?"Токен сохранён на компьютере (доступ проверяется при проверке)":"Токен не задан";
   schedule();

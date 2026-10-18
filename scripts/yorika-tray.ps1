@@ -12,7 +12,7 @@ function Log($msg){try{[IO.File]::AppendAllText($log,("["+(Get-Date -Format o)+"
 $key=[BitConverter]::ToString(([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($root.ToLowerInvariant()))),0,12).Replace('-','')
 $mutex=[Threading.Mutex]::new($false,('Local\Yorika-'+$key))
 if(-not $mutex.WaitOne(0)){Log 'Уже запущена';exit}
-$server=$null;$tray=$null;$timer=$null;$url=''
+$server=$null;$tray=$null;$timer=$null;$retire=$null;$url=''
 try{
  $server=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
  $server.Start(16)
@@ -37,6 +37,7 @@ try{
  $quit.add_Click({[Windows.Forms.Application]::ExitThread()})
  $timer=New-Object Windows.Forms.Timer;$timer.Interval=100
  $timer.add_Tick({
+  $stopAfterReply=$false
   try {
    $count=0
    while($server.Pending() -and $count -lt 5){
@@ -90,6 +91,8 @@ try{
         $outcome=Get-Content -LiteralPath $result -Raw -Encoding UTF8|ConvertFrom-Json
         if(-not $outcome.success){throw ([string]$outcome.message)}
         $output=$outcome|ConvertTo-Json -Compress
+        # The new release now serves its own copy; this one closes once the reply is sent.
+        $stopAfterReply=$true
        }
        else{throw 'Метод запрещён'}
        $bytes=[Text.Encoding]::UTF8.GetBytes([string]$output)
@@ -117,8 +120,31 @@ try{
     }finally{$client.Close()}
    }
   }catch{Log ("HTTP: "+$_.Exception.Message)}
+  if($stopAfterReply){Log 'Новая версия запущена, эта копия закрывается';[Windows.Forms.Application]::ExitThread()}
  })
  $timer.Start()
+ # Releases before this fix keep serving after installing a new one. Once that install has
+ # finished, stop any sibling copy whose launcher now redirects here.
+ $retire=New-Object Windows.Forms.Timer;$retire.Interval=20000
+ $retire.add_Tick({
+  $retire.Stop()
+  try{
+   foreach($dir in @(Get-ChildItem -LiteralPath (Split-Path -Parent $root) -Directory -ErrorAction SilentlyContinue)){
+    $pointer=Join-Path $dir.FullName '.yorika\active-install.json'
+    if($dir.FullName -eq $root -or -not(Test-Path -LiteralPath $pointer)){continue}
+    try{$target=[IO.Path]::GetFullPath([string](Get-Content -LiteralPath $pointer -Raw -Encoding UTF8|ConvertFrom-Json).path)}catch{continue}
+    if($target -ne $root){continue}
+    $oldTray=Join-Path $dir.FullName 'scripts\yorika-tray.ps1'
+    foreach($p in @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue)){
+     if($p.CommandLine -and $p.CommandLine.IndexOf($oldTray,[StringComparison]::OrdinalIgnoreCase) -ge 0){
+      Log ('Остановлена прежняя копия: '+$dir.FullName)
+      Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+     }
+    }
+   }
+  }catch{Log ('Остановка прежней копии: '+$_.Exception.Message)}
+ })
+ $retire.Start()
  [IO.File]::WriteAllText($ready,$url,[Text.Encoding]::ASCII)
  Log "Server listening at $url"
  [Windows.Forms.Application]::Run()
@@ -126,6 +152,7 @@ try{
 finally{
  try{if([IO.File]::Exists($ready) -and [IO.File]::ReadAllText($ready).Trim() -eq $url){[IO.File]::Delete($ready)}}catch{}
  if($timer){$timer.Stop();$timer.Dispose()}
+ if($retire){$retire.Stop();$retire.Dispose()}
  if($tray){$tray.Visible=$false;$tray.Dispose()}
  if($server){$server.Stop()}
  try{$mutex.ReleaseMutex()}catch{};$mutex.Dispose()

@@ -1,4 +1,4 @@
-param([string]$ProjectRoot)
+param([string]$ProjectRoot,[switch]$NoBrowser)
 $ErrorActionPreference = 'Stop'
 # Resolve from the script's own location, never from an externally quoted argument.
 $ProjectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -48,7 +48,7 @@ try {
     $existing = [IO.File]::ReadAllText($ready).Trim()
     if (IsLive $existing) {
       Write-Host "[YORIKA] Existing server: $existing"
-      Start-Process $existing
+      if (-not $NoBrowser) { Start-Process $existing }
       exit 0
     }
     Remove-Item -LiteralPath $ready -Force -ErrorAction SilentlyContinue
@@ -60,7 +60,7 @@ try {
       $url = [IO.File]::ReadAllText($ready).Trim()
       if (IsLive $url) {
         Write-Host "[YORIKA] Opening $url"
-        Start-Process $url
+        if (-not $NoBrowser) { Start-Process $url }
         exit 0
       }
     }

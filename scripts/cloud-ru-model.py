@@ -7,6 +7,7 @@ Only HTTPS foundation-models.api.cloud.ru is contacted.
 import json
 import os
 import sys
+import subprocess
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -19,7 +20,8 @@ from backend.persona_profile import load_persona_capsule
 from backend.persona_bank import choose_example
 from backend.persona_dialogues import choose_scenario
 from backend.persona_growth import learn_reply, generated_example
-from backend.persona_creativity import scenario_hint
+from backend.persona_creativity import branching_hint
+from backend.persona_auto import reserve
 from backend.cloud_stream import collect_stream
 
 ENDPOINT = "https://foundation-models.api.cloud.ru/v1/chat/completions"
@@ -62,7 +64,7 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
             recent_messages = load_history(db, conversation_id)
             saved_preferences = preference_context(db)
             grown_example = generated_example(db, query)
-            dynamic_scene = scenario_hint(db, query)
+            dynamic_scene = branching_hint(db, query, conversation_id)
             try:
                 scenario_example = choose_scenario(db, query, conversation_id=conversation_id)
             except (OSError, ValueError, KeyError, TypeError):
@@ -158,6 +160,21 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
         with Store(directory) as db:
             save_turn(db, query, output, conversation_id)
             learn_reply(db, query, output)
+            try:
+                should_expand = reserve(db, query)
+            except (OSError, ValueError):
+                should_expand = False
+        if should_expand:
+            try:
+                worker = Path(__file__).with_name('auto-persona-worker.py')
+                child = subprocess.Popen([sys.executable, str(worker)], stdin=subprocess.PIPE,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                         cwd=str(worker.parent.parent),
+                                         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                child.stdin.write(query.encode('utf-8'))
+                child.stdin.close()
+            except (OSError, BrokenPipeError):
+                pass
     return {"answer": output[:8000], "model": name, "memories_used": memories,
             "provider": "cloud-ru-foundation-models"}
 

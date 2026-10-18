@@ -85,3 +85,63 @@ def expand_persona(store, seed, generate):
             learned += 1
             scenarios += bool(store_scenario(store, seed, candidate))
     return {"generated": len(candidates), "accepted": learned, "scenarios_added": scenarios}
+
+def branching_hint(store, query, conversation_id=None):
+    """Continue an auto-generated scenario for up to three actual user turns.
+
+    Only uses the stored branch when the new user's words indicate a related
+    topic. Otherwise the active branch is cleared; no user turn is invented.
+    """
+    from backend.cloud_ru_history import record_id
+    from backend.persona_dialogues import similarity
+    from backend.persona_bank import canonical
+    state_id = "dialogue." + record_id(conversation_id)
+    row = store.connection.execute(
+        "SELECT payload FROM records WHERE namespace='persona_dynamic_state' AND record_id=?",
+        (state_id,)
+    ).fetchone()
+    state = json.loads(row[0]) if row else None
+    hint = None
+    if state and state.get("step", 0) < 3:
+        topic = state.get("trigger", "")
+        common = set(canonical(query).split()) & set(canonical(topic).split())
+        if similarity(query, topic) >= 0.25 or len(common) >= 2:
+            hint = state.get("reply")
+            state["step"] += 1
+        else:
+            state = None
+    if hint is None:
+        rows = store.connection.execute(
+            "SELECT payload FROM records WHERE namespace=? ORDER BY updated_at DESC LIMIT 200",
+            (SCENE_NS,)
+        )
+        ranked = []
+        for (raw,) in rows:
+            try:
+                example = json.loads(raw)
+                rank = similarity(query, example["trigger"])
+                if rank >= 0.8:
+                    ranked.append((rank, example))
+            except (ValueError, TypeError, KeyError):
+                continue
+        if ranked:
+            ranked.sort(key=lambda row: -row[0])
+            selection = ranked[0][1]
+            hint = selection["reply"]
+            state = {"trigger": selection["trigger"], "reply": hint, "step": 1}
+    with store.connection:
+        if state and state["step"] < 3:
+            store.connection.execute(
+                "INSERT INTO records(namespace,record_id,payload,updated_at) VALUES(?,?,?,?) "
+                "ON CONFLICT(namespace,record_id) DO UPDATE SET "
+                "payload=excluded.payload,updated_at=excluded.updated_at",
+                ("persona_dynamic_state", state_id,
+                 json.dumps(state, ensure_ascii=False), utc_now())
+            )
+        else:
+            store.connection.execute(
+                "DELETE FROM records WHERE namespace='persona_dynamic_state' AND record_id=?",
+                (state_id,)
+            )
+    return hint
+

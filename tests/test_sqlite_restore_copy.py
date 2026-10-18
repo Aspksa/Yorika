@@ -2,6 +2,8 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+import scripts.sqlite_restore_copy as restore_module
 from backend.storage import Store
 from scripts.sqlite_backup import create_verified_backup
 from scripts.sqlite_restore_copy import restore_copy
@@ -37,6 +39,22 @@ class RestoreCopyTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 restore_copy(root / "source.sqlite3", link, report["sha256"])
             self.assertEqual(protected.read_text(), "keep")
+
+    def test_failed_final_verification_removes_new_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            with Store(root / "live") as db:
+                report = create_verified_backup(db.path, root / "source.sqlite3")
+            original_preview = restore_module.preview
+            target = root / "destination.sqlite3"
+            def fail_only_final(path, digest=None):
+                if Path(path) == target:
+                    raise ValueError("simulated verification failure")
+                return original_preview(path, digest)
+            with patch.object(restore_module, "preview", side_effect=fail_only_final):
+                with self.assertRaisesRegex(ValueError, "simulated verification failure"):
+                    restore_module.restore_copy(root / "source.sqlite3", target, report["sha256"])
+            self.assertFalse(target.exists())
 
     def test_refuse_overwrite_or_untrusted_hash(self):
         with tempfile.TemporaryDirectory() as temp:

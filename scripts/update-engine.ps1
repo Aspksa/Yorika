@@ -1,4 +1,4 @@
-param([ValidateSet('settings','save-settings','save-token','delete-token','check','stage')][string]$Action,[string]$Channel='fresh',[int]$Interval=86400000,[string]$Token='')
+﻿param([ValidateSet('settings','save-settings','save-token','delete-token','check','stage')][string]$Action,[string]$Channel='fresh',[int]$Interval=86400000,[string]$Token='')
 $ErrorActionPreference='Stop'
 $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $work=Join-Path $root '.yorika'

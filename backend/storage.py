@@ -109,6 +109,31 @@ class Store:
         ).fetchone()
         return json.loads(row[0]) if row else None
 
+    def update_record_if_unchanged(
+        self, namespace: str, record_id: str, expected_value: dict, new_value: dict
+    ) -> bool:
+        """Conditionally edit an existing memory without overwriting concurrent changes."""
+        if not isinstance(namespace, str) or not namespace:
+            raise ValueError("namespace must be non-empty")
+        if not isinstance(record_id, str) or not record_id:
+            raise ValueError("record_id must be non-empty")
+        if not isinstance(expected_value, dict) or not isinstance(new_value, dict):
+            raise ValueError("expected_value and new_value must be objects")
+        encoded = json.dumps(new_value, ensure_ascii=False, allow_nan=False)
+        with self.connection:
+            row = self.connection.execute(
+                "SELECT payload FROM records WHERE namespace=? AND record_id=?",
+                (namespace, record_id),
+            ).fetchone()
+            if row is None or json.loads(row[0]) != expected_value:
+                return False
+            cursor = self.connection.execute(
+                "UPDATE records SET payload=?, updated_at=? "
+                "WHERE namespace=? AND record_id=? AND payload=?",
+                (encoded, utc_now(), namespace, record_id, row[0]),
+            )
+            return cursor.rowcount == 1
+
     def delete_record(self, namespace: str, record_id: str) -> bool:
         """Delete one local record by exact namespace and ID; return whether it existed."""
         if not isinstance(namespace, str) or not namespace:

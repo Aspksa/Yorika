@@ -18,6 +18,27 @@ class StorageTests(unittest.TestCase):
                 self.assertEqual(db.get("memories", "one"), {"text": "Помню"})
                 self.assertIsNone(db.get("memories", "missing"))
 
+    def test_conditional_memory_edit_preserves_concurrent_changes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            with Store(root) as db:
+                db.put("memories", "one", {"text": "старое"})
+                db.put("settings", "one", {"text": "не трогать"})
+                self.assertFalse(db.update_record_if_unchanged(
+                    "memories", "missing", {}, {"text": "новое"}))
+                self.assertFalse(db.update_record_if_unchanged(
+                    "memories", "one", {"text": "устаревшее"}, {"text": "новое"}))
+                self.assertTrue(db.update_record_if_unchanged(
+                    "memories", "one", {"text": "старое"}, {"text": "новое"}))
+                self.assertFalse(db.update_record_if_unchanged(
+                    "memories", "one", {"text": "старое"}, {"text": "перезапись"}))
+                self.assertEqual(db.get("settings", "one"), {"text": "не трогать"})
+                for bad in (None, [], 1):
+                    with self.assertRaises(ValueError):
+                        db.update_record_if_unchanged("memories", "one", bad, {})
+            with Store(root) as db:
+                self.assertEqual(db.get("memories", "one"), {"text": "новое"})
+
     def test_delete_record_is_exact_and_persistent(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

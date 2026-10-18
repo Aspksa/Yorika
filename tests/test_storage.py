@@ -99,6 +99,16 @@ class StorageTests(unittest.TestCase):
             with sqlite3.connect(root / "yorika.sqlite3") as db:
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 1)
 
+    def test_reject_corrupt_existing_database(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            file = root / "yorika.sqlite3"
+            file.write_bytes(b"not a sqlite database")
+            original = file.read_bytes()
+            with self.assertRaises((RuntimeError, sqlite3.DatabaseError)):
+                Store(root)
+            self.assertEqual(file.read_bytes(), original)
+
     def test_reject_future_schema(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

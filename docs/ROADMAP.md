@@ -137,3 +137,20 @@ Windows, RTX 3050 Laptop 4GB VRAM, 16GB RAM, облачный ориентир �
 
 - [ ] QA-003 — GitHub Actions: выявлены задания без запущенных шагов; `BlobNotFound` при запросе логов. Требуется проверка разрешений Actions/runner/биллинга, см. `docs/CI_FAILURE_DIAGNOSIS.md`. Заблокировано до внешней диагностики.
 - [ ] CHAT-004 — Исправлена обработка явных команд «Запомни» и `remember`; добавлены проверки нечисловых и бесконечных меток времени, устаревших ревизий и идемпотентности. Код и тесты записаны; не считать завершённым до запуска тестов.
+
+## SQLite chat and backup verification (2026-10-19)
+
+- [ ] QA-004 — Добавлен `tests/test_chat_restore_stress.py` для конкурентных SQLite-записей, защиты от устаревших ревизий, отдельного восстановления проверенной копии, защиты исходной БД и обнаружения изменения snapshot. Статус `in_progress` до успешных тестов и Windows-приёмки.
+- [ ] MEMORY-004 — Стресс-тест нескольких соединений SQLite добавлен; реальное взаимодействие нескольких вкладок браузера на Windows ещё не подтверждено.
+- [ ] DATA-006 — Безопасное восстановление в новый файл проверяется отдельными тестовыми сценариями; на Windows не принято, галочку не ставить.
+
+Команды для тестовой машины:
+
+```powershell
+python -m unittest discover -s tests -p 'test_chat_restore_stress.py' -v
+python -m unittest discover -s tests -v
+python scripts/check-plan.py
+powershell -ExecutionPolicy Bypass -File scripts/validate-windows.ps1
+```
+
+Отсутствие выполненных шагов в GitHub Actions не считается результатом тестов приложения.

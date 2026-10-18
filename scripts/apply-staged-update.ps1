@@ -21,12 +21,12 @@ try{
  $actual=(Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
  if($manifest.hash -ne $actual){throw 'Контрольная сумма архива не совпадает'}
  # Avoid modifying a running installation.
- for($i=0;$i -lt $(if($TestOnly){0}else{80});$i++){
+ for($i=0;$i -lt $(if($TestOnly -or $ServerPid -le 0){0}else{80});$i++){
   $p=Get-Process -Id $ServerPid -ErrorAction SilentlyContinue
   if(-not $p){break}
   Start-Sleep -Milliseconds 250
  }
- if(-not $TestOnly -and (Get-Process -Id $ServerPid -ErrorAction SilentlyContinue)){throw 'Yorika ещё работает; обновление отменено'}
+ if(-not $TestOnly -and $ServerPid -gt 0 -and (Get-Process -Id $ServerPid -ErrorAction SilentlyContinue)){throw 'Yorika ещё работает; обновление отменено'}
  Add-Type -AssemblyName System.IO.Compression.FileSystem
  [IO.Directory]::CreateDirectory($extract)|Out-Null
  $zip=[IO.Compression.ZipFile]::OpenRead($archive)

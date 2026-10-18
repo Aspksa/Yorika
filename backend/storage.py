@@ -102,6 +102,21 @@ class Store:
                 (namespace, record_id, encoded, utc_now()),
             )
 
+    def remember(self, record_id: str, text: str, source: str, *, source_id: str = "") -> dict:
+        """Save an explicit memory with its source and timestamp, not an inferred fact."""
+        if not isinstance(record_id, str) or not record_id.strip():
+            raise ValueError("Memory ID must be non-empty")
+        if not isinstance(text, str) or not text.strip() or len(text) > 10000:
+            raise ValueError("Memory text must contain 1 to 10000 characters")
+        if not isinstance(source, str) or not source.strip() or len(source) > 128:
+            raise ValueError("Memory source must be non-empty and bounded")
+        if not isinstance(source_id, str) or len(source_id) > 512:
+            raise ValueError("Invalid source identifier")
+        value = {"text": text, "source": source, "source_id": source_id,
+                 "created_at": utc_now()}
+        self.put("memories", record_id, value)
+        return value
+
     def get(self, namespace: str, record_id: str) -> dict | None:
         row = self.connection.execute(
             "SELECT payload FROM records WHERE namespace=? AND record_id=?",

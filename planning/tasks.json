@@ -768,6 +768,22 @@
       ],
       "completed_at": "2026-10-18T13:05:30.612Z",
       "notes": "Only non-destructive backup preview; full recovery, Windows execution and DATA-003 remain open. Added tests in repo, but actual repository test suite not executed in this session."
+    },
+    {
+      "id": "DATA-006",
+      "title": "Restore verified Yorika SQLite snapshot into a new destination file",
+      "status": "in_progress",
+      "priority": "P0",
+      "depends_on": [
+        "DATA-005"
+      ],
+      "evidence": [
+        "scripts/sqlite_restore_copy.py",
+        "tests/test_sqlite_restore_copy.py",
+        "docs/SQLITE_RESTORE_COPY.md"
+      ],
+      "completed_at": null,
+      "notes": "Implemented isolated new-file recovery; pending execution of repository tests, Windows real-device validation and hardening before done. Does not replace live SQLite or complete DATA-003."
     }
   ]
 }

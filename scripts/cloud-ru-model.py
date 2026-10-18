@@ -84,7 +84,20 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
             raw = response.read(512 * 1024 + 1)
     except urllib.error.HTTPError as exc:
         # Do not surface response bodies or tokens in HTTP error messages.
-        raise RuntimeError("Cloud.ru API rejected request (HTTP " + str(exc.code) + ")") from None
+        code = exc.code
+        if code == 401:
+            message = "Cloud.ru HTTP 401: неверный или отозванный API-ключ"
+        elif code == 403:
+            message = "Cloud.ru HTTP 403: нет доступа к выбранной модели"
+        elif code == 404:
+            message = "Cloud.ru HTTP 404: модель или API недоступны"
+        elif code == 429:
+            message = "Cloud.ru HTTP 429: превышен лимит запросов"
+        elif 500 <= code <= 599:
+            message = "Cloud.ru HTTP 5xx: временная ошибка сервиса"
+        else:
+            message = "Cloud.ru HTTP " + str(code) + ": запрос отклонён"
+        raise RuntimeError(message) from None
     except (urllib.error.URLError, TimeoutError) as exc:
         raise RuntimeError("Cloud.ru API unavailable") from None
     if len(raw) > 512 * 1024:

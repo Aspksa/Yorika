@@ -12,6 +12,10 @@ foreach ($relative in $paths) {
     $failed = $true
     Write-Host ("FAIL " + $relative)
     foreach ($problem in $errors) { Write-Host ("  Line " + $problem.Extent.StartLineNumber + ": " + $problem.Message) }
+  } elseif ([IO.File]::ReadAllText($file).Contains('$' + "'")) {
+    # Some web editors expand a dollar-quote pair into the rest of the file; regexes must end with \z instead.
+    $failed = $true
+    Write-Host ("FAIL " + $relative + ": contains a dollar sign before a quote; use \z to end regexes")
   } else { Write-Host ("PASS " + $relative) }
 }
 if ($failed) { exit 1 }

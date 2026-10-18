@@ -7,6 +7,16 @@ on:
 permissions:
   contents: read
 jobs:
+  parse:
+    # Linux runner: cheaper than Windows and still catches PowerShell syntax errors.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell scripts
+        shell: pwsh
+        run: |
+          & ./scripts/check-powershell.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
   validate:
     runs-on: windows-latest
     steps:

@@ -21,7 +21,13 @@ Source files:
 
 Logs: `.yorika/yorika.log` (hidden support logging only).
 
-Current limitations: static starter website only; no AI API or backend. Windows runtime behavior has not yet been tested on a real Windows computer.
+Commands:
+- `Yorika.bat /status` — show the address of the running Yorika.
+- `Yorika.bat /log` — open the log in Notepad.
+- `Yorika.bat /rollback` — go back to the original version after an installed update.
+- `Yorika.bat /help` — list the commands.
+
+Current limitations: starter website with a local updater API only; no AI API. Windows runtime behavior has not yet been tested on a real Windows computer.
 
 ## Current reliability features
 
@@ -31,7 +37,7 @@ Current limitations: static starter website only; no AI API or backend. Windows 
 - UTF-8 for site and diagnostic log; no Python dependency.
 - No separate launcher user interface.
 
-Planned but not yet implemented: automatic process recovery, backups, updates/rollback, and live API backend.
+Planned but not yet implemented: automatic process recovery, backups, rollback from the web page, and live AI backend.
 
 ## 60-scenario verification
 
@@ -45,4 +51,4 @@ For development, the 60-scenario checks remain in `scripts/verify-60.ps1`. The e
 
 ## Обновление проекта
 
-На пустой веб-странице внизу слева появилось меню ☰ → **Обновление**. Каналы «Свежий» и «Стабильный», автопроверка во время работы страницы, локальный DPAPI-токен, ручное скачивание и подготовка ZIP во временной папке. Автоматическая установка ещё не включена. Подробности: [docs/UPDATES.md](docs/UPDATES.md).
+На веб-странице внизу слева есть кнопка **↻ Обновления**. Каналы «Свежий» и «Стабильный», автопроверка во время работы страницы, локальный DPAPI-токен, ручное скачивание и подготовка ZIP во временной папке. После «Скачать пакет» появляется «Установить и запустить»: новая версия ставится в отдельную папку рядом с текущей. Вернуться назад: `Yorika.bat /rollback`. Подробности: [docs/UPDATES.md](docs/UPDATES.md).

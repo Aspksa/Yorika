@@ -12,7 +12,7 @@ function Report($ok,$message,$path='',$url=''){
  [IO.File]::WriteAllText($pending,$json,[Text.Encoding]::UTF8)
 }
 try{
- if($Sha -notmatch '^[0-9a-f]{40}$'){throw 'Некорректный идентификатор версии'}
+ if($Sha -notmatch '^[0-9a-f]{40}\z'){throw 'Некорректный идентификатор версии'}
  if(-not (Test-Path -LiteralPath $archive) -or -not (Test-Path -LiteralPath $manifestPath)){throw 'Проверенный архив не найден'}
  $manifest=Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8|ConvertFrom-Json
  $hash=(Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
@@ -64,7 +64,7 @@ try{
   }
   if(-not(Test-Path -LiteralPath $ready)){throw 'Новая версия не запустилась; старые файлы не изменены'}
   $newUrl=[IO.File]::ReadAllText($ready).Trim()
-  if($newUrl -notmatch '^http://127\.0\.0\.1:\d+/$'){throw 'Неверный локальный адрес новой версии'}
+  if($newUrl -notmatch '^http://127\.0\.0\.1:\d+/\z'){throw 'Неверный локальный адрес новой версии'}
   $request=[Net.WebRequest]::Create($newUrl);$request.Timeout=3000
   $response=$request.GetResponse()
   try{if($response.Headers['X-Yorika-App'] -ne 'Yorika'){throw 'Не удалось подтвердить запуск новой версии'}}finally{$response.Close()}

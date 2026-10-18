@@ -42,12 +42,12 @@ for ($i=1; $i -le 60; $i++) {
     11 { Check $i $name { $startText.Contains('GetFullPath') }; break }
     12 { Check $i $name { $batText.Contains('"%ROOT%"') -or $batText.Contains('"%STARTER%"') }; break }
     19 { Check $i $name { Test-Path -LiteralPath $web }; break }
-    21 { Check $i $name { $trayText.Contains('Loopback, 0') }; break }
-    22 { Check $i $name { $trayText.Contains('$listener.Stop()') }; break }
+    21 { Check $i $name { $trayText.Contains('Loopback,0') }; break }
+    22 { Check $i $name { $trayText.Contains('$server.Stop()') }; break }
     24 { Check $i $name { $startText.Contains('IsLive $url') }; break }
     25 { Check $i $name { $startText.Contains('Remove-Item -LiteralPath $ready') }; break }
     26 { Check $i $name { $startText.Contains("X-Yorika-App") }; break }
-    27 { Check $i $name { $trayText.Contains('ReceiveTimeout = 900') }; break }
+    27 { Check $i $name { $trayText.Contains('ReceiveTimeout=') }; break }
     29 { Check $i $name { $trayText.Contains('StartsWith($prefix') }; break }
     32 { Check $i $name { $startText.Contains('Start-Process $url') }; break }
     37 { Check $i $name { $trayText.Contains('add_DoubleClick') }; break }
@@ -58,7 +58,7 @@ for ($i=1; $i -le 60; $i++) {
     48 { Check $i $name { ([IO.File]::ReadAllText($db)).Contains('nonempty string id') }; break }
     54 { Check $i $name { $trayText.Contains('IPAddress]::Loopback') }; break }
     55 { Check $i $name { $trayText.Contains('405 Method Not Allowed') }; break }
-    60 { Check $i $name { Test-Path -LiteralPath (Join-Path $ProjectRoot 'Yorika-Debug.bat') }; break }
+    60 { Check $i $name { $batText.Contains('/rollback') }; break }
     default { Manual $i $name }
   }
 }

@@ -81,7 +81,7 @@ switch($Action){
      $zip=[IO.Compression.ZipFile]::OpenRead($temp)
      try {
        $names=@($zip.Entries|ForEach-Object FullName)
-       if(-not($names|Where-Object {$_ -match '^[^/]+/Yorika\.bat$'}) -or -not($names|Where-Object {$_ -match '^[^/]+/www/index\.html$'})){throw 'Архив не содержит обязательных файлов'}
+       if(-not($names|Where-Object {$_ -match '^[^/]+/Yorika\.bat\z'}) -or -not($names|Where-Object {$_ -match '^[^/]+/www/index\.html\z'})){throw 'Архив не содержит обязательных файлов'}
        $totalBytes=[long]0
        if($zip.Entries.Count -gt 10000){throw 'В архиве слишком много файлов'}
        foreach($entry in $zip.Entries){

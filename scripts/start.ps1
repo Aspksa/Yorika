@@ -6,6 +6,10 @@ $work = Join-Path $ProjectRoot '.yorika'
 $ready = Join-Path $work 'ready.url'
 $log = Join-Path $work 'yorika.log'
 $server = Join-Path $ProjectRoot 'scripts\yorika-tray.ps1'
+# Files from a downloaded ZIP carry the internet zone mark; clear it so Windows does not block the scripts.
+foreach ($folder in @('scripts','www')) {
+  Get-ChildItem -LiteralPath (Join-Path $ProjectRoot $folder) -Recurse -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
+}
 # The original launcher is a stable entrypoint; keep a fallback copy in this directory.
 $pointer=Join-Path $work 'active-install.json'
 if(Test-Path -LiteralPath $pointer){
@@ -26,7 +30,7 @@ if(Test-Path -LiteralPath $pointer){
  }
 }
 function IsLive([string]$address) {
-  if ($address -notmatch '^http://127\.0\.0\.1:\d+/$') { return $false }
+  if ($address -notmatch '^http://127\.0\.0\.1:\d+/\z') { return $false }
   try {
     $request = [Net.WebRequest]::Create($address)
     $request.Timeout = 1500

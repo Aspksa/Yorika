@@ -81,7 +81,15 @@ try{
        elseif($action -eq 'stage' -and $method -eq 'POST'){$output=& $engine -Action stage -Channel $data.channel}
        elseif($action -eq 'apply' -and $method -eq 'POST'){
         $sha=[string]$data.sha
-        if($sha -notmatch '^[a-f0-9]{40}
+        if(-not $sha -or $sha.Length -ne 40 -or $sha -match '[^0-9a-f]'){throw 'Неверная версия'}
+        $installer=Join-Path $PSScriptRoot 'install-release.ps1'
+        & $installer -Root $root -Sha $sha
+        $result=Join-Path $work 'install-result.json'
+        if(-not(Test-Path -LiteralPath $result)){throw 'Нет результата установки'}
+        $outcome=Get-Content -LiteralPath $result -Raw -Encoding UTF8|ConvertFrom-Json
+        if(-not $outcome.success){throw ([string]$outcome.message)}
+        $output=$outcome|ConvertTo-Json -Compress
+       }
        else{throw 'Метод запрещён'}
        $bytes=[Text.Encoding]::UTF8.GetBytes([string]$output)
       }catch{$status='400 Bad Request';$bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress));Log $_.Exception.Message}

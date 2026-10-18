@@ -800,6 +800,33 @@
       ],
       "completed_at": null,
       "notes": "Documentation-only reconciliation verified by source inspection. SSE/Windows runtime acceptance remains outstanding; new SSE tests are not reported as passing. Completion time intentionally omitted because exact validation timestamp was not recorded."
+    },
+    {
+      "id": "QA-003",
+      "title": "Investigate GitHub Actions jobs failing before runner steps",
+      "status": "blocked",
+      "priority": "P0",
+      "depends_on": [],
+      "evidence": [
+        "docs/CI_FAILURE_DIAGNOSIS.md",
+        "https://github.com/Aspksa/Yorika/actions/runs/39177847582",
+        "https://github.com/Aspksa/Yorika/actions/runs/39177847487"
+      ],
+      "completed_at": null,
+      "notes": "Observed null steps for Ubuntu and Windows jobs; job logs return BlobNotFound. Requires repository Actions settings/billing/runner diagnostics and successful rerun. Root cause not yet established."
+    },
+    {
+      "id": "CHAT-004",
+      "title": "Regression verification of explicit chat memory capture and CAS history",
+      "status": "in_progress",
+      "priority": "P0",
+      "depends_on": [],
+      "evidence": [
+        "scripts/chat-store.py",
+        "tests/test_chat_memory_regressions.py"
+      ],
+      "completed_at": null,
+      "notes": "Fixes escaped whitespace in explicit memory matcher and rejects NaN/infinite timestamps. Tests added but not run on CI/Windows."
     }
   ]
 }

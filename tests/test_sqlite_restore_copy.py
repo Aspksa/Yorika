@@ -56,6 +56,26 @@ class RestoreCopyTests(unittest.TestCase):
                     restore_module.restore_copy(root / "source.sqlite3", target, report["sha256"])
             self.assertFalse(target.exists())
 
+    def test_final_failure_preserves_concurrently_replaced_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            with Store(root / "live") as db:
+                report = create_verified_backup(db.path, root / "source.sqlite3")
+            target = root / "target.sqlite3"
+            original_preview = restore_module.preview
+
+            def replace_then_fail(path, digest=None):
+                if Path(path) == target:
+                    target.unlink()
+                    target.write_bytes(b"third-party data")
+                    raise ValueError("simulated concurrent replacement")
+                return original_preview(path, digest)
+
+            with patch.object(restore_module, "preview", side_effect=replace_then_fail):
+                with self.assertRaisesRegex(ValueError, "simulated concurrent replacement"):
+                    restore_copy(root / "source.sqlite3", target, report["sha256"])
+            self.assertEqual(target.read_bytes(), b"third-party data")
+
     def test_refuse_overwrite_or_untrusted_hash(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -67,15 +67,24 @@ class Store:
                 self.connection.execute("PRAGMA user_version=1")
 
         if current == SCHEMA_VERSION:
-            required = {
-                "records": {"namespace", "record_id", "payload", "updated_at"},
-                "events": {"event_id", "event_type", "payload", "recorded_at"},
+            expected = {
+                "records": {
+                    "namespace": ("TEXT", 1, 1),
+                    "record_id": ("TEXT", 1, 2),
+                    "payload": ("TEXT", 1, 0),
+                    "updated_at": ("TEXT", 1, 0),
+                },
+                "events": {
+                    "event_id": ("INTEGER", 0, 1),
+                    "event_type": ("TEXT", 1, 0),
+                    "payload": ("TEXT", 1, 0),
+                    "recorded_at": ("TEXT", 1, 0),
+                },
             }
-            for table, columns in required.items():
-                rows = self.connection.execute(
-                    "PRAGMA table_info(" + table + ")").fetchall()
-                actual = {row[1] for row in rows}
-                if not columns.issubset(actual):
+            for table, columns in expected.items():
+                info = self.connection.execute("PRAGMA table_info(" + table + ")").fetchall()
+                actual = {row[1]: (row[2].upper(), row[3], row[5]) for row in info}
+                if any(actual.get(name) != spec for name, spec in columns.items()):
                     raise RuntimeError("Yorika database schema mismatch: " + table)
 
     def put(self, namespace: str, record_id: str, value: dict) -> None:

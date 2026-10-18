@@ -23,7 +23,7 @@ $timer = $null
 try {
   [IO.Directory]::CreateDirectory($siteRoot) | Out-Null
   # Port 0 lets Windows select an available port and holds the socket open.
-  $listener = New-Object System.Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 0)
+  $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
   $listener.Start(25)
   $port = ([Net.IPEndPoint]$listener.LocalEndpoint).Port
   $url = "http://127.0.0.1:$port/"
@@ -116,11 +116,11 @@ try {
   [System.Windows.Forms.Application]::Run()
 } catch {
   Log "Startup error: $($_.Exception.ToString())"
-  [System.Windows.Forms.MessageBox]::Show("Yorika failed to start. See .yorika\launcher.log", 'Yorika') | Out-Null
+  [System.Windows.Forms.MessageBox]::Show("Yorika failed to start. See .yorika\yorika.log", 'Yorika') | Out-Null
 } finally {
   if ($timer) { $timer.Stop(); $timer.Dispose() }
   if ($tray) { $tray.Visible = $false; $tray.Dispose() }
   if ($listener) { $listener.Stop() }
-  if ($mutex) { $mutex.ReleaseMutex(); $mutex.Dispose() }
+  if ($mutex) { try { $mutex.ReleaseMutex() } catch {} ; $mutex.Dispose() }
   Log 'Yorika stopped.'
 }

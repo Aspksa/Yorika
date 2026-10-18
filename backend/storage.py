@@ -253,61 +253,83 @@ class Store:
     def import_records(
         self, bundle: dict, *, dry_run: bool = True, on_conflict: str = "reject"
     ) -> dict:
-        """Validate and optionally import an exported namespace in one transaction.
+        """Strict, atomic import of one untrusted namespace export.
 
-        No existing record is overwritten. Default dry_run prevents accidental writes.
+        No overwrites. Dry run by default. All validation precedes any write.
         """
-        if not isinstance(bundle, dict) or bundle.get("format") != "yorika-records-v1":
+        if not isinstance(bundle, dict) or set(bundle) != {"format", "namespace", "records"}:
+            raise ValueError("Invalid memory export fields")
+        if bundle["format"] != "yorika-records-v1":
             raise ValueError("Unsupported memory export format")
-        namespace = bundle.get("namespace")
-        if not isinstance(namespace, str) or not namespace:
-            raise ValueError("Export namespace must be non-empty")
-        entries = bundle.get("records")
+        namespace = bundle["namespace"]
+        if not isinstance(namespace, str) or not namespace or len(namespace) > 256:
+            raise ValueError("Invalid export namespace")
+        if any(ord(c) < 32 for c in namespace):
+            raise ValueError("Control character in namespace")
+        entries = bundle["records"]
         if not isinstance(entries, list) or len(entries) > 100000:
             raise ValueError("Export records must be an array of at most 100000 entries")
         if type(dry_run) is not bool:
             raise ValueError("dry_run must be a boolean")
-        if on_conflict not in ("reject", "skip"):
+        if type(on_conflict) is not str or on_conflict not in ("reject", "skip"):
             raise ValueError("on_conflict must be reject or skip")
         prepared = []
-        ids = set()
+        seen = set()
+        total_bytes = 0
         for item in entries:
-            if not isinstance(item, dict):
-                raise ValueError("Invalid memory export record")
-            record_id, value, updated_at = (
-                item.get("record_id"), item.get("value"), item.get("updated_at")
-            )
-            if not isinstance(record_id, str) or not record_id or record_id in ids:
-                raise ValueError("Duplicate or invalid memory record ID")
+            if not isinstance(item, dict) or set(item) != {"record_id", "value", "updated_at"}:
+                raise ValueError("Invalid memory record fields")
+            record_id, value, updated_at = item["record_id"], item["value"], item["updated_at"]
+            if not isinstance(record_id, str) or not record_id or len(record_id) > 512:
+                raise ValueError("Invalid memory record ID")
+            if any(ord(c) < 32 for c in record_id):
+                raise ValueError("Control character in memory record ID")
+            if record_id in seen:
+                raise ValueError("Duplicate memory record ID")
             if not isinstance(value, dict):
                 raise ValueError("Memory record value must be an object")
-            if not isinstance(updated_at, str) or not updated_at:
-                raise ValueError("Memory record timestamp must be non-empty")
-            encoded = json.dumps(value, ensure_ascii=False, allow_nan=False)
-            ids.add(record_id)
+            if not isinstance(updated_at, str) or len(updated_at) > 64:
+                raise ValueError("Invalid memory record timestamp")
+            try:
+                moment = datetime.fromisoformat(updated_at)
+            except ValueError as error:
+                raise ValueError("Invalid ISO8601 memory timestamp") from error
+            if moment.tzinfo is None or moment.utcoffset() is None:
+                raise ValueError("Memory timestamp must include timezone")
+            try:
+                encoded = json.dumps(value, ensure_ascii=False, allow_nan=False)
+            except (TypeError, ValueError, RecursionError) as error:
+                raise ValueError("Memory value must contain finite JSON data") from error
+            byte_size = len(encoded.encode("utf-8"))
+            if byte_size > 1024 * 1024:
+                raise ValueError("Memory record exceeds 1 MiB")
+            total_bytes += byte_size
+            if total_bytes > 32 * 1024 * 1024:
+                raise ValueError("Memory import exceeds 32 MiB")
+            seen.add(record_id)
             prepared.append((namespace, record_id, encoded, updated_at))
         existing = {
             row[0] for row in self.connection.execute(
                 "SELECT record_id FROM records WHERE namespace=?", (namespace,)
             )
         }
-        conflicts = sum(1 for _, record_id, _, _ in prepared if record_id in existing)
+        conflicts = sum(row[1] in existing for row in prepared)
         if conflicts and on_conflict == "reject":
             raise ValueError("Memory import conflicts with existing record IDs")
         pending = [row for row in prepared if row[1] not in existing]
         applied = 0
         if not dry_run and pending:
-            # Plain INSERT ensures an unexpected concurrent conflict rolls back
-            # the whole batch; never overwrite or silently partially import.
+            # Unique-key races raise IntegrityError and roll back the entire batch.
             with self.connection:
                 self.connection.executemany(
                     "INSERT INTO records(namespace,record_id,payload,updated_at) "
-                    "VALUES(?,?,?,?)",
-                    pending,
+                    "VALUES(?,?,?,?)", pending
                 )
             applied = len(pending)
-        return {"namespace": namespace, "dry_run": dry_run, "requested": len(prepared),
-                "conflicts": conflicts, "eligible": len(pending), "applied": applied}
+        return {"namespace": namespace, "dry_run": dry_run,
+                "requested": len(prepared), "conflicts": conflicts,
+                "eligible": len(pending), "applied": applied,
+                "bytes": total_bytes}
 
     def append_event(self, event_type: str, value: dict) -> int:
         if not event_type or not isinstance(value, dict):

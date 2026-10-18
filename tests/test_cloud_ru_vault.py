@@ -25,6 +25,25 @@ class CloudRuVaultTests(unittest.TestCase):
                 self.assertFalse(path.exists())
                 self.assertFalse(vault.public_status()["configured"])
 
+    def test_decrypted_vault_rejects_invalid_model_and_key(self):
+        import json
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "cloud.dpapi"
+            path.write_bytes(b"encrypted")
+            values = [
+                {"key": "test", "model": "../bad model"},
+                {"key": "test"},
+                {"key": "", "model": "ai-sage/valid"},
+                {"key": "test", "model": 42},
+            ]
+            with patch.object(vault, "credential_path", return_value=path):
+                for value in values:
+                    with self.subTest(value=value), patch.object(
+                        vault, "_crypt", return_value=json.dumps(value).encode()
+                    ):
+                        with self.assertRaisesRegex(RuntimeError, "Corrupt"):
+                            vault.read_credentials()
+
     def test_invalid_input_rejected_without_file(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "cloud.dpapi"

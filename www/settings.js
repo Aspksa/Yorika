@@ -22,6 +22,16 @@ el("copy-address").onclick=async()=>{
  catch{el("local-address").select();el("copy-status").textContent="Не удалось скопировать автоматически, адрес выделен"}
 };
 
+// Appearance lives in this browser only; appearance.js applies it on every page.
+const look=window.YorikaAppearance;
+const lookKeys=["theme","accent","radius","size"];
+const showLook=s=>lookKeys.forEach(key=>select("look-"+key,s[key]));
+if(look){
+ showLook(look.read());
+ lookKeys.forEach(key=>radios("look-"+key).forEach(input=>input.onchange=()=>look.save({...look.read(),[key]:input.value})));
+ el("reset-look").onclick=()=>{look.save({...look.defaults});showLook(look.defaults)};
+}
+
 async function showStores(){
  const list=el("store-list");
  const counts=await Promise.all(Database.stores.map(async name=>[name,(await db.all(name)).length]));

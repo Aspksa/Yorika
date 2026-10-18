@@ -68,8 +68,9 @@ def remove_reply(store, reply_id):
             "DELETE FROM records WHERE namespace=? AND record_id=?",
             (NAMESPACE, reply_id),
         ).rowcount
-        store.connection.execute("DELETE FROM persona_growth_words WHERE reply_id=?", (reply_id,)) if _index_exists(store.connection) else None
-        store.connection.execute("DELETE FROM persona_growth_indexed WHERE reply_id=?", (reply_id,)) if _index_exists(store.connection) else None
+        if _index_exists(store.connection):
+            store.connection.execute("DELETE FROM persona_growth_words WHERE reply_id=?", (reply_id,))
+            store.connection.execute("DELETE FROM persona_growth_indexed WHERE reply_id=?", (reply_id,))
     return {"deleted": bool(changed)}
 
 

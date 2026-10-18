@@ -19,14 +19,17 @@ async function check(){
 }
 async function configure(){try{await api("/api/updates/settings",{method:"POST",body:JSON.stringify({channel:el("update-channel").value,interval:Number(el("update-interval").value)})});schedule()}catch(e){status("Ошибка настроек",e.message)}}
 function schedule(){if(timer)clearInterval(timer);const ms=Number(el("update-interval").value);if(ms>0)timer=setInterval(check,ms)}
-const setMenu=open=>{el("side-menu").hidden=!open;el("shade").hidden=!open;el("menu-toggle").setAttribute("aria-expanded",String(open))};
-const closeAll=()=>{setMenu(false);el("update-panel").hidden=true;el("shade").hidden=true};
-el("menu-toggle").onclick=()=>{if(!el("update-panel").hidden){closeAll();return}setMenu(el("side-menu").hidden)};
-el("close-menu").onclick=()=>setMenu(false);
-el("shade").onclick=closeAll;
-el("back-to-menu").onclick=()=>{el("update-panel").hidden=true;setMenu(true)};
-el("open-updates").onclick=()=>{setMenu(false);el("shade").hidden=false;el("update-panel").hidden=false};
-el("close-updates").onclick=closeAll;
+const toggleUpdates = open => {
+  el("update-panel").hidden = !open;
+  el("shade").hidden = !open;
+  el("menu-toggle").setAttribute("aria-expanded", String(open));
+};
+el("menu-toggle").onclick = () => toggleUpdates(el("update-panel").hidden);
+el("shade").onclick = () => toggleUpdates(false);
+el("close-updates").onclick = () => toggleUpdates(false);
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") toggleUpdates(false);
+});
 el("check-update").onclick=check;
 el("update-channel").onchange=configure;el("update-interval").onchange=configure;
 el("save-token").onclick=async()=>{try{await api("/api/updates/token",{method:"POST",body:JSON.stringify({token:el("github-token").value})});el("github-token").value="";el("token-status").textContent="Токен сохранён на компьютере"}catch(e){el("token-status").textContent=e.message}};

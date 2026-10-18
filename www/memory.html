@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Память · Yorika</title><link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<script src="./appearance.js"></script><link rel="stylesheet" href="./styles.css">
+<link rel="stylesheet" href="./updates.css"><link rel="stylesheet" href="./settings.css">
+<script type="module" src="./memory.js"></script>
+</head><body class="updates-page">
+<div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>
+<header class="page-top"><a class="back-link" href="./settings.html">← Настройки</a></header>
+<main class="page">
+<div class="page-intro"><h1>Память браузера</h1>
+<p>Просмотр, поиск и удаление воспоминаний на текущем адресе Yorika. SQLite пока не подключена к этому экрану.</p></div>
+<section class="panel">
+<header class="panel-head"><span class="panel-index">01</span><h2>Воспоминания IndexedDB</h2></header>
+<label for="memory-query" class="token-label">Поиск по тексту</label>
+<div class="token-field"><input id="memory-query" type="search" placeholder="Например, Ёрика"></div>
+<p id="memory-status" role="status" aria-live="polite" class="setting-note">Чтение локальных воспоминаний…</p>
+<ul id="memory-list" class="store-list memory-list"></ul>
+</section>
+</main>
+<style>
+.memory-list{display:grid;grid-template-columns:1fr;gap:10px}
+.memory-list li{display:block;overflow-wrap:anywhere}
+.memory-list strong{display:block;color:var(--text);margin-bottom:6px}
+.memory-list pre{white-space:pre-wrap;word-break:break-word;max-height:240px;overflow:auto;font-size:12px}
+.memory-list button{margin-top:8px}
+</style>
+</body></html>

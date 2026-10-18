@@ -109,6 +109,21 @@ class Store:
         ).fetchone()
         return json.loads(row[0]) if row else None
 
+    def get_record(self, namespace: str, record_id: str) -> dict | None:
+        """Return one memory with its ID, value and update timestamp for editing."""
+        if not isinstance(namespace, str) or not namespace:
+            raise ValueError("namespace must be non-empty")
+        if not isinstance(record_id, str) or not record_id:
+            raise ValueError("record_id must be non-empty")
+        row = self.connection.execute(
+            "SELECT payload, updated_at FROM records WHERE namespace=? AND record_id=?",
+            (namespace, record_id),
+        ).fetchone()
+        if row is None:
+            return None
+        return {"record_id": record_id, "value": json.loads(row[0]),
+                "updated_at": row[1]}
+
     def update_record_if_unchanged(
         self, namespace: str, record_id: str, expected_value: dict, new_value: dict
     ) -> bool:

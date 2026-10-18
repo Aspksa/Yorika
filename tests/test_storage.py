@@ -39,6 +39,20 @@ class StorageTests(unittest.TestCase):
             with Store(root) as db:
                 self.assertEqual(db.get("memories", "one"), {"text": "новое"})
 
+    def test_get_record_detail_for_memory_editor(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with Store(Path(folder)) as db:
+                db.put("memories", "one", {"text": "Ёрика"})
+                db.put("settings", "one", {"text": "secret"})
+                detail = db.get_record("memories", "one")
+                self.assertEqual(detail["record_id"], "one")
+                self.assertEqual(detail["value"], {"text": "Ёрика"})
+                self.assertTrue(detail["updated_at"])
+                self.assertIsNone(db.get_record("memories", "missing"))
+                for namespace, record_id in (("", "one"), ("memories", ""), (None, "one")):
+                    with self.assertRaises(ValueError):
+                        db.get_record(namespace, record_id)
+
     def test_conditional_delete_rejects_stale_editor(self):
         with tempfile.TemporaryDirectory() as folder:
             with Store(Path(folder)) as db:

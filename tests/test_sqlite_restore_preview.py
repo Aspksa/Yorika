@@ -46,6 +46,16 @@ class RestorePreviewTests(unittest.TestCase):
             self.assertEqual(result["sha256"], report["sha256"])
             self.assertEqual(result["counts"]["records"], 1)
 
+    def test_reject_malformed_yorika_tables(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "bad-schema.sqlite3"
+            with sqlite3.connect(path) as db:
+                db.execute("CREATE TABLE records (namespace TEXT, record_id TEXT, payload TEXT, updated_at TEXT)")
+                db.execute("CREATE TABLE events (event_id INTEGER PRIMARY KEY, event_type TEXT NOT NULL, payload TEXT NOT NULL, recorded_at TEXT NOT NULL)")
+                db.execute("PRAGMA user_version=1")
+            with self.assertRaisesRegex(ValueError, "Backup schema mismatch: records"):
+                preview(path)
+
     def test_reject_arbitrary_sqlite_database(self):
         with tempfile.TemporaryDirectory() as folder:
             file = Path(folder) / "other.db"

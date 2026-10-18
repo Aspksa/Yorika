@@ -45,6 +45,26 @@ def preview(path: Path, expected_sha256: str | None = None) -> dict:
         )}
         if not EXPECTED_TABLES.issubset(tables):
             raise ValueError("Backup does not contain Yorika data tables")
+        # A matching table name alone does not make a backup restorable.
+        expected = {
+            "records": {
+                "namespace": ("TEXT", 1, 1),
+                "record_id": ("TEXT", 1, 2),
+                "payload": ("TEXT", 1, 0),
+                "updated_at": ("TEXT", 1, 0),
+            },
+            "events": {
+                "event_id": ("INTEGER", 0, 1),
+                "event_type": ("TEXT", 1, 0),
+                "payload": ("TEXT", 1, 0),
+                "recorded_at": ("TEXT", 1, 0),
+            },
+        }
+        for table, columns in expected.items():
+            info = db.execute("PRAGMA table_info(" + table + ")").fetchall()
+            actual = {row[1]: (row[2].upper(), row[3], row[5]) for row in info}
+            if any(actual.get(name) != spec for name, spec in columns.items()):
+                raise ValueError("Backup schema mismatch: " + table)
         counts = {}
         for name in sorted(EXPECTED_TABLES):
             counts[name] = db.execute("SELECT COUNT(*) FROM " + name).fetchone()[0]

@@ -109,7 +109,27 @@ async function showStores(){
  const counts=await Promise.all(Database.stores.map(async name=>[name,(await db.all(name)).length]));
  list.replaceChildren(...counts.map(([name,count])=>{const li=document.createElement("li");li.append(storeNames[name]||name);const b=document.createElement("b");b.textContent=count;li.append(b);return li}));
  el("clear-data").disabled=counts.every(([,count])=>count===0);
+ el("export-data").disabled=counts.every(([,count])=>count===0);
 }
+el("export-data").onclick=async()=>{
+ const button=el("export-data");button.disabled=true;
+ try{
+  // Download from this origin only. No cloud upload and no destructive operation.
+  const stores={};
+  for(const name of Database.stores)stores[name]=await db.all(name);
+  const backup={format:"yorika-browser-data-v1",exported_at:new Date().toISOString(),origin:location.origin,stores};
+  const json=JSON.stringify(backup,null,2);
+  const blob=new Blob([json],{type:"application/json;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  try{
+   const link=document.createElement("a");
+   link.href=url;link.download="yorika-browser-backup-"+new Date().toISOString().slice(0,10)+".json";
+   document.body.append(link);link.click();link.remove();
+  }finally{setTimeout(()=>URL.revokeObjectURL(url),60000)}
+  el("data-status").textContent="Копия подготовлена для скачивания. Храните файл в безопасном месте: он может содержать личные данные.";
+ }catch(e){el("data-status").textContent="Ошибка экспорта: "+e.message}
+ finally{button.disabled=false}
+};
 el("clear-data").onclick=async()=>{
  if(!confirm("Удалить все данные Yorika из этого браузера для текущего адреса? Настройки обновлений и токен на компьютере не затрагиваются."))return;
  el("clear-data").disabled=true;

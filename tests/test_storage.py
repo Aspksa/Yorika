@@ -121,6 +121,22 @@ class StorageTests(unittest.TestCase):
                     db.import_records(bundle, dry_run=False)
                 self.assertEqual(db.export_records("memories")["records"], [])
 
+    def test_explicit_memory_includes_provenance(self):
+        with tempfile.TemporaryDirectory() as root:
+            with Store(Path(root)) as db:
+                item = db.remember("fact-1", "Ёрика запоминает", "user-confirmed",
+                                   source_id="chat-12")
+                self.assertEqual(item["source"], "user-confirmed")
+                self.assertEqual(item["source_id"], "chat-12")
+                self.assertTrue(item["created_at"])
+                self.assertEqual(db.get("memories", "fact-1"), item)
+                results = db.search_records_fts("memories", "Ёрика")
+                self.assertEqual(results[0]["record_id"], "fact-1")
+                for text, source in (("", "user"), ("valid", ""), ("x" * 10001, "user")):
+                    with self.assertRaises(ValueError):
+                        db.remember("bad", text, source)
+                self.assertIsNone(db.get("memories", "bad"))
+
     def test_unicode_persistence_and_upsert(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

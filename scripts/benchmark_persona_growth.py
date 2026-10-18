@@ -16,7 +16,8 @@ def run(count=10000):
             start = time.perf_counter()
             accepted = 0
             for i in range(count):
-                reply = f"Разговор номер {i} предлагает осмысленный уникальный путь работы с задачей {i}."
+                reply = (f"Разговор номер {i} предлагает новый вариант. "
+                         f"Уникальные маркеры alfa{i:06d} beta{i:06d} gamma{i:06d} delta{i:06d}.")
                 accepted += bool(learn_reply(store, "поговорим", reply))
             elapsed = time.perf_counter() - start
             return {"requested": count, "accepted": accepted,

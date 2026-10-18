@@ -330,16 +330,76 @@
       "notes": ""
     },
     {
+      "id": "CLOUD-002",
+      "title": "Cloud.ru connection lifecycle: save/test/disconnect optional account",
+      "priority": "P2",
+      "depends_on": [
+        "CLOUD-003"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "CLOUD-003",
+      "title": "Encrypted Cloud.ru credential vault using Windows DPAPI, delete/rotate",
+      "priority": "P1",
+      "depends_on": [],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "CLOUD-004",
+      "title": "Cloud.ru IAM token retrieval, expiry handling and masked diagnostics",
+      "priority": "P2",
+      "depends_on": [
+        "CLOUD-003"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "CLOUD-005",
+      "title": "Cloud.ru settings UI: account, services, status and verification",
+      "priority": "P2",
+      "depends_on": [
+        "CLOUD-002",
+        "CLOUD-004"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "CLOUD-006",
+      "title": "Cloud.ru cost estimation, per-run consent and cloud spending controls",
+      "priority": "P2",
+      "depends_on": [
+        "CLOUD-005"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
       "id": "CLOUD-001",
-      "title": "Cloud.ru manual budget-gated integration",
+      "title": "Cloud.ru optional job execution, user approval and 1000 RUB monthly budget",
       "status": "todo",
       "priority": "P3",
       "depends_on": [
+        "CLOUD-006",
         "LAB-001"
       ],
       "evidence": [],
       "completed_at": null,
-      "notes": ""
+      "notes": "Provider connection, vault, authentication and cost guard implemented in CLOUD-002..006 first."
     },
     {
       "id": "UI-001",

@@ -55,11 +55,17 @@ def create_verified_backup(source: Path, target: Path) -> dict:
         report = verify_snapshot(temporary)
         # Exclusive creation: never replace another file created during backup.
         os.link(temporary, target)
-        # Verify the final published name as well as the temporary file.
-        published = verify_snapshot(target)
-        if published["sha256"] != report["sha256"]:
-            raise RuntimeError("Published SQLite backup hash differs from verified snapshot")
-        return published
+        # Verify the published name too. Never return a report for an unchecked target.
+        try:
+            published = verify_snapshot(target)
+            if published["sha256"] != report["sha256"]:
+                raise RuntimeError("Published SQLite backup hash differs from verified snapshot")
+            return published
+        except BaseException:
+            # Remove only our own published link, not a concurrent replacement.
+            if target.exists() and target.samefile(temporary):
+                target.unlink()
+            raise
     finally:
         temporary.unlink(missing_ok=True)
 

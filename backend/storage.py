@@ -38,8 +38,8 @@ class Store:
             result = self.connection.execute("PRAGMA quick_check").fetchone()[0]
             if result != "ok":
                 raise RuntimeError("SQLite integrity check failed: " + str(result))
-            self.connection.execute("PRAGMA journal_mode=WAL")
             self._migrate()
+            self.connection.execute("PRAGMA journal_mode=WAL")
         except BaseException:
             self.connection.close()
             raise

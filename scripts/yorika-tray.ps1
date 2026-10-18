@@ -112,6 +112,51 @@ try{
        $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
        Log ('Chat memory: '+$_.Exception.Message)
       }
+     }elseif($path -eq '/api/memory/recall'){
+      try{
+       if($requestHost -ne "127.0.0.1:$port" -or $origin -ne "http://127.0.0.1:$port" -or $method -ne 'POST'){throw 'Доступ запрещён'}
+       if($len -lt 1 -or $len -gt 4096){throw 'Неверная длина запроса'}
+       $builder=New-Object Text.StringBuilder
+       $received=0
+       while($received -lt $len){
+        $chars=New-Object char[] ([Math]::Min(1024,$len-$received))
+        $n=$reader.Read($chars,0,$chars.Length)
+        if($n -le 0){throw 'Неполный запрос'}
+        $chunk=[string]::new($chars,0,$n)
+        [void]$builder.Append($chunk)
+        $received+=[Text.Encoding]::UTF8.GetByteCount($chunk)
+       }
+       if($received -ne $len){throw 'Неверная длина'}
+       $data=$builder.ToString()|ConvertFrom-Json
+       $text=[string]$data.query
+       if([string]::IsNullOrWhiteSpace($text) -or $text.Length -gt 4000){throw 'Неверный запрос'}
+       $python=Get-Command python.exe -ErrorAction SilentlyContinue
+       if(-not $python){$status='503 Service Unavailable';throw 'Python не установлен'}
+       $psi=New-Object Diagnostics.ProcessStartInfo
+       $psi.FileName=$python.Source
+       $psi.Arguments=('"' + (Join-Path $root 'scripts\recall-memory.py') + '"')
+       $psi.UseShellExecute=$false
+       $psi.CreateNoWindow=$true
+       $psi.RedirectStandardInput=$true
+       $psi.RedirectStandardOutput=$true
+       $psi.RedirectStandardError=$true
+       $psi.StandardInputEncoding=[Text.Encoding]::UTF8
+       $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
+       $proc=[Diagnostics.Process]::Start($psi)
+       try{
+        $proc.StandardInput.Write($text)
+        $proc.StandardInput.Close()
+        $output=$proc.StandardOutput.ReadToEnd()
+        $errorOutput=$proc.StandardError.ReadToEnd()
+        if(-not $proc.WaitForExit(5000)){try{$proc.Kill()}catch{};throw 'Истекло время поиска'}
+        if($proc.ExitCode -ne 0){throw 'Ошибка поиска памяти'}
+        $bytes=[Text.Encoding]::UTF8.GetBytes($output.Trim())
+       }finally{$proc.Dispose()}
+      }catch{
+       if($status -eq '200 OK'){$status='400 Bad Request'}
+       $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
+       Log ('Memory recall: '+$_.Exception.Message)
+      }
      }elseif($path -match '^/api/updates/(settings|token|check|stage|apply)\z'){
       $action=$Matches[1]
       try {

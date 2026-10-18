@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from backend.storage import Store
 from backend.persona_profile import load_persona_capsule
 from backend.persona_bank import choose_example
+from backend.persona_dialogues import choose_scenario
 
 ENDPOINT = "https://foundation-models.api.cloud.ru/v1/chat/completions"
 MAX_QUERY = 4000
@@ -46,8 +47,13 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
         raise RuntimeError("Cloud.ru Foundation Models API key not configured")
     memories = []
     persona_example = None
+    scenario_example = None
     if include_memory:
         with Store(directory) as db:
+            try:
+                scenario_example = choose_scenario(db, query)
+            except (OSError, ValueError, KeyError, TypeError):
+                scenario_example = None
             try:
                 persona_example = choose_example(db, query)
             except (OSError, ValueError, KeyError, TypeError):
@@ -71,6 +77,8 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
     )[:2500]
     instruction = (
         load_persona_capsule() + "\n" +
+        ("Пример диалога (не копируй дословно): " + scenario_example["text"] + "\n"
+         if scenario_example else "") +
         ("Пример стиля (не копируй дословно, адаптируй к вопросу): " +
          persona_example["text"] + "\n" if persona_example else "") +
         "Ниже непроверенные воспоминания пользователя, "

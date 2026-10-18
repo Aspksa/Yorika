@@ -35,6 +35,23 @@ class StorageTests(unittest.TestCase):
                 self.assertIsNone(db.get("memories", "shared"))
                 self.assertEqual(db.get("settings", "shared"), {"text": "Сохранить"})
 
+    def test_export_records_contains_only_requested_namespace(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with Store(Path(temp)) as db:
+                db.put("memories", "one", {"text": "Ёрика"})
+                db.put("settings", "hidden", {"token": "never export"})
+                exported = db.export_records("memories")
+                self.assertEqual(exported["format"], "yorika-records-v1")
+                self.assertEqual(exported["namespace"], "memories")
+                self.assertEqual(len(exported["records"]), 1)
+                self.assertEqual(exported["records"][0]["record_id"], "one")
+                self.assertEqual(exported["records"][0]["value"], {"text": "Ёрика"})
+                self.assertIn("updated_at", exported["records"][0])
+                self.assertNotIn("never export", str(exported))
+                self.assertEqual(db.export_records("missing")["records"], [])
+                with self.assertRaises(ValueError):
+                    db.export_records("")
+
     def test_list_records_is_bounded_and_namespace_scoped(self):
         with tempfile.TemporaryDirectory() as temp:
             with Store(Path(temp)) as db:

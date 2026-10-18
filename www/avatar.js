@@ -53,7 +53,7 @@
       if(clearPending){
        clearPending=false;
        history=mergeHistories(result.history||[],history);
-       store(history);render();
+       store(history);markPending(false);render();
        api.label("Конфликт очистки — сообщения сохранены");
        return;
       }
@@ -70,7 +70,7 @@
      if(serial===changeSerial){dirty=false;return}
      // A new user message arrived while this snapshot was being written.
     }
-    needsSync=true;
+    throw Error("Too many concurrent chat edits");
    }catch(e){serverReady=false;api.label("Память браузера — SQLite недоступна");}
    finally{
     serverBusy=false;

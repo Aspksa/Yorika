@@ -441,8 +441,8 @@
         "planning/tasks.json",
         "scripts/check-plan.py (structural validation of registry)"
       ],
-      "completed_at": "2026-10-18T00:00:00Z",
-      "notes": "Documentation-only acceptance: reviewed current repo code against baseline and target; corrected obsolete claims and wrote evidence/risk inventory. Completion does NOT certify Windows runtime or neural AI functionality. Review verified on 2026-10-18; exact hour unknown."
+      "completed_at": "2026-10-18T12:59:28.770Z",
+      "notes": "Documentation audit completed: source/code and roadmap reviewed; outdated claims updated. No Windows runtime or model training tests performed."
     },
     {
       "id": "VISION-001",

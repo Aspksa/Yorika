@@ -12,7 +12,7 @@ async function check(){
   status("Проверка GitHub…");available=null;stagedSha=null;el("apply-update").disabled=true;el("stage-update").disabled=true;
   try{const r=await api("/api/updates/check",{method:"POST",body:JSON.stringify({channel:el("update-channel").value})});
     available=(r.available||r.untracked)?r:null;
-    el("update-dot").hidden=!(r.available||r.untracked);
+    el("update-dot").hidden=!r.available;
     el("stage-update").disabled=!(r.available||r.untracked);
     status(r.untracked?"Локальная версия не определена":(r.available?"Доступно обновление":"Новая версия не найдена"),r.detail||"");
   }catch(e){status("Не удалось проверить",e.message)}

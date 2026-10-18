@@ -24,33 +24,73 @@
 
  function build(){
   var history=load(),serverReady=false,serverBusy=false,dirty=false,needsSync=false;
+  var revision=0,changeSerial=0,clearPending=false;
+  function sameMessage(a,b){return a.from===b.from&&a.text===b.text&&a.ts===b.ts}
+  function mergeHistories(remote,local){
+   var out=Array.isArray(remote)?remote.slice():[];
+   local.forEach(function(m){if(!out.some(function(old){return sameMessage(old,m)}))out.push(m)});
+   out.sort(function(a,b){return a.ts-b.ts});
+   return out;
+  }
+  function changed(){
+   dirty=true;changeSerial++;
+   store(history);
+   syncHistory();
+  }
   async function syncHistory(){
    if(!serverReady)return;
-   if(serverBusy){needsSync=true;return;}
+   if(serverBusy){needsSync=true;return}
    serverBusy=true;
    try{
-    var response=await fetch("/api/chat/history",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(history)});
-    if(!response.ok)throw Error("SQLite unavailable");
-    api.label("Память SQLite");
-   }catch(e){serverReady=false;api.label("Память браузера");}
-   finally{serverBusy=false;if(needsSync){needsSync=false;syncHistory();}}
+    for(var attempt=0;attempt<3;attempt++){
+     var serial=changeSerial, snapshot=history.slice(),base=revision;
+     var response=await fetch("/api/chat/history",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({history:snapshot,revision:base})});
+     if(!response.ok)throw Error("SQLite unavailable");
+     var result=await response.json();
+     if(result.conflict===true){
+      revision=result.revision;
+      if(clearPending){
+       clearPending=false;
+       history=mergeHistories(result.history||[],history);
+       store(history);render();
+       api.label("Конфликт очистки — сообщения сохранены");
+       return;
+      }
+      history=mergeHistories(result.history||[],history);
+      store(history);
+      if(!panel.hidden)render();
+      continue;
+     }
+     if(result.ok!==true||!Number.isInteger(result.revision))throw Error("Invalid SQLite response");
+     revision=result.revision;
+     clearPending=false;
+     api.label("Память SQLite");
+     if(serial===changeSerial){dirty=false;return}
+     // A new user message arrived while this snapshot was being written.
+    }
+    needsSync=true;
+   }catch(e){serverReady=false;api.label("Память браузера — SQLite недоступна");}
+   finally{
+    serverBusy=false;
+    if(needsSync&&serverReady){needsSync=false;syncHistory()}
+   }
   }
   async function initHistory(){
    try{
     var response=await fetch("/api/chat/history",{cache:"no-store"});
     if(!response.ok)throw Error("SQLite unavailable");
     var value=await response.json();
-    if(dirty){
-      serverReady=true;syncHistory();
-    }else if(value.history===null){
-      var imported=await fetch("/api/chat/history",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(history)});
-      if(!imported.ok)throw Error("Unable to migrate current origin");
-    }else if(Array.isArray(value.history)){
-      history=value.history;store(history);
-    }else throw Error("Invalid server history");
+    if(!Number.isInteger(value.revision)||value.revision<0||!(value.history===null||Array.isArray(value.history)))throw Error("Invalid SQLite history");
+    revision=value.revision;
+    var saved=Array.isArray(value.history)?value.history:[];
+    var combined=mergeHistories(saved,history);
+    // Never silently replace browser-only messages from the current origin.
+    var needImport=value.history===null||combined.length!==saved.length;
+    history=combined;store(history);
     serverReady=true;api.label("Память SQLite");
     if(!panel.hidden)render();
-   }catch(e){serverReady=false;api.label("Память браузера");}
+    if(needImport||dirty)syncHistory();
+   }catch(e){serverReady=false;api.label("Память браузера — SQLite недоступна");}
   }
   var root=make("div","yc");
   var fab=make("button","yc-fab");
@@ -133,12 +173,12 @@
   async function submit(){
    var text=input.value.trim();if(!text||busy)return;
    busy=true;send.disabled=true;input.value="";grow();
-   dirty=true;history.push({from:"me",text:text,ts:Date.now()});store(history);bubble(history[history.length-1]);
+   history.push({from:"me",text:text,ts:Date.now()});changed();bubble(history[history.length-1]);
    var typing=make("div","yc-msg yc-bot yc-typing");typing.appendChild(make("p","yc-text","…"));log.appendChild(typing);log.scrollTop=log.scrollHeight;
    var reply;
    try{reply=await responder(text,history.slice())}catch(e){reply="Не удалось получить ответ: "+(e&&e.message||e)}
    typing.remove();
-   history.push({from:"bot",text:String(reply||"…"),ts:Date.now()});store(history);bubble(history[history.length-1]);syncHistory();
+   history.push({from:"bot",text:String(reply||"…"),ts:Date.now()});changed();bubble(history[history.length-1]);
    log.scrollTop=log.scrollHeight;busy=false;send.disabled=false;input.focus();
   }
 
@@ -173,13 +213,13 @@
   });
   window.addEventListener("resize",applyPos);
   close.addEventListener("click",function(){setOpen(false)});
-  clear.addEventListener("click",function(){dirty=true;history=[];store(history);render();syncHistory();input.focus()});
+  clear.addEventListener("click",function(){clearPending=true;history=[];changed();render();input.focus()});
   form.addEventListener("submit",function(e){e.preventDefault();submit()});
   input.addEventListener("input",grow);
   input.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();submit()}});
   panel.addEventListener("keydown",function(e){if(e.key==="Escape")setOpen(false)});
   // Keep the same conversation in other open Yorika tabs.
-  window.addEventListener("storage",function(e){if(e.key===KEY){history=load();dirty=true;if(!panel.hidden)render();syncHistory()}if(e.key===POS){pos=readPos();applyPos()}});
+  window.addEventListener("storage",function(e){if(e.key===KEY){history=mergeHistories(history,load());dirty=true;changeSerial++;if(!panel.hidden)render();syncHistory()}if(e.key===POS){pos=readPos();applyPos()}});
   function applyLook(){
    var v=readLook(),src=srcOf(v);
    if(face.getAttribute("src")!==src){face.src=src;hface.src=src}

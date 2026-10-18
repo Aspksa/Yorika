@@ -48,6 +48,72 @@ function Target($channel){
  $commit=Request "https://api.github.com/repos/Aspksa/Yorika/commits/$ref"
  return @{sha=$commit.sha;label=$r.tag_name;archive="https://api.github.com/repos/Aspksa/Yorika/zipball/$($commit.sha)"}
 }
+function Get-LocalRevision {
+ # 1) git clone: read HEAD without requiring git.exe.
+ $gitDir=Join-Path $root '.git'
+ $headFile=Join-Path $gitDir 'HEAD'
+ if(Test-Path -LiteralPath $headFile -PathType Leaf){
+  try{
+   $head=([IO.File]::ReadAllText($headFile)).Trim()
+   if($head -match '^[0-9a-f]{40}\z'){return @{sha=$head;source='git'}}
+   if($head -match '^ref:\s*(refs/\S+)\z'){
+    $ref=$Matches[1]
+    $refFile=Join-Path $gitDir $ref
+    if(Test-Path -LiteralPath $refFile -PathType Leaf){
+     $value=([IO.File]::ReadAllText($refFile)).Trim()
+     if($value -match '^[0-9a-f]{40}\z'){return @{sha=$value;source='git'}}
+    }
+    $packed=Join-Path $gitDir 'packed-refs'
+    if(Test-Path -LiteralPath $packed -PathType Leaf){
+     foreach($line in [IO.File]::ReadAllLines($packed)){
+      if($line -match '^([0-9a-f]{40}) (\S+)\z' -and $Matches[2] -eq $ref){return @{sha=$Matches[1];source='git'}}
+     }
+    }
+   }
+  }catch{}
+ }
+ # 2) Version installed through the updater.
+ $installed=Join-Path $work 'installed.json'
+ if(Test-Path -LiteralPath $installed){
+  try{$known=[string](Get-Content -LiteralPath $installed -Raw -Encoding UTF8|ConvertFrom-Json).sha;if($known -match '^[0-9a-f]{40}\z'){return @{sha=$known;source='installed'}}}catch{}
+ }
+ # 3) Unpacked GitHub zipball keeps the short commit in the folder name: Aspksa-Yorika-1a2b3c4.
+ $leaf=Split-Path -Leaf $root
+ if($leaf -match '-([0-9a-f]{7,40})\z'){$short=$Matches[1];if($short -match '[0-9]'){return @{sha=$short;source='folder'}}}
+ return $null
+}
+function Get-BlobSha([byte[]]$bytes){
+ $prefix=[Text.Encoding]::ASCII.GetBytes('blob '+$bytes.Length+[char]0)
+ $sha1=[Security.Cryptography.SHA1]::Create()
+ try{
+  $sha1.TransformBlock($prefix,0,$prefix.Length,$null,0)|Out-Null
+  $sha1.TransformFinalBlock($bytes,0,$bytes.Length)|Out-Null
+  return ([BitConverter]::ToString($sha1.Hash)).Replace('-','').ToLowerInvariant()
+ }finally{$sha1.Dispose()}
+}
+function Remove-CarriageReturns([byte[]]$bytes){
+ $list=New-Object 'System.Collections.Generic.List[byte]' $bytes.Length
+ for($i=0;$i -lt $bytes.Length;$i++){if(-not($bytes[$i] -eq 13 -and $i+1 -lt $bytes.Length -and $bytes[$i+1] -eq 10)){$list.Add($bytes[$i])}}
+ return $list.ToArray()
+}
+# Compares local files with the GitHub tree of a commit using git blob hashes.
+# Returns 'same', 'different' or '' when the comparison is not possible.
+function Compare-Files($sha){
+ $tree=Request ("https://api.github.com/repos/Aspksa/Yorika/git/trees/"+$sha+"?recursive=1")
+ if($tree.truncated -or -not $tree.tree){return ''}
+ foreach($item in $tree.tree){
+  if($item.type -ne 'blob' -or $item.mode -eq '120000'){continue}
+  $path=Join-Path $root ([string]$item.path)
+  if(-not(Test-Path -LiteralPath $path -PathType Leaf)){return 'different'}
+  if(([IO.FileInfo]::new($path)).Length -gt 52428800){return ''}
+  $bytes=[IO.File]::ReadAllBytes($path)
+  if((Get-BlobSha $bytes) -eq $item.sha){continue}
+  # Windows checkouts and ZIP archives may store text files with CRLF line endings.
+  if([Array]::IndexOf($bytes,[byte]13) -ge 0 -and (Get-BlobSha (Remove-CarriageReturns $bytes)) -eq $item.sha){continue}
+  return 'different'
+ }
+ return 'same'
+}
 function Output($obj){$obj|ConvertTo-Json -Depth 5 -Compress}
 switch($Action){
  'settings' { $s=Read-Settings;Output @{channel=$s.channel;interval=$s.interval;hasToken=(Test-Path $secret)} }
@@ -63,9 +129,17 @@ switch($Action){
    [IO.File]::WriteAllBytes($secret,$bytes);Output @{ok=$true;verified=$true;detail='Токен проверен: доступ к Yorika/main подтверждён'}}
  'delete-token' {if(Test-Path $secret){Remove-Item -LiteralPath $secret -Force};Output @{ok=$true}}
  'check' {$target=Target $Channel
-   $installed=Join-Path $work 'installed.json'
-   $known='';if(Test-Path $installed){try{$known=(Get-Content $installed -Raw|ConvertFrom-Json).sha}catch{}}
-   Output @{available=($known -ne '' -and $target.sha -ne $known);untracked=($known -eq '');sha=$target.sha;detail=("GitHub: "+$target.label+"; локальная установленная ревизия: "+$(if($known){$known}else{'не определена'}))}}
+   $local=Get-LocalRevision
+   $source='';$localSha='';$compare=''
+   if($local){$localSha=$local.sha;$source=$local.source}
+   else{try{$compare=Compare-Files $target.sha}catch{$compare=''}}
+   if($localSha){$available=-not $target.sha.StartsWith($localSha)}
+   elseif($compare -eq 'same'){$available=$false;$localSha=$target.sha;$source='files'}
+   elseif($compare -eq 'different'){$available=$true;$source='files'}
+   else{$available=$false}
+   $untracked=($source -eq '')
+   $localLabel=if($localSha){$localSha.Substring(0,[Math]::Min(12,$localSha.Length))}elseif($compare -eq 'different'){'отличается от GitHub'}else{'не определена'}
+   Output @{available=$available;untracked=$untracked;sha=$target.sha;target=$target.label;local=$localLabel;localSource=$source;detail=("GitHub: "+$target.label+"; локальная версия: "+$localLabel)}}
  'stage' {
    $target=Target $Channel
    $dir=Join-Path $work 'staging'

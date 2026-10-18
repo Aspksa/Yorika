@@ -1,0 +1,22 @@
+/* Settings page (settings.html). Page layout, panels and choices come from updates.css. */
+.setting-note{min-height:18px;margin:0 0 18px;font-size:11px;color:#75666e}
+.setting-note:empty{display:none}
+.setting-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding-top:18px;border-top:1px solid #f1e8eb}
+.setting-row strong{display:block;font-size:13px;color:#4b3942}
+.setting-row small{display:block;margin-top:3px;font-size:11px;color:#75696f}
+.link-button{display:inline-flex;align-items:center;white-space:nowrap}
+.link-button:hover{text-decoration:none}
+.token-field input[readonly]{font-family:"Cascadia Mono",Consolas,ui-monospace,monospace}
+.command-list{margin:4px 0 0;display:grid;gap:8px}
+.command-list div{padding:11px 13px;border-radius:12px;background:#fbf8f3}
+.command-list dt code{font-family:"Cascadia Mono",Consolas,ui-monospace,monospace;font-size:12px;color:#5d4630}
+.command-list dd{margin:3px 0 0;font-size:11px;color:#6b5e50}
+.data-panel{margin-top:20px}
+.store-list{list-style:none;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:0 0 4px;padding:0}
+.store-list li{display:flex;justify-content:space-between;gap:8px;padding:12px 14px;border:1px solid #efe4e7;border-radius:13px;background:#fff;font-size:12px;color:#5d4a54}
+.store-list li b{color:#7d3651}
+.store-list .store-empty{grid-column:1/-1;justify-content:flex-start;color:#75666e}
+.danger{color:#a33a3a;border-color:#ecd3d3}
+.danger:hover:not(:disabled){background:#fcf1f0}
+@media(max-width:860px){.store-list{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:520px){.setting-row{flex-wrap:wrap}.store-list{grid-template-columns:repeat(2,minmax(0,1fr))}}

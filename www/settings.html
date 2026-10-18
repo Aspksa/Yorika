@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#faf8f6"><title>Настройки · Yorika</title>
+<link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./updates.css"><link rel="stylesheet" href="./settings.css"><script type="module" src="./settings.js"></script>
+</head>
+<body class="updates-page">
+<div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>
+<header class="page-top">
+ <a class="back-link" href="./index.html"><span aria-hidden="true">←</span> Yorika</a>
+ <a class="repo-link" href="./updates.html"><span class="repo-kicker">РАЗДЕЛ</span> Обновления →</a>
+</header>
+<main class="page" aria-labelledby="page-title">
+ <div class="page-intro">
+  <h1 id="page-title">Настройки</h1>
+  <p>Параметры Yorika на этом компьютере. Изменения сохраняются сразу.</p>
+ </div>
+
+ <div class="page-grid">
+  <section class="panel" aria-labelledby="updates-title">
+   <header class="panel-head"><span class="panel-index">01</span><h2 id="updates-title">Обновления</h2></header>
+   <fieldset class="choice-group">
+    <legend>Канал обновлений <small>Откуда получать изменения</small></legend>
+    <label class="choice"><input type="radio" name="update-channel" value="fresh" checked><span><strong>Свежий</strong><small>Последний коммит ветки main</small></span></label>
+    <label class="choice"><input type="radio" name="update-channel" value="stable"><span><strong>Стабильный</strong><small>Последний GitHub Release</small></span></label>
+   </fieldset>
+   <fieldset class="choice-group">
+    <legend>Автопроверка <small>Только пока открыт сайт, без автоматической установки</small></legend>
+    <div class="segmented">
+     <label><input type="radio" name="update-interval" value="3600000"><span>Каждый час</span></label>
+     <label><input type="radio" name="update-interval" value="86400000" checked><span>Раз в сутки</span></label>
+     <label><input type="radio" name="update-interval" value="0"><span>Выключена</span></label>
+    </div>
+   </fieldset>
+   <p id="updates-status" class="setting-note" role="status" aria-live="polite">Загрузка настроек…</p>
+   <div class="setting-row">
+    <span><strong>Токен GitHub</strong><small id="token-state">—</small></span>
+    <a class="secondary link-button" href="./updates.html#access-title">Изменить</a>
+   </div>
+  </section>
+
+  <section class="panel" aria-labelledby="local-title">
+   <header class="panel-head"><span class="panel-index">02</span><h2 id="local-title">Локальный сервер</h2></header>
+   <p class="support-text">Yorika работает только на этом компьютере. Порт выбирается заново при каждом запуске.</p>
+   <label class="token-label" for="local-address">Адрес сайта</label>
+   <div class="token-field"><input id="local-address" readonly><button class="reveal" id="copy-address" type="button">Скопировать</button></div>
+   <p id="copy-status" class="token-status" role="status" aria-live="polite"></p>
+   <dl class="command-list" aria-label="Команды Yorika.bat">
+    <div><dt><code>Yorika.bat /status</code></dt><dd>Показать адрес запущенной Yorika</dd></div>
+    <div><dt><code>Yorika.bat /log</code></dt><dd>Открыть журнал в Блокноте</dd></div>
+    <div><dt><code>Yorika.bat /rollback</code></dt><dd>Вернуться к прежней версии после обновления</dd></div>
+   </dl>
+  </section>
+ </div>
+
+ <section class="panel data-panel" aria-labelledby="data-title">
+  <header class="panel-head"><span class="panel-index">03</span><h2 id="data-title">Данные браузера</h2></header>
+  <p class="support-text">Хранилище IndexedDB привязано к адресу с портом, поэтому после перезапуска Yorika на другом порту оно начинается заново.</p>
+  <ul id="store-list" class="store-list" aria-label="Разделы хранилища"><li class="store-empty">Подсчёт записей…</li></ul>
+  <p id="data-status" class="token-status" role="status" aria-live="polite"></p>
+  <div class="button-row"><button class="ghost danger" id="clear-data" disabled>Очистить данные браузера</button></div>
+ </section>
+</main>
+</body></html>

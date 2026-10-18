@@ -12,7 +12,7 @@ $logPath = Join-Path $logDir 'yorika.log'
 function Log([string]$message) {
   try { [IO.File]::AppendAllText($logPath, ("[{0}] {1}`r`n" -f (Get-Date -Format o), $message), [Text.Encoding]::UTF8) } catch {}
 }
-$mutex = New-Object System.Threading.Mutex($false, 'Local\Yorika-Tray-Launcher')
+$mutex = [System.Threading.Mutex]::new($false, 'Local\Yorika-Tray-Launcher')
 if (-not $mutex.WaitOne(0)) {
   Log 'Yorika is already running.'
   exit 0
@@ -65,7 +65,7 @@ try {
           $client.ReceiveTimeout = 900
           $client.SendTimeout = 900
           $stream = $client.GetStream()
-          $reader = New-Object IO.StreamReader($stream, [Text.Encoding]::ASCII, $false, 1024, $true)
+          $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::ASCII, $false, 1024, $true)
           $first = $reader.ReadLine()
           if (-not $first) { continue }
           $parts = $first.Split(' ')

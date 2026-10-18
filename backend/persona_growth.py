@@ -21,7 +21,7 @@ def learn_reply(store, query, response):
     if not MIN_REPLY <= len(text) <= MAX_REPLY:
         return False
     # Avoid learning diagnostics, secrets or instructions disguised as role directives.
-    if re.search(r"(?i)(api[_ -]?key|bearer\\s+|sk-[A-Za-z0-9]{10,}|пароль\\s*[:=])", text):
+    if re.search(r"(?i)(api[_ -]?key|bearer\s+|sk-[A-Za-z0-9]{10,}|пароль\s*[:=])", text):
         return False
     fp = fingerprint(text)
     category = category_for_query(query, {item[0] for item in KEYWORDS} | {"listening"})

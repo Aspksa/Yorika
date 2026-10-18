@@ -1,10 +1,11 @@
-param([string]$ProjectRoot = (Split-Path -Parent $PSScriptRoot))
+param([string]$ProjectRoot)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 # No Python, Node, pip, or external packages are required.
-$ProjectRoot = [IO.Path]::GetFullPath($ProjectRoot)
+# Portable: derive project root from this script, ignoring caller-supplied paths.
+$ProjectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $siteRoot = [IO.Path]::GetFullPath((Join-Path $ProjectRoot 'www'))
 $logDir = Join-Path $ProjectRoot '.yorika'
 [IO.Directory]::CreateDirectory($logDir) | Out-Null

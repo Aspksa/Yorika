@@ -53,6 +53,8 @@ def _crypt(data: bytes, *, decrypt: bool) -> bytes:
 
 def read_credentials():
     path = credential_path()
+    if path.is_symlink():
+        raise RuntimeError("Refusing linked credential file")
     if not path.is_file():
         return None
     value = json.loads(_crypt(path.read_bytes(), decrypt=True).decode("utf-8"))
@@ -68,6 +70,8 @@ def save_credentials(key: str, model: str):
         raise ValueError("Invalid Cloud.ru model")
     path = credential_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_symlink() or path.parent.is_symlink():
+        raise RuntimeError("Refusing unsafe Cloud.ru credential path")
     content = json.dumps({"key": key, "model": model}, ensure_ascii=False).encode("utf-8")
     encrypted = _crypt(content, decrypt=False)
     # Exclusive creation of temporary file prevents races and symlink replacement.
@@ -86,6 +90,8 @@ def save_credentials(key: str, model: str):
 
 def delete_credentials():
     path = credential_path()
+    if path.is_symlink():
+        raise RuntimeError("Refusing linked credential file")
     if path.exists():
         path.unlink()
     return True

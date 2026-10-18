@@ -201,6 +201,16 @@ el("cloud-ru-form").onsubmit=async event=>{
  }catch(error){el("cloud-ru-status").textContent="Не удалось сохранить настройки: "+error.message}
  finally{button.disabled=false}
 };
+el("cloud-ru-diagnostics").onclick=async()=>{
+ const button=el("cloud-ru-diagnostics");button.disabled=true;
+ try{
+  const report=await api("/api/cloud-ru/diagnostics");
+  el("cloud-ru-status").textContent=report.configured?
+   "DPAPI: ключ доступен. Модель: "+report.model+". Для проверки авторизации нажмите «Проверить подключение».":
+   "DPAPI: ключ не сохранён. Введите ключ Cloud.ru.";
+ }catch(error){el("cloud-ru-status").textContent="Ошибка локальной диагностики: "+error.message}
+ finally{button.disabled=false}
+};
 el("cloud-ru-check").onclick=async()=>{
  if(!confirm("Отправить короткий проверочный запрос в Cloud.ru? Запрос может тарифицироваться."))return;
  const button=el("cloud-ru-check");button.disabled=true;

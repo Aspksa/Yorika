@@ -8,7 +8,7 @@ Yorika starts directly from **Yorika.bat**. There is no separate launcher window
 2. Double-click `Yorika.bat`.
 3. The local website opens automatically in the default browser.
 4. Yorika runs silently in the Windows notification area (near the clock, possibly under **^**).
-5. Double-click its tray icon to open the website again. Right-click > **Exit Yorika** to stop it.
+5. Double-click the tray icon to reopen the site. Right-click to open the site, copy its address, view status, read diagnostics, or exit.
 
 A small background PowerShell process is necessary to keep the site available and manage the tray icon after the BAT exits. It is **not** a separate launcher interface.
 
@@ -19,6 +19,16 @@ Source files:
 - `scripts/yorika-tray.ps1` — background tray process and static HTTP server.
 - `www/index.html` — starter website.
 
-Logs: `.yorika/launcher.log` (legacy filename; hidden support logging only).
+Logs: `.yorika/yorika.log` (hidden support logging only).
 
 Current limitations: static starter website only; no AI API or backend. Windows runtime behavior has not yet been tested on a real Windows computer.
+
+## Current reliability features
+
+- Automatic free TCP port selection with localhost-only binding.
+- Mutex to prevent duplicate running instances.
+- Windows tray operation with log and status menu actions.
+- UTF-8 for site and diagnostic log; no Python dependency.
+- No separate launcher user interface.
+
+Planned but not yet implemented: automatic process recovery, backups, updates/rollback, and live API backend.

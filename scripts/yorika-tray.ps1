@@ -60,7 +60,176 @@ try{
       if($line -match '^Host:\s*(.+)$'){$host=$Matches[1].Trim()}
      }while($null -ne $line -and $line.Length -gt 0)
      $status='200 OK';$mime='application/json; charset=utf-8';$bytes=[byte[]]@()
-     if($path -match '^/api/updates/(settings|token|check|stage)$'){
+     if($path -match '^/api/updates/(settings|token|check|stage|apply)){
+      $action=$Matches[1]
+      try {
+       if($host -ne "127.0.0.1:$port" -or $len -gt 2048 -or $len -lt 0){throw 'Запрос отклонён'}
+       if($method -ne 'GET' -and ($origin -ne "http://127.0.0.1:$port" -or $method -notin @('POST','DELETE'))){throw 'Доступ запрещён'}
+       $body=''
+       if($len -gt 0){
+        $chars=New-Object char[] $len;$received=0
+        while($received -lt $len){$n=$reader.Read($chars,$received,$len-$received);if($n -le 0){throw 'Неполное тело'};$received+=$n}
+        $body=-join $chars
+       }
+       $data=if($body){$body|ConvertFrom-Json}else{$null}
+       $engine=Join-Path $PSScriptRoot 'update-engine.ps1'
+       if($action -eq 'settings' -and $method -eq 'GET'){$output=& $engine -Action settings}
+       elseif($action -eq 'settings' -and $method -eq 'POST'){$output=& $engine -Action save-settings -Channel $data.channel -Interval ([int]$data.interval)}
+       elseif($action -eq 'token' -and $method -eq 'POST'){$output=& $engine -Action save-token -Token $data.token}
+       elseif($action -eq 'token' -and $method -eq 'DELETE'){$output=& $engine -Action delete-token}
+       elseif($action -eq 'check' -and $method -eq 'POST'){$output=& $engine -Action check -Channel $data.channel}
+       elseif($action -eq 'stage' -and $method -eq 'POST'){$output=& $engine -Action stage -Channel $data.channel}
+       elseif($action -eq 'apply' -and $method -eq 'POST'){
+        $sha=[string]$data.sha
+        if($sha -notmatch '^[a-f0-9]{40}
+       $bytes=[Text.Encoding]::UTF8.GetBytes([string]$output)
+      }catch{$status='400 Bad Request';$bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress));Log $_.Exception.Message}
+     }else{
+      if($method -notin @('GET','HEAD')){$status='405 Method Not Allowed';$bytes=[Text.Encoding]::UTF8.GetBytes('Недопустимый метод')}
+      else{
+       try{
+        $relative=[Uri]::UnescapeDataString($path).TrimStart('/').Replace('/',[IO.Path]::DirectorySeparatorChar)
+        if(-not $relative){$relative='index.html'}
+        $resolved=[IO.Path]::GetFullPath((Join-Path $site $relative))
+        $prefix=$site.TrimEnd([IO.Path]::DirectorySeparatorChar)+[IO.Path]::DirectorySeparatorChar
+        if(-not $resolved.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase) -or -not [IO.File]::Exists($resolved)){throw 'Не найдено'}
+        $ext=[IO.Path]::GetExtension($resolved).ToLowerInvariant()
+        $mime=switch($ext){'.html'{'text/html; charset=utf-8'} '.js'{'text/javascript; charset=utf-8'} '.css'{'text/css; charset=utf-8'} '.json'{'application/json; charset=utf-8'} '.svg'{'image/svg+xml'} default{'application/octet-stream'}}
+        $bytes=[IO.File]::ReadAllBytes($resolved)
+       }catch{$status='404 Not Found';$mime='text/plain; charset=utf-8';$bytes=[Text.Encoding]::UTF8.GetBytes('Не найдено')}
+      }
+     }
+     $header="HTTP/1.1 $status`r`nContent-Type: $mime`r`nContent-Length: $($bytes.Length)`r`nConnection: close`r`nCache-Control: no-store`r`nX-Yorika-App: Yorika`r`nX-Content-Type-Options: nosniff`r`n`r`n"
+     $h=[Text.Encoding]::ASCII.GetBytes($header)
+     $stream.Write($h,0,$h.Length)
+     if($method -ne 'HEAD'){$stream.Write($bytes,0,$bytes.Length)}
+     $stream.Flush()
+     if($script:exitAfterResponse){$script:exitAfterResponse=$false;[Windows.Forms.Application]::ExitThread()}
+    }finally{$client.Close()}
+   }
+  }catch{Log ("HTTP: "+$_.Exception.Message)}
+ })
+ $timer.Start()
+ [IO.File]::WriteAllText($ready,$url,[Text.Encoding]::ASCII)
+ Log "Server listening at $url"
+ [Windows.Forms.Application]::Run()
+}catch{Log ("Ошибка запуска: "+$_.Exception.ToString());try{[Windows.Forms.MessageBox]::Show($_.Exception.Message,'Ошибка Yorika')|Out-Null}catch{}}
+finally{
+ try{if([IO.File]::Exists($ready) -and [IO.File]::ReadAllText($ready).Trim() -eq $url){[IO.File]::Delete($ready)}}catch{}
+ if($timer){$timer.Stop();$timer.Dispose()}
+ if($tray){$tray.Visible=$false;$tray.Dispose()}
+ if($server){$server.Stop()}
+ try{$mutex.ReleaseMutex()}catch{};$mutex.Dispose()
+}
+){
+      $action=$Matches[1]
+      try {
+       if($host -ne "127.0.0.1:$port" -or $len -gt 2048 -or $len -lt 0){throw 'Запрос отклонён'}
+       if($method -ne 'GET' -and ($origin -ne "http://127.0.0.1:$port" -or $method -notin @('POST','DELETE'))){throw 'Доступ запрещён'}
+       $body=''
+       if($len -gt 0){
+        $chars=New-Object char[] $len;$received=0
+        while($received -lt $len){$n=$reader.Read($chars,$received,$len-$received);if($n -le 0){throw 'Неполное тело'};$received+=$n}
+        $body=-join $chars
+       }
+       $data=if($body){$body|ConvertFrom-Json}else{$null}
+       $engine=Join-Path $PSScriptRoot 'update-engine.ps1'
+       if($action -eq 'settings' -and $method -eq 'GET'){$output=& $engine -Action settings}
+       elseif($action -eq 'settings' -and $method -eq 'POST'){$output=& $engine -Action save-settings -Channel $data.channel -Interval ([int]$data.interval)}
+       elseif($action -eq 'token' -and $method -eq 'POST'){$output=& $engine -Action save-token -Token $data.token}
+       elseif($action -eq 'token' -and $method -eq 'DELETE'){$output=& $engine -Action delete-token}
+       elseif($action -eq 'check' -and $method -eq 'POST'){$output=& $engine -Action check -Channel $data.channel}
+       elseif($action -eq 'stage' -and $method -eq 'POST'){$output=& $engine -Action stage -Channel $data.channel}
+       else{throw 'Метод запрещён'}
+       $bytes=[Text.Encoding]::UTF8.GetBytes([string]$output)
+      }catch{$status='400 Bad Request';$bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress));Log $_.Exception.Message}
+     }else{
+      if($method -notin @('GET','HEAD')){$status='405 Method Not Allowed';$bytes=[Text.Encoding]::UTF8.GetBytes('Недопустимый метод')}
+      else{
+       try{
+        $relative=[Uri]::UnescapeDataString($path).TrimStart('/').Replace('/',[IO.Path]::DirectorySeparatorChar)
+        if(-not $relative){$relative='index.html'}
+        $resolved=[IO.Path]::GetFullPath((Join-Path $site $relative))
+        $prefix=$site.TrimEnd([IO.Path]::DirectorySeparatorChar)+[IO.Path]::DirectorySeparatorChar
+        if(-not $resolved.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase) -or -not [IO.File]::Exists($resolved)){throw 'Не найдено'}
+        $ext=[IO.Path]::GetExtension($resolved).ToLowerInvariant()
+        $mime=switch($ext){'.html'{'text/html; charset=utf-8'} '.js'{'text/javascript; charset=utf-8'} '.css'{'text/css; charset=utf-8'} '.json'{'application/json; charset=utf-8'} '.svg'{'image/svg+xml'} default{'application/octet-stream'}}
+        $bytes=[IO.File]::ReadAllBytes($resolved)
+       }catch{$status='404 Not Found';$mime='text/plain; charset=utf-8';$bytes=[Text.Encoding]::UTF8.GetBytes('Не найдено')}
+      }
+     }
+     $header="HTTP/1.1 $status`r`nContent-Type: $mime`r`nContent-Length: $($bytes.Length)`r`nConnection: close`r`nCache-Control: no-store`r`nX-Yorika-App: Yorika`r`nX-Content-Type-Options: nosniff`r`n`r`n"
+     $h=[Text.Encoding]::ASCII.GetBytes($header)
+     $stream.Write($h,0,$h.Length)
+     if($method -ne 'HEAD'){$stream.Write($bytes,0,$bytes.Length)}
+     $stream.Flush()
+    }finally{$client.Close()}
+   }
+  }catch{Log ("HTTP: "+$_.Exception.Message)}
+ })
+ $timer.Start()
+ [IO.File]::WriteAllText($ready,$url,[Text.Encoding]::ASCII)
+ Log "Server listening at $url"
+ [Windows.Forms.Application]::Run()
+}catch{Log ("Ошибка запуска: "+$_.Exception.ToString());try{[Windows.Forms.MessageBox]::Show($_.Exception.Message,'Ошибка Yorika')|Out-Null}catch{}}
+finally{
+ try{if([IO.File]::Exists($ready) -and [IO.File]::ReadAllText($ready).Trim() -eq $url){[IO.File]::Delete($ready)}}catch{}
+ if($timer){$timer.Stop();$timer.Dispose()}
+ if($tray){$tray.Visible=$false;$tray.Dispose()}
+ if($server){$server.Stop()}
+ try{$mutex.ReleaseMutex()}catch{};$mutex.Dispose()
+}
+){throw 'Некорректная ревизия'}
+        $archive=Join-Path (Join-Path $work 'staging') ($sha+'.zip')
+        $manifest=Join-Path (Join-Path $work 'staging') ($sha+'.json')
+        if(-not([IO.File]::Exists($archive) -and [IO.File]::Exists($manifest))){throw 'Сначала скачайте и проверьте архив'}
+        $worker=Join-Path $PSScriptRoot 'apply-staged-update.ps1'
+        $exe=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        $arguments='-NoLogo -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "'+$worker+'" -Root "'+$root+'" -Sha '+$sha+' -ServerPid '+$PID
+        Start-Process -FilePath $exe -ArgumentList $arguments -WindowStyle Hidden | Out-Null
+        $script:exitAfterResponse=$true
+        $output='{"ok":true,"detail":"Yorika закрывается для установки. После завершения снова запустите Yorika.bat."}'
+       }
+       else{throw 'Метод запрещён'}
+       $bytes=[Text.Encoding]::UTF8.GetBytes([string]$output)
+      }catch{$status='400 Bad Request';$bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress));Log $_.Exception.Message}
+     }else{
+      if($method -notin @('GET','HEAD')){$status='405 Method Not Allowed';$bytes=[Text.Encoding]::UTF8.GetBytes('Недопустимый метод')}
+      else{
+       try{
+        $relative=[Uri]::UnescapeDataString($path).TrimStart('/').Replace('/',[IO.Path]::DirectorySeparatorChar)
+        if(-not $relative){$relative='index.html'}
+        $resolved=[IO.Path]::GetFullPath((Join-Path $site $relative))
+        $prefix=$site.TrimEnd([IO.Path]::DirectorySeparatorChar)+[IO.Path]::DirectorySeparatorChar
+        if(-not $resolved.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase) -or -not [IO.File]::Exists($resolved)){throw 'Не найдено'}
+        $ext=[IO.Path]::GetExtension($resolved).ToLowerInvariant()
+        $mime=switch($ext){'.html'{'text/html; charset=utf-8'} '.js'{'text/javascript; charset=utf-8'} '.css'{'text/css; charset=utf-8'} '.json'{'application/json; charset=utf-8'} '.svg'{'image/svg+xml'} default{'application/octet-stream'}}
+        $bytes=[IO.File]::ReadAllBytes($resolved)
+       }catch{$status='404 Not Found';$mime='text/plain; charset=utf-8';$bytes=[Text.Encoding]::UTF8.GetBytes('Не найдено')}
+      }
+     }
+     $header="HTTP/1.1 $status`r`nContent-Type: $mime`r`nContent-Length: $($bytes.Length)`r`nConnection: close`r`nCache-Control: no-store`r`nX-Yorika-App: Yorika`r`nX-Content-Type-Options: nosniff`r`n`r`n"
+     $h=[Text.Encoding]::ASCII.GetBytes($header)
+     $stream.Write($h,0,$h.Length)
+     if($method -ne 'HEAD'){$stream.Write($bytes,0,$bytes.Length)}
+     $stream.Flush()
+    }finally{$client.Close()}
+   }
+  }catch{Log ("HTTP: "+$_.Exception.Message)}
+ })
+ $timer.Start()
+ [IO.File]::WriteAllText($ready,$url,[Text.Encoding]::ASCII)
+ Log "Server listening at $url"
+ [Windows.Forms.Application]::Run()
+}catch{Log ("Ошибка запуска: "+$_.Exception.ToString());try{[Windows.Forms.MessageBox]::Show($_.Exception.Message,'Ошибка Yorika')|Out-Null}catch{}}
+finally{
+ try{if([IO.File]::Exists($ready) -and [IO.File]::ReadAllText($ready).Trim() -eq $url){[IO.File]::Delete($ready)}}catch{}
+ if($timer){$timer.Stop();$timer.Dispose()}
+ if($tray){$tray.Visible=$false;$tray.Dispose()}
+ if($server){$server.Stop()}
+ try{$mutex.ReleaseMutex()}catch{};$mutex.Dispose()
+}
+){
       $action=$Matches[1]
       try {
        if($host -ne "127.0.0.1:$port" -or $len -gt 2048 -or $len -lt 0){throw 'Запрос отклонён'}

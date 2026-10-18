@@ -60,7 +60,7 @@ try{
       if($line -match '^Origin:\s*(.+)\z'){$origin=$Matches[1].Trim()}
       if($line -match '^Host:\s*(.+)\z'){$requestHost=$Matches[1].Trim()}
      }while($null -ne $line -and $line.Length -gt 0)
-     $status='200 OK';$mime='application/json; charset=utf-8';$bytes=[byte[]]@()
+     $status='200 OK';$mime='application/json; charset=utf-8';$bytes=[byte[]]@();$streamHandled=$false
      if($path -eq '/api/chat/history'){
       $mime='application/json; charset=utf-8'
       try{
@@ -170,6 +170,60 @@ try{
        if($status -eq '200 OK'){$status='400 Bad Request'}
        $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
        Log ('Cloud.ru settings failed: '+$action)
+      }
+     }elseif($path -eq '/api/chat/stream'){
+      if($requestHost -ne "127.0.0.1:$port" -or $origin -ne "http://127.0.0.1:$port" -or $method -ne 'POST' -or $len -lt 1 -or $len -gt 4096){
+       $status='403 Forbidden';$bytes=[Text.Encoding]::UTF8.GetBytes('{"error":"Forbidden"}')
+      }else{
+       $builder=New-Object Text.StringBuilder;$received=0
+       while($received -lt $len){
+        $chars=New-Object char[] ([Math]::Min(1024,$len-$received))
+        $n=$reader.Read($chars,0,$chars.Length)
+        if($n -le 0){throw 'Incomplete request'}
+        $part=[string]::new($chars,0,$n);[void]$builder.Append($part)
+        $received+=[Text.Encoding]::UTF8.GetByteCount($part)
+       }
+       if($received -ne $len){throw 'Invalid request size'}
+       $data=$builder.ToString()|ConvertFrom-Json
+       if([string]::IsNullOrWhiteSpace([string]$data.query) -or ([string]$data.query).Length -gt 4000){throw 'Invalid query'}
+       $python=Get-Command python.exe -ErrorAction SilentlyContinue
+       if(-not $python){throw 'Python is unavailable'}
+       $psi=New-Object Diagnostics.ProcessStartInfo
+       $psi.FileName=$python.Source
+       $psi.Arguments=('"' + (Join-Path $root 'scripts\cloud-ru-stream.py') + '"')
+       $psi.UseShellExecute=$false;$psi.CreateNoWindow=$true
+       $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
+       $psi.StandardInputEncoding=[Text.Encoding]::UTF8
+       $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
+       $proc=[Diagnostics.Process]::Start($psi)
+       try{
+        $proc.StandardInput.Write($builder.ToString());$proc.StandardInput.Close()
+        $stderrTask=$proc.StandardError.ReadToEndAsync()
+        $head="HTTP/1.1 200 OK"+"`r`n"+"Content-Type: application/x-ndjson; charset=utf-8"+"`r`n"+"Transfer-Encoding: chunked"+"`r`n"+"Connection: close"+"`r`n"+"Cache-Control: no-store"+"`r`n"+"X-Content-Type-Options: nosniff"+"`r`n`r`n"
+        $headBytes=[Text.Encoding]::ASCII.GetBytes($head)
+        $stream.Write($headBytes,0,$headBytes.Length);$stream.Flush()
+        $streamHandled=$true
+        $deadline=[DateTime]::UtcNow.AddSeconds(65)
+        while($true){
+         $lineTask=$proc.StandardOutput.ReadLineAsync()
+         $remaining=[int][Math]::Max(1,($deadline-[DateTime]::UtcNow).TotalMilliseconds)
+         if(-not $lineTask.Wait($remaining)){throw 'Stream timeout'}
+         $line=$lineTask.Result
+         if($null -eq $line){break}
+         if($line.Length -gt 12000){throw 'Stream line too long'}
+         $chunk=[Text.Encoding]::UTF8.GetBytes($line+"`n")
+         $prefix=[Text.Encoding]::ASCII.GetBytes(("{0:x}" -f $chunk.Length)+"`r`n")
+         $stream.Write($prefix,0,$prefix.Length);$stream.Write($chunk,0,$chunk.Length)
+         $stream.Write([byte[]](13,10),0,2);$stream.Flush()
+        }
+        if(-not $proc.WaitForExit(1500)){throw 'Stream process did not exit'}
+        $null=$stderrTask.GetAwaiter().GetResult()
+        $ending=[Text.Encoding]::ASCII.GetBytes("0`r`n`r`n")
+        $stream.Write($ending,0,$ending.Length);$stream.Flush()
+       }catch{
+        if($proc -and -not $proc.HasExited){try{$proc.Kill()}catch{}}
+        Log 'Cloud.ru streaming request failed'
+       }finally{if($proc){$proc.Dispose()}}
       }
      }elseif($path -eq '/api/chat/respond'){
       try{
@@ -311,11 +365,13 @@ try{
        }catch{$status='404 Not Found';$mime='text/plain; charset=utf-8';$bytes=[Text.Encoding]::UTF8.GetBytes('Не найдено')}
       }
      }
+     if(-not $streamHandled){
      $header="HTTP/1.1 $status`r`nContent-Type: $mime`r`nContent-Length: $($bytes.Length)`r`nConnection: close`r`nCache-Control: no-store`r`nX-Yorika-App: Yorika`r`nX-Content-Type-Options: nosniff`r`n`r`n"
      $h=[Text.Encoding]::ASCII.GetBytes($header)
      $stream.Write($h,0,$h.Length)
      if($method -ne 'HEAD'){$stream.Write($bytes,0,$bytes.Length)}
      $stream.Flush()
+     }
     }finally{$client.Close()}
    }
   }catch{Log ("HTTP: "+$_.Exception.Message)}

@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Root,[Parameter(Mandatory=$true)][string]$Sha,[Parameter(Mandatory=$true)][int]$ServerPid,[switch]$TestOnly,[switch]$SimulateFailure)
+﻿param([Parameter(Mandatory=$true)][string]$Root,[Parameter(Mandatory=$true)][string]$Sha,[Parameter(Mandatory=$true)][int]$ServerPid,[switch]$TestOnly,[switch]$SimulateFailure)
 $ErrorActionPreference='Stop'
 $work=Join-Path $Root '.yorika'
 $staging=Join-Path $work 'staging'

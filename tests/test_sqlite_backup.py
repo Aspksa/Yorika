@@ -33,6 +33,23 @@ class BackupTests(unittest.TestCase):
                 create_verified_backup(path, destination)
             self.assertEqual(destination.read_bytes(), b"keep me")
 
+    def test_reject_symlink_destination(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            original = root / "live.sqlite3"
+            with sqlite3.connect(original) as db:
+                db.execute("CREATE TABLE example (id INTEGER)")
+            protected = root / "protected.txt"
+            protected.write_text("untouched")
+            link = root / "backup.sqlite3"
+            try:
+                link.symlink_to(protected)
+            except (OSError, NotImplementedError):
+                self.skipTest("Symlinks unavailable")
+            with self.assertRaises(FileExistsError):
+                create_verified_backup(original, link)
+            self.assertEqual(protected.read_text(), "untouched")
+
     def test_verification_rejects_corrupt_file(self):
         with tempfile.TemporaryDirectory() as folder:
             bad = Path(folder) / "bad.sqlite3"

@@ -51,19 +51,19 @@ try{
      $parts=$first.Split(' ')
      if($parts.Length -lt 3){continue}
      $method=$parts[0];$path=$parts[1].Split('?')[0]
-     $len=0;$origin='';$host='';$line='';$headers=0
+     $len=0;$origin='';$requestHost='';$line='';$headers=0
      do{
       $line=$reader.ReadLine();$headers++
       if($headers -gt 60 -or ($null -ne $line -and $line.Length -gt 8192)){throw 'Некорректные заголовки'}
       if($line -match '^Content-Length:\s*(\d+)\s*$'){$len=[int]$Matches[1]}
       if($line -match '^Origin:\s*(.+)$'){$origin=$Matches[1].Trim()}
-      if($line -match '^Host:\s*(.+)$'){$host=$Matches[1].Trim()}
+      if($line -match '^Host:\s*(.+)$'){$requestHost=$Matches[1].Trim()}
      }while($null -ne $line -and $line.Length -gt 0)
      $status='200 OK';$mime='application/json; charset=utf-8';$bytes=[byte[]]@()
      if($path -match '^/api/updates/(settings|token|check|stage)$'){
       $action=$Matches[1]
       try {
-       if($host -ne "127.0.0.1:$port" -or $len -gt 2048 -or $len -lt 0){throw 'Запрос отклонён'}
+       if($requestHost -ne "127.0.0.1:$port" -or $len -gt 2048 -or $len -lt 0){throw 'Запрос отклонён'}
        if($method -ne 'GET' -and ($origin -ne "http://127.0.0.1:$port" -or $method -notin @('POST','DELETE'))){throw 'Доступ запрещён'}
        $body=''
        if($len -gt 0){

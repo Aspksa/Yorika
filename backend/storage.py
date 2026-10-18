@@ -109,6 +109,19 @@ class Store:
         ).fetchone()
         return json.loads(row[0]) if row else None
 
+    def delete_record(self, namespace: str, record_id: str) -> bool:
+        """Delete one local record by exact namespace and ID; return whether it existed."""
+        if not isinstance(namespace, str) or not namespace:
+            raise ValueError("namespace must be non-empty")
+        if not isinstance(record_id, str) or not record_id:
+            raise ValueError("record_id must be non-empty")
+        with self.connection:
+            cursor = self.connection.execute(
+                "DELETE FROM records WHERE namespace=? AND record_id=?",
+                (namespace, record_id),
+            )
+            return cursor.rowcount == 1
+
     def list_records(self, namespace: str, limit: int = 100) -> list[dict]:
         """Enumerate saved records in stable newest-first order."""
         if not isinstance(namespace, str) or not namespace:

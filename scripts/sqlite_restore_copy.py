@@ -40,7 +40,12 @@ def restore_copy(source: Path, destination: Path, sha256: str) -> dict:
         # Fail closed if another file appeared during copy.
         # Atomic exclusive link: never replace an existing destination.
         os.link(temporary, destination)
-        return preview(destination, checked["sha256"])
+        try:
+            return preview(destination, checked["sha256"])
+        except BaseException:
+            # Reject a candidate that fails its final verification.
+            destination.unlink()
+            raise
     finally:
         temporary.unlink(missing_ok=True)
 

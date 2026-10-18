@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Root,[Parameter(Mandatory=$true)][string]$Sha,[Parameter(Mandatory=$true)][int]$ServerPid)
+param([Parameter(Mandatory=$true)][string]$Root,[Parameter(Mandatory=$true)][string]$Sha,[Parameter(Mandatory=$true)][int]$ServerPid,[switch]$TestOnly)
 $ErrorActionPreference='Stop'
 $work=Join-Path $Root '.yorika'
 $staging=Join-Path $work 'staging'
@@ -20,12 +20,12 @@ try{
  $actual=(Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
  if($manifest.hash -ne $actual){throw 'Контрольная сумма архива не совпадает'}
  # Avoid modifying a running installation.
- for($i=0;$i -lt 80;$i++){
+ for($i=0;$i -lt $(if($TestOnly){0}else{80});$i++){
   $p=Get-Process -Id $ServerPid -ErrorAction SilentlyContinue
   if(-not $p){break}
   Start-Sleep -Milliseconds 250
  }
- if(Get-Process -Id $ServerPid -ErrorAction SilentlyContinue){throw 'Yorika ещё работает; обновление отменено'}
+ if(-not $TestOnly -and (Get-Process -Id $ServerPid -ErrorAction SilentlyContinue)){throw 'Yorika ещё работает; обновление отменено'}
  Add-Type -AssemblyName System.IO.Compression.FileSystem
  [IO.Directory]::CreateDirectory($extract)|Out-Null
  $zip=[IO.Compression.ZipFile]::OpenRead($archive)
@@ -42,9 +42,11 @@ try{
  foreach($essential in @('Yorika.bat','www\index.html','scripts\start.ps1','scripts\yorika-tray.ps1')){
   if(-not(Test-Path -LiteralPath (Join-Path $source $essential))){throw "Отсутствует: $essential"}
  }
+ if($TestOnly){ Result $true 'Проверка обновления успешна: файлы не изменены'; return }
  [IO.Directory]::CreateDirectory($backup)|Out-Null
  $original=@(Get-ChildItem -LiteralPath $Root -Force | Where-Object {$_.Name -notin $protected})
  foreach($item in $original){Copy-Item -LiteralPath $item.FullName -Destination $backup -Recurse -Force -ErrorAction Stop}
+ foreach($item in $original){if(-not(Test-Path -LiteralPath (Join-Path $backup $item.Name))){throw ('Резервная копия неполна: '+$item.Name)}}
  try {
   foreach($item in $original){Remove-Item -LiteralPath $item.FullName -Recurse -Force -ErrorAction Stop}
   foreach($item in (Get-ChildItem -LiteralPath $source -Force)){

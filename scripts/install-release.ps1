@@ -54,7 +54,8 @@ try{
   }
   $launcher=Join-Path $target 'scripts\start.ps1'
   $runner=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-  $launchArgs=@('-NoLogo','-NoProfile','-STA','-ExecutionPolicy','Bypass','-File',('"'+$launcher+'"'))
+  # The updates page navigates to the new address itself, so no extra browser tab.
+  $launchArgs=@('-NoLogo','-NoProfile','-STA','-ExecutionPolicy','Bypass','-File',('"'+$launcher+'"'),'-NoBrowser')
   $launchProcess=Start-Process -FilePath $runner -ArgumentList $launchArgs -WindowStyle Hidden -PassThru
   $ready=Join-Path $newWork 'ready.url'
   for($i=0;$i -lt 70 -and -not(Test-Path -LiteralPath $ready);$i++){

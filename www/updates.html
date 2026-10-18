@@ -31,38 +31,19 @@
   <dl class="versions" aria-label="Сравнение версий">
    <div class="version-tile"><dt>У вас</dt><dd><code id="local-version">—</code><small id="local-source">ещё не проверялось</small></dd></div>
    <div class="version-arrow" aria-hidden="true">→</div>
-   <div class="version-tile"><dt>На GitHub</dt><dd><code id="remote-version">—</code><small id="remote-source">канал «Свежий»</small></dd></div>
+   <div class="version-tile"><dt>На GitHub</dt><dd><code id="remote-version">—</code><small><span id="remote-source">канал «Свежий»</span> · <a href="./settings.html">изменить</a></small></dd></div>
   </dl>
  </section>
 
- <div class="page-grid">
-  <section class="panel" aria-labelledby="preferences-title">
-   <header class="panel-head"><span class="panel-index">01</span><h2 id="preferences-title">Параметры</h2></header>
-   <fieldset class="choice-group">
-    <legend>Канал обновлений <small>Откуда получать изменения</small></legend>
-    <label class="choice"><input type="radio" name="update-channel" value="fresh" checked><span><strong>Свежий</strong><small>Последний коммит ветки main</small></span></label>
-    <label class="choice"><input type="radio" name="update-channel" value="stable"><span><strong>Стабильный</strong><small>Последний GitHub Release</small></span></label>
-   </fieldset>
-   <fieldset class="choice-group">
-    <legend>Автопроверка <small>Только пока открыт сайт, без автоматической установки</small></legend>
-    <div class="segmented">
-     <label><input type="radio" name="update-interval" value="3600000"><span>Каждый час</span></label>
-     <label><input type="radio" name="update-interval" value="86400000" checked><span>Раз в сутки</span></label>
-     <label><input type="radio" name="update-interval" value="0"><span>Выключена</span></label>
-    </div>
-   </fieldset>
-  </section>
-
-  <section class="panel" aria-labelledby="access-title">
-   <header class="panel-head"><span class="panel-index">02</span><h2 id="access-title">Доступ к GitHub</h2></header>
+ <section class="panel access" aria-labelledby="access-title">
+   <header class="panel-head"><span class="panel-index">01</span><h2 id="access-title">Доступ к GitHub</h2></header>
    <p class="support-text">Приватному репозиторию нужен fine-grained токен с правом <b>Contents: Read</b>. Он хранится только на этом компьютере под защитой Windows.</p>
    <label class="token-label" for="github-token">Персональный токен</label>
    <div class="token-field"><input type="password" id="github-token" autocomplete="off" spellcheck="false" placeholder="github_pat_…"><button class="reveal" id="toggle-token" type="button" aria-label="Показать токен" aria-pressed="false">Показать</button></div>
    <p id="token-status" class="token-status" role="status" aria-live="polite">Проверка доступа…</p>
    <div class="button-row"><button class="primary" id="save-token">Проверить и сохранить</button><button class="ghost" id="delete-token">Удалить</button></div>
    <a class="help-link" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Создать токен на GitHub ↗</a>
-  </section>
- </div>
+ </section>
 
  <section class="panel safety" aria-labelledby="safety-title">
   <header class="panel-head"><span class="panel-index">◇</span><h2 id="safety-title">Безопасная установка</h2></header>

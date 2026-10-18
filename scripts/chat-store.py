@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Versioned SQLite chat snapshots. Only exact-revision writes are accepted."""
 import json
+import hashlib
+import re
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -28,6 +30,42 @@ def valid_history(obj):
         result.append({"from": m["from"], "text": m["text"], "ts": ts})
     return result
 
+
+# Only explicit user instructions are captured. Never mine arbitrary private chat.
+REMEMBER_PATTERN = re.compile(r"^\\s*(?:запомни\\s*[:：,]?|remember\\s*[:：,]?)\\s*(.+?)\\s*$", re.I | re.S)
+
+def capture_explicit_memories(db, old_history, new_history):
+    """Add source-linked memories from new explicit user requests only."""
+    seen = {(m["from"], m["text"], m["ts"]) for m in old_history}
+    count = 0
+    for message in new_history:
+        key = (message["from"], message["text"], message["ts"])
+        if key in seen:
+            continue
+        seen.add(key)
+        if message["from"] != "me":
+            continue
+        match = REMEMBER_PATTERN.fullmatch(message["text"])
+        if not match or not match.group(1).strip():
+            continue
+        content = match.group(1).strip()
+        if len(content) > 3000:
+            continue
+        digest = hashlib.sha256(
+            json.dumps(key, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
+        source_id = "chat:" + digest
+        value = {"text": content, "source": "explicit-chat-request",
+                 "source_id": source_id,
+                 "created_at": datetime.now(timezone.utc).isoformat()}
+        db.execute(
+            "INSERT OR IGNORE INTO records(namespace,record_id,payload,updated_at) "
+            "VALUES(?,?,?,?)",
+            ("memories", source_id, json.dumps(value, ensure_ascii=False),
+             value["created_at"]),
+        )
+        count += 1
+    return count
 
 def read_record(db):
     row = db.execute("SELECT payload FROM records WHERE namespace=? AND record_id=?",
@@ -61,6 +99,7 @@ def run(action, payload=None, directory=None):
             json_value = json.dumps({"history": history, "revision": new_revision},
                                     ensure_ascii=False, allow_nan=False)
             timestamp = datetime.now(timezone.utc).isoformat()
+            capture_explicit_memories(db, current["history"] or [], history) if action == "put" else None
             db.execute(
                 "INSERT INTO records(namespace,record_id,payload,updated_at) VALUES(?,?,?,?) "
                 "ON CONFLICT(namespace,record_id) DO UPDATE SET "

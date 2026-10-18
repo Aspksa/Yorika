@@ -112,11 +112,11 @@ try{
        $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
        Log ('Chat memory: '+$_.Exception.Message)
       }
-     }elseif($path -match '^/api/cloud-ru/(status|save|check|delete|diagnostics)\z'){
+     }elseif($path -match '^/api/cloud-ru/(status|save|check|delete|diagnostics|persona-status|persona-config|persona-delete)\z'){
       $action=$Matches[1]
       try{
        if($requestHost -ne "127.0.0.1:$port"){throw 'Недопустимый Host'}
-       if($action -in @('status','diagnostics')){
+       if($action -in @('status','diagnostics','persona-status')){
         if($method -ne 'GET'){throw 'Недопустимый метод'}
        }elseif($method -ne 'POST' -or $origin -ne "http://127.0.0.1:$port"){
         throw 'Доступ запрещён'
@@ -136,7 +136,7 @@ try{
         if($received -ne $len){throw 'Неверная длина'}
         $body=$builder.ToString()
        }
-       if($action -eq 'save' -and -not $body){throw 'Настройки не переданы'}
+       if($action -in @('save','persona-config','persona-delete') -and -not $body){throw 'Настройки не переданы'}
        $python=Get-Command python.exe -ErrorAction SilentlyContinue
        if(-not $python){$status='503 Service Unavailable';throw 'Python недоступен'}
        $psi=New-Object Diagnostics.ProcessStartInfo
@@ -148,7 +148,7 @@ try{
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
        $proc=[Diagnostics.Process]::Start($psi)
        try{
-        if($action -eq 'save'){$proc.StandardInput.Write($body)}
+        if($action -in @('save','persona-config','persona-delete')){$proc.StandardInput.Write($body)}
         $proc.StandardInput.Close()
         $stdoutTask=$proc.StandardOutput.ReadToEndAsync()
         $stderrTask=$proc.StandardError.ReadToEndAsync()

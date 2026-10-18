@@ -230,3 +230,34 @@ el("cloud-ru-delete").onclick=async()=>{
  }catch(error){el("cloud-ru-status").textContent="Ошибка удаления: "+error.message}
 };
 cloudStatus().catch(error=>{el("cloud-ru-status").textContent="Настройки Cloud.ru недоступны: "+error.message});
+
+async function refreshPersonaGrowth(){
+ const report=await api("/api/cloud-ru/persona-status");
+ el("persona-growth-enabled").checked=report.enabled;
+ el("persona-growth-status").textContent="Сохранено новых реплик: "+report.count;
+ const list=el("persona-growth-replies");
+ list.replaceChildren(...report.replies.map(item=>{
+  const li=document.createElement("li");
+  const snippet=document.createElement("span");snippet.textContent=item.text.slice(0,180);
+  const del=document.createElement("button");del.type="button";del.textContent="Удалить";del.className="ghost danger";
+  del.onclick=async()=>{del.disabled=true;try{
+   await api("/api/cloud-ru/persona-delete",{method:"POST",body:JSON.stringify({id:item.id})});
+   await refreshPersonaGrowth();
+  }catch(err){el("persona-growth-status").textContent="Ошибка удаления: "+err.message;del.disabled=false}};
+  li.append(snippet,del);return li;
+ }));
+}
+el("persona-growth-refresh").onclick=()=>refreshPersonaGrowth().catch(error=>{
+ el("persona-growth-status").textContent="Ошибка загрузки: "+error.message;
+});
+el("persona-growth-enabled").onchange=async event=>{
+ const box=event.target;box.disabled=true;
+ try{
+  await api("/api/cloud-ru/persona-config",{method:"POST",body:JSON.stringify({enabled:box.checked})});
+  await refreshPersonaGrowth();
+ }catch(error){el("persona-growth-status").textContent="Ошибка сохранения: "+error.message}
+ finally{box.disabled=false}
+};
+refreshPersonaGrowth().catch(error=>{
+ el("persona-growth-status").textContent="Накопленные реплики недоступны: "+error.message;
+});

@@ -8,9 +8,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from backend.cloud_ru_vault import (read_credentials, save_credentials,
                                    delete_credentials, public_status)
 from backend.storage import Store
+from backend.persona_growth import stats, list_replies, remove_reply, set_enabled
 
 
 def run(action, data=None, *, test_call=None):
+    if action == "persona-status":
+        with Store() as store:
+            return {**stats(store), "replies": list_replies(store, 20)}
+    if action == "persona-config":
+        if not isinstance(data, dict):
+            raise ValueError("Missing settings")
+        with Store() as store:
+            return set_enabled(store, data.get("enabled"))
+    if action == "persona-delete":
+        if not isinstance(data, dict):
+            raise ValueError("Missing reply ID")
+        with Store() as store:
+            return remove_reply(store, data.get("id"))
     if action == "status":
         return public_status()
     if action == "save":
@@ -54,7 +68,7 @@ def run(action, data=None, *, test_call=None):
 
 def main():
     action = sys.argv[1] if len(sys.argv) == 2 else ""
-    data = json.load(sys.stdin) if action == "save" else None
+    data = json.load(sys.stdin) if action in ("save", "persona-config", "persona-delete") else None
     result = run(action, data)
     print(json.dumps(result, ensure_ascii=False))
 

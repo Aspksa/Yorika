@@ -72,6 +72,15 @@
   </form>
  </section>
 
+ <section class="panel appearance-panel" aria-labelledby="persona-growth-title">
+  <header class="panel-head"><span class="panel-index">04</span><h2 id="persona-growth-title">Рост личности Йорики</h2></header>
+  <p class="support-text">Дополнительные реплики хранятся локально в SQLite. Проверка личных данных и похожих фраз эвристическая и не гарантирует полной защиты.</p>
+  <label><input id="persona-growth-enabled" type="checkbox"> Сохранять новые реплики</label>
+  <p id="persona-growth-status" class="setting-note" role="status" aria-live="polite">Загрузка статистики…</p>
+  <button id="persona-growth-refresh" class="ghost" type="button">Обновить список</button>
+  <ul id="persona-growth-replies" aria-label="Недавние накопленные реплики"></ul>
+ </section>
+
  <section class="panel appearance-panel" aria-labelledby="look-title">
   <header class="panel-head"><span class="panel-index">03</span><h2 id="look-title">Внешний вид</h2></header>
   <p class="support-text">Тема, цвет, скругления и размер интерфейса. Меняются сразу, хранятся в этом браузере.</p>

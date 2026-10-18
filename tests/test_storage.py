@@ -109,6 +109,18 @@ class StorageTests(unittest.TestCase):
                 Store(root)
             self.assertEqual(file.read_bytes(), original)
 
+    def test_rejected_schema_does_not_switch_journal_mode(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            path = root / "yorika.sqlite3"
+            with sqlite3.connect(path) as db:
+                db.execute("CREATE TABLE alien (value TEXT)")
+                self.assertEqual(db.execute("PRAGMA journal_mode").fetchone()[0], "delete")
+            with self.assertRaisesRegex(RuntimeError, "Unversioned database"):
+                Store(root)
+            with sqlite3.connect(path) as db:
+                self.assertEqual(db.execute("PRAGMA journal_mode").fetchone()[0], "delete")
+
     def test_reject_future_schema(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -39,6 +39,23 @@ class StorageTests(unittest.TestCase):
             with Store(root) as db:
                 self.assertEqual(db.get("memories", "one"), {"text": "новое"})
 
+    def test_conditional_delete_rejects_stale_editor(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with Store(Path(folder)) as db:
+                db.put("memories", "one", {"text": "first"})
+                db.put("settings", "one", {"text": "keep"})
+                db.put("memories", "one", {"text": "new version"})
+                self.assertFalse(db.delete_record_if_unchanged(
+                    "memories", "one", {"text": "first"}))
+                self.assertEqual(db.get("memories", "one"), {"text": "new version"})
+                self.assertTrue(db.delete_record_if_unchanged(
+                    "memories", "one", {"text": "new version"}))
+                self.assertFalse(db.delete_record_if_unchanged(
+                    "memories", "one", {"text": "new version"}))
+                self.assertEqual(db.get("settings", "one"), {"text": "keep"})
+                with self.assertRaises(ValueError):
+                    db.delete_record_if_unchanged("memories", "one", [])
+
     def test_delete_record_is_exact_and_persistent(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

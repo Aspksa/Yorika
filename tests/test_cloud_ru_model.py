@@ -1,0 +1,70 @@
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from urllib.error import HTTPError
+
+from backend.storage import Store
+
+PATH = Path(__file__).resolve().parents[1] / "scripts" / "cloud-ru-model.py"
+spec = importlib.util.spec_from_file_location("yorika_cloud_ru", PATH)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+
+class FakeResponse:
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        pass
+    def read(self, length):
+        return json.dumps({"choices": [{"message": {"content": "Ответ Ёрики"}}]}).encode()
+
+
+class CloudRuTests(unittest.TestCase):
+    def test_cloud_endpoint_bearer_and_memory_context(self):
+        with tempfile.TemporaryDirectory() as root:
+            with Store(Path(root)) as db:
+                db.remember("favorite", "Ёрика любит чай", "user")
+                db.put("private", "private", {"text": "секрет Ёрика"})
+            requests = []
+            def opener(req, timeout):
+                requests.append((req, timeout))
+                return FakeResponse()
+            result = module.answer("Ёрика", Path(root), model="ai-sage/GigaChat3-10B-A1.8B",
+                                   api_key="test-secret", opener=opener)
+            self.assertEqual(result["provider"], "cloud-ru-foundation-models")
+            self.assertEqual(result["answer"], "Ответ Ёрики")
+            req, timeout = requests[0]
+            self.assertEqual(req.full_url,
+                             "https://foundation-models.api.cloud.ru/v1/chat/completions")
+            self.assertEqual(req.get_header("Authorization"), "Bearer test-secret")
+            self.assertEqual(timeout, 20)
+            data = json.loads(req.data)
+            self.assertIn("Ёрика любит чай", data["messages"][0]["content"])
+            self.assertNotIn("секрет Ёрика", data["messages"][0]["content"])
+            self.assertFalse(data["stream"])
+
+    def test_invalid_credentials_and_query_never_call_network(self):
+        with tempfile.TemporaryDirectory() as root:
+            def blocked(*args, **kwargs):
+                self.fail("Network was called")
+            with self.assertRaises(RuntimeError):
+                module.answer("привет", Path(root), api_key="bad\nheader", opener=blocked)
+            with self.assertRaises(ValueError):
+                module.answer("", Path(root), api_key="test", opener=blocked)
+            with self.assertRaises(ValueError):
+                module.answer("привет", Path(root), api_key="test", model="bad model", opener=blocked)
+
+    def test_http_error_does_not_disclose_token(self):
+        with tempfile.TemporaryDirectory() as root:
+            def forbidden(req, timeout):
+                raise HTTPError(req.full_url, 401, "unauthorized", {}, None)
+            with self.assertRaisesRegex(RuntimeError, "HTTP 401") as cm:
+                module.answer("привет", Path(root), api_key="super-secret", opener=forbidden)
+            self.assertNotIn("super-secret", str(cm.exception))
+
+
+if __name__ == "__main__":
+    unittest.main()

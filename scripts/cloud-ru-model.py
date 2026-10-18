@@ -57,7 +57,7 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
             recent_messages = load_history(db, conversation_id)
             grown_example = generated_example(db, query)
             try:
-                scenario_example = choose_scenario(db, query)
+                scenario_example = choose_scenario(db, query, conversation_id=conversation_id)
             except (OSError, ValueError, KeyError, TypeError):
                 scenario_example = None
             try:

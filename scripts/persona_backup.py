@@ -1,5 +1,8 @@
 """Backup and restore the entire Yorika SQLite store, including learned personality."""
 import argparse
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from pathlib import Path
 from scripts.sqlite_backup import create_verified_backup, verify_snapshot
 

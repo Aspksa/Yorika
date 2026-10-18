@@ -1,4 +1,4 @@
-param([string]$ProjectRoot)
+﻿param([string]$ProjectRoot)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -35,13 +35,13 @@ try {
   Log "Server listening at $url"
 
   $menu = New-Object System.Windows.Forms.ContextMenuStrip
-  $openItem = $menu.Items.Add('Open Yorika')
-  $addressItem = $menu.Items.Add("Local address: $url")
+  $openItem = $menu.Items.Add('Открыть Yorika')
+  $addressItem = $menu.Items.Add("Локальный адрес: $url")
   $addressItem.Enabled = $false
-  $copyItem = $menu.Items.Add('Copy website address')
-  $statusItem = $menu.Items.Add('System status')
-  $logItem = $menu.Items.Add('Open diagnostic log')
-  $exitItem = $menu.Items.Add('Exit Yorika')
+  $copyItem = $menu.Items.Add('Скопировать адрес сайта')
+  $statusItem = $menu.Items.Add('Состояние системы')
+  $logItem = $menu.Items.Add('Открыть журнал ошибок')
+  $exitItem = $menu.Items.Add('Выйти из Yorika')
   $tray = New-Object System.Windows.Forms.NotifyIcon
   $tray.Icon = [Drawing.SystemIcons]::Application
   $tray.Text = 'Yorika'
@@ -53,7 +53,7 @@ try {
   $tray.add_DoubleClick($openAction)
   $copyItem.add_Click({ [System.Windows.Forms.Clipboard]::SetText($url) })
   $statusItem.add_Click({
-    [System.Windows.Forms.MessageBox]::Show("Yorika online`nURL: $url`nProcess: $PID`nPython: not required", 'Yorika status') | Out-Null
+    [System.Windows.Forms.MessageBox]::Show("Yorika работает`nАдрес: $url`nПроцесс: $PID`nPython не требуется", 'Yorika status') | Out-Null
   })
   $logItem.add_Click({ if ([IO.File]::Exists($logPath)) { Start-Process notepad.exe -ArgumentList ('"' + $logPath + '"') } })
   $exitItem.add_Click({ [System.Windows.Forms.Application]::ExitThread() })
@@ -128,7 +128,7 @@ try {
 } catch {
   Log "Startup error: $($_.Exception.ToString())"
   Write-Host ("[YORIKA] Startup error: " + $_.Exception.ToString())
-  try { [System.Windows.Forms.MessageBox]::Show("Yorika failed to start. See .yorika\yorika.log", 'Yorika') | Out-Null } catch {}
+  try { [System.Windows.Forms.MessageBox]::Show("Ошибка запуска Yorika. Журнал: .yorika\yorika.log", 'Yorika') | Out-Null } catch {}
 } finally {
   try {
     if ([IO.File]::Exists($readyPath) -and [IO.File]::ReadAllText($readyPath).Trim() -eq $url) { [IO.File]::Delete($readyPath) }

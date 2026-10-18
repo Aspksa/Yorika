@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Root,[Parameter(Mandatory=$true)][string]$Sha,[Parameter(Mandatory=$true)][int]$ServerPid,[switch]$TestOnly)
+param([Parameter(Mandatory=$true)][string]$Root,[Parameter(Mandatory=$true)][string]$Sha,[Parameter(Mandatory=$true)][int]$ServerPid,[switch]$TestOnly,[switch]$SimulateFailure)
 $ErrorActionPreference='Stop'
 $work=Join-Path $Root '.yorika'
 $staging=Join-Path $work 'staging'
@@ -7,6 +7,7 @@ $backup=Join-Path $work ('backup-'+(Get-Date -Format 'yyyyMMdd-HHmmss'))
 $extract=Join-Path $work ('extract-'+[guid]::NewGuid().ToString('N'))
 $journal=Join-Path $work 'update-result.json'
 $protected=@('.yorika','.git')
+if($Root -notmatch 'yorika-update-test-' -and $SimulateFailure){throw 'Симуляция разрешена только в тестовой папке'}
 function Result($ok,$message){
  $report=@{success=$ok;message=$message;time=(Get-Date -Format o)}
  [IO.File]::WriteAllText($journal,($report|ConvertTo-Json -Compress),[Text.Encoding]::UTF8)
@@ -49,6 +50,7 @@ try{
  foreach($item in $original){if(-not(Test-Path -LiteralPath (Join-Path $backup $item.Name))){throw ('Резервная копия неполна: '+$item.Name)}}
  try {
   foreach($item in $original){Remove-Item -LiteralPath $item.FullName -Recurse -Force -ErrorAction Stop}
+  if($SimulateFailure){throw 'Тестовая ошибка после удаления файлов'}
   foreach($item in (Get-ChildItem -LiteralPath $source -Force)){
    if($item.Name -in $protected){continue}
    Copy-Item -LiteralPath $item.FullName -Destination $Root -Recurse -Force -ErrorAction Stop

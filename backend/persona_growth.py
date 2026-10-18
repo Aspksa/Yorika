@@ -113,7 +113,7 @@ def _ensure_index(db):
     # Incremental backfill makes upgrades safe for existing installations.
     rows = db.execute(
         "SELECT record_id,payload FROM records WHERE namespace=? AND record_id NOT IN "
-        "(SELECT reply_id FROM persona_growth_indexed)", (NAMESPACE,)
+        "(SELECT reply_id FROM persona_growth_indexed) LIMIT 128", (NAMESPACE,)
     ).fetchall()
     for reply_id, raw in rows:
         try:

@@ -2,6 +2,7 @@
 """Versioned SQLite chat snapshots. Only exact-revision writes are accepted."""
 import json
 import hashlib
+import math
 import re
 import sqlite3
 import sys
@@ -25,7 +26,7 @@ def valid_history(obj):
         if len(m["text"]) > MAX_TEXT:
             raise ValueError("Message too long")
         ts = m.get("ts")
-        if not isinstance(ts, (int, float)) or isinstance(ts, bool) or not 0 <= ts < 10**16:
+        if not isinstance(ts, (int, float)) or isinstance(ts, bool) or not math.isfinite(ts) or not 0 <= ts < 10**16:
             raise ValueError("Invalid timestamp")
         result.append({"from": m["from"], "text": m["text"], "ts": ts})
     return result

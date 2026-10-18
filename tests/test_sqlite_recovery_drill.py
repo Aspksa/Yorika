@@ -18,6 +18,7 @@ class RecoveryDrillTests(unittest.TestCase):
             data_before = (root / "backup.sqlite3").read_bytes()
             result = recovery_drill(root / "backup.sqlite3", report["sha256"])
             self.assertTrue(result["passed"])
+            self.assertTrue(result["temporary_copy_removed"])
             self.assertEqual(result["counts"], {"events": 1, "records": 1})
             self.assertEqual((root / "backup.sqlite3").read_bytes(), data_before)
             with Store(root / "live") as store:

@@ -24,10 +24,14 @@ def recovery_drill(backup: Path, sha256: str) -> dict:
             raise ValueError("Recovery drill: restored snapshot hash mismatch")
         if restored["counts"] != initial["counts"]:
             raise ValueError("Recovery drill: restored row counts mismatch")
-        return {"passed": True, "sha256": restored["sha256"],
-                "schema_version": restored["schema_version"],
-                "counts": restored["counts"], "original_untouched": True,
-                "temporary_copy_removed": True}
+        result = {"passed": True, "sha256": restored["sha256"],
+                  "schema_version": restored["schema_version"],
+                  "counts": restored["counts"], "original_untouched": True}
+    # Only report successful cleanup once TemporaryDirectory has exited.
+    result["temporary_copy_removed"] = not destination.exists()
+    if not result["temporary_copy_removed"]:
+        raise RuntimeError("Recovery drill temporary copy was not removed")
+    return result
 
 
 def main() -> None:

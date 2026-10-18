@@ -52,6 +52,47 @@ export class Database {
   }
   async delete(name, id) { return this.#write(name, store => store.delete(id)); }
   async clear(name) { return this.#write(name, store => store.clear()); }
+  /** Import a validated browser snapshot in one IndexedDB transaction (no overwrites). */
+  async restoreSnapshot(snapshot, {dryRun = true} = {}) {
+    if (typeof dryRun !== "boolean") throw new TypeError("dryRun must be boolean");
+    if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) throw new TypeError("Invalid backup");
+    let stores;
+    if (snapshot.format === "yorika-browser-data-v1") {
+      stores = snapshot.stores;
+    } else if (snapshot.format === "yorika-browser-export" && snapshot.schema_version === 1) {
+      stores = snapshot.indexeddb;
+    } else throw new Error("Unsupported Yorika browser backup");
+    if (!stores || typeof stores !== "object" || Array.isArray(stores)) throw new TypeError("Invalid stores");
+    if (Object.keys(stores).some(name => !STORES.includes(name))) throw new Error("Unknown backup store");
+    const names = Object.keys(stores);
+    let total = 0;
+    for (const name of names) {
+      const entries = stores[name];
+      if (!Array.isArray(entries)) throw new TypeError("Backup store must be an array");
+      const seen = new Set();
+      for (const item of entries) {
+        if (!item || typeof item !== "object" || Array.isArray(item) ||
+            typeof item.id !== "string" || !item.id.trim() || seen.has(item.id)) {
+          throw new TypeError("Duplicate or invalid record ID in backup");
+        }
+        seen.add(item.id);
+        if (++total > 100000) throw new Error("Backup has too many records");
+      }
+    }
+    if (dryRun || total === 0) return {records: total, stores: names.length, applied: 0, dryRun};
+    // add() (never put()) aborts the whole multi-store transaction on ANY key conflict.
+    const transaction = this.#db.transaction(names, "readwrite");
+    const completed = new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve({records: total, stores: names.length, applied: total, dryRun: false});
+      transaction.onerror = () => reject(transaction.error ?? new Error("Import failed"));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Import aborted; no records restored"));
+    });
+    for (const name of names) {
+      const objectStore = transaction.objectStore(name);
+      for (const item of stores[name]) objectStore.add(item);
+    }
+    return completed;
+  }
   close() { this.#db?.close(); }
   static get stores() { return [...STORES]; }
   static get version() { return DB_VERSION; }

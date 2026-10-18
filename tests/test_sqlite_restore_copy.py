@@ -22,6 +22,22 @@ class RestoreCopyTests(unittest.TestCase):
             with Store(root / "live") as db:
                 self.assertEqual(db.get("memories", "one")["text"], "Ёрика помнит")
 
+    def test_refuse_symlink_destination(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            with Store(root / "live") as db:
+                report = create_verified_backup(db.path, root / "source.sqlite3")
+            protected = root / "protected.txt"
+            protected.write_text("keep")
+            link = root / "target.sqlite3"
+            try:
+                link.symlink_to(protected)
+            except (OSError, NotImplementedError):
+                self.skipTest("Symlinks unavailable in this OS/account")
+            with self.assertRaises(FileExistsError):
+                restore_copy(root / "source.sqlite3", link, report["sha256"])
+            self.assertEqual(protected.read_text(), "keep")
+
     def test_refuse_overwrite_or_untrusted_hash(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

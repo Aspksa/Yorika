@@ -138,6 +138,8 @@ def learn_reply(store, query, response):
 
 
 def generated_example(store, query):
+    if not settings(store)["enabled"]:
+        return None
     category = category_for_query(query, {item[0] for item in KEYWORDS} | {"listening"})
     # Sample across the whole category, not just the 200 newest replies.
     rows = store.connection.execute(

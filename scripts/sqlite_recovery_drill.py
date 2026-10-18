@@ -16,6 +16,7 @@ def recovery_drill(backup: Path, sha256: str) -> dict:
     """Exercise the real restore-copy code without touching the live database."""
     source = Path(backup).expanduser().resolve(strict=True)
     initial = preview(source, sha256)
+    original_digest = initial["sha256"]
     with tempfile.TemporaryDirectory(prefix="yorika-recovery-drill-") as folder:
         destination = Path(folder) / "yorika.sqlite3"
         restored = restore_copy(source, destination, initial["sha256"])
@@ -29,8 +30,13 @@ def recovery_drill(backup: Path, sha256: str) -> dict:
                   "counts": restored["counts"], "original_untouched": True}
     # Only report successful cleanup once TemporaryDirectory has exited.
     result["temporary_copy_removed"] = not destination.exists()
+    # Recheck the original after the entire drill, not only before copying.
+    final_source = preview(source, original_digest)
+    result["original_untouched"] = final_source["sha256"] == original_digest
     if not result["temporary_copy_removed"]:
         raise RuntimeError("Recovery drill temporary copy was not removed")
+    if not result["original_untouched"]:
+        raise RuntimeError("Recovery drill original backup changed")
     return result
 
 

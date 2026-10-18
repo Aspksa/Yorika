@@ -1,6 +1,8 @@
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
+import scripts.sqlite_backup as backup_module
 from pathlib import Path
 from scripts.sqlite_backup import create_verified_backup, verify_snapshot
 
@@ -62,6 +64,25 @@ class BackupTests(unittest.TestCase):
             verify_snapshot(snapshot)
             snapshot.unlink()
             self.assertFalse(snapshot.exists())
+
+    def test_published_backup_is_verified_and_removed_on_failure(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "live.sqlite3"
+            with sqlite3.connect(source) as db:
+                db.execute("CREATE TABLE example (value TEXT)")
+            target = root / "backup.sqlite3"
+            real_verify = backup_module.verify_snapshot
+
+            def reject_target(path):
+                if Path(path) == target:
+                    raise ValueError("simulated published verification failure")
+                return real_verify(path)
+
+            with patch.object(backup_module, "verify_snapshot", side_effect=reject_target):
+                with self.assertRaisesRegex(ValueError, "simulated published verification failure"):
+                    create_verified_backup(source, target)
+            self.assertFalse(target.exists())
 
     def test_verification_rejects_corrupt_file(self):
         with tempfile.TemporaryDirectory() as folder:

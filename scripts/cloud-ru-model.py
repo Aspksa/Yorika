@@ -19,7 +19,7 @@ MAX_QUERY = 4000
 DEFAULT_MODEL = "ai-sage/GigaChat3-10B-A1.8B"
 
 
-def answer(query: str, directory=None, *, model=None, api_key=None, opener=None) -> dict:
+def answer(query: str, directory=None, *, model=None, api_key=None, opener=None, include_memory=True) -> dict:
     if not isinstance(query, str) or not query.strip() or len(query) > MAX_QUERY:
         raise ValueError("Invalid query")
     name = model if model is not None else os.environ.get("YORIKA_CLOUD_RU_MODEL", DEFAULT_MODEL)
@@ -41,21 +41,22 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None)
         raise ValueError("Invalid Cloud.ru model ID")
     if not isinstance(key, str) or not key.strip() or len(key) > 8192 or any(c in key for c in "\r\n"):
         raise RuntimeError("Cloud.ru Foundation Models API key not configured")
-    with Store(directory) as db:
-        try:
-            matches = db.search_memory_index(query, 3)
-        except RuntimeError as exc:
-            if "FTS5" not in str(exc):
-                raise
-            matches = db.search_records("memories", query, 3)
     memories = []
-    for row in matches:
-        value = row["value"]
-        if isinstance(value.get("text"), str):
-            memories.append({
-                "id": row["record_id"], "text": value["text"][:800],
-                "source": str(value.get("source", "unknown"))[:128],
-            })
+    if include_memory:
+        with Store(directory) as db:
+            try:
+                matches = db.search_memory_index(query, 3)
+            except RuntimeError as exc:
+                if "FTS5" not in str(exc):
+                    raise
+                matches = db.search_records("memories", query, 3)
+        for row in matches:
+            value = row["value"]
+            if isinstance(value.get("text"), str):
+                memories.append({
+                    "id": row["record_id"], "text": value["text"][:800],
+                    "source": str(value.get("source", "unknown"))[:128],
+                })
     context = "\n".join(
         f"- ({m['source']}, {m['id']}) {m['text']}" for m in memories
     )[:2500]

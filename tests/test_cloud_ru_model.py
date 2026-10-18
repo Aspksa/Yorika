@@ -64,6 +64,24 @@ class CloudRuTests(unittest.TestCase):
             self.assertEqual(captured[0].get_header("Authorization"),
                              "Bearer env-test-secret")
 
+    def test_connection_check_does_not_read_or_send_memories(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as folder:
+            requests = []
+            def fake(req, timeout):
+                requests.append(req)
+                return FakeResponse()
+            with patch.object(module, "Store", side_effect=AssertionError("Memory accessed")):
+                response = module.answer(
+                    "Ответь одним словом: готово", Path(folder),
+                    api_key="example", model="ai-sage/test", opener=fake,
+                    include_memory=False,
+                )
+            self.assertEqual(response["memories_used"], [])
+            payload = json.loads(requests[0].data)
+            self.assertIn("(нет)", payload["messages"][0]["content"])
+            self.assertEqual(len(payload["messages"]), 2)
+
     def test_invalid_credentials_and_query_never_call_network(self):
         with tempfile.TemporaryDirectory() as root:
             def blocked(*args, **kwargs):

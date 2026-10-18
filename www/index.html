@@ -2,15 +2,16 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101015">
   <title>Yorika</title>
-  <style>
-    :root{color-scheme:dark;font-family:Segoe UI,Arial,sans-serif}
-    body{margin:0;background:radial-gradient(circle at 70% 20%,#281920,#090b11 65%);color:#f8edf0;min-height:100vh;display:grid;place-items:center}
-    main{padding:48px;text-align:center;border:1px solid #5d3544;border-radius:24px;background:#ffffff08;box-shadow:0 25px 80px #0009}
-    h1{font-size:clamp(52px,10vw,100px);letter-spacing:.12em;margin:0;color:#f7d6df}
-    p{color:#c9aeba;font-size:18px}small{color:#af8a98}
-  </style>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./main.js"></script>
 </head>
-<body><main><h1>YORIKA</h1><p>Добро пожаловать. Система запущена.</p><small>Локальный интерфейс • UTF-8 • Windows Tray</small></main></body>
+<body>
+  <main id="app" aria-label="Yorika">
+    <div class="mark" aria-label="Yorika">YORIKA</div>
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+  </main>
+</body>
 </html>

@@ -70,7 +70,7 @@ try {
           $client.ReceiveTimeout = 900
           $client.SendTimeout = 900
           $stream = $client.GetStream()
-          $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::ASCII, $false, 1024, $true)
+          $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::UTF8, $false, 1024, $true)
           $first = $reader.ReadLine()
           if (-not $first -or $first.Length -gt 4096) { continue }
           $parts = $first.Split(' ')
@@ -95,14 +95,14 @@ try {
               if ($parts[0] -ne 'GET' -and ($parts[0] -notin @('POST','DELETE') -or $requestOrigin -ne "http://127.0.0.1:$port")) { throw 'Доступ запрещён' }
               $bodyText = ''
               if ($contentLength -gt 0) {
-                $buffer = New-Object byte[] $contentLength
+                $chars = New-Object char[] $contentLength
                 $readTotal = 0
                 while ($readTotal -lt $contentLength) {
-                  $n = $stream.Read($buffer,$readTotal,$contentLength-$readTotal)
+                  $n = $reader.Read($chars,$readTotal,$contentLength-$readTotal)
                   if ($n -le 0) { throw 'Неполное тело запроса' }
                   $readTotal += $n
                 }
-                $bodyText = [Text.Encoding]::UTF8.GetString($buffer)
+                $bodyText = -join $chars
               }
               $params = if ($bodyText) { ConvertFrom-Json -InputObject $bodyText } else { $null }
               $scriptPath = Join-Path $PSScriptRoot 'update-engine.ps1'

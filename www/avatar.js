@@ -15,6 +15,7 @@
   return id;
  }
  var responder=async function(text,history,onChunk){
+  var receivedAny=false;
   try{
    var stream=await fetch('/api/chat/stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:text,conversation_id:threadId()}),cache:'no-store'});
    if(stream.ok&&stream.body){
@@ -26,7 +27,7 @@
      var lines=buffer.split('\n');buffer=lines.pop();
      for(var line of lines){if(!line.trim())continue;
       var evt=JSON.parse(line);
-      if(evt.type==='delta'){full+=evt.text;if(full.length>8000)throw Error('Ответ слишком длинный');if(onChunk)onChunk(full)}
+      if(evt.type==='delta'){receivedAny=true;full+=evt.text;if(full.length>8000)throw Error('Ответ слишком длинный');if(onChunk)onChunk(full)}
       else if(evt.type==='done'){finished=true;full=evt.answer||full}
       else if(evt.type==='error')throw Error('Не удалось завершить поток');
      }
@@ -34,7 +35,7 @@
     if(finished&&full.trim())return full;
     if(full)throw Error('Поток оборвался');
    }
-  }catch(e){/* Streaming unavailable: try regular response. */}
+  }catch(e){if(receivedAny)throw e;/* Streaming unavailable before first delta. */}
 
   try{
    var generated=await fetch("/api/chat/respond",{

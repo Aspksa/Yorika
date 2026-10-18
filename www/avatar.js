@@ -3,8 +3,25 @@
 // Uploaded pictures, the chosen one and the size are managed on settings.html through YorikaAvatar.
 (function(){
  var KEY="yorika.chat",POS="yorika.avatar",LOOK="yorika.avatars",SIZE={min:70,max:240,def:140},LIMIT=200,IMG="./assets/yorika-avatar.webp",MARGIN=12,GAP=12;
- var responder=function(){
-  return "Я пока не подключена к языковой модели, поэтому отвечать по-настоящему не умею. Но я всё запоминаю: история чата сохраняется в этом браузере.";
+ var responder=async function(text){
+  try{
+   var response=await fetch("/api/memory/recall",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({query:text}),cache:"no-store"
+   });
+   if(!response.ok)throw Error("Поиск SQLite недоступен");
+   var result=await response.json();
+   if(Array.isArray(result.memories)&&result.memories.length){
+    return "Нашла в сохранённой памяти (это поиск, а не ответ языковой модели):\\n"+
+     result.memories.map(function(m){
+      return "• "+m.text+" [источник: "+m.source+
+       (m.source_id?", "+m.source_id:"")+"]";
+     }).join("\\n");
+   }
+   return "В сохранённой памяти пока не нашла подходящих записей. Языковая модель ещё не подключена.";
+  }catch(e){
+   return "Поиск долговременной памяти сейчас недоступен. Языковая модель ещё не подключена.";
+  }
  };
  function readLook(){
   var v={};try{v=JSON.parse(localStorage.getItem(LOOK))||{}}catch(e){}

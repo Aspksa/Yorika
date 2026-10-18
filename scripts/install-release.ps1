@@ -53,9 +53,16 @@ try{
    if(Test-Path -LiteralPath $oldFile){Copy-Item -LiteralPath $oldFile -Destination (Join-Path $newWork $name) -Force}
   }
   $launcher=Join-Path $target 'scripts\start.ps1'
-  & $launcher | Out-Null
+  $runner=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+  $launchArgs=@('-NoLogo','-NoProfile','-STA','-ExecutionPolicy','Bypass','-File',('"'+$launcher+'"'))
+  $launchProcess=Start-Process -FilePath $runner -ArgumentList $launchArgs -WindowStyle Hidden -PassThru
   $ready=Join-Path $newWork 'ready.url'
-  if(-not (Test-Path -LiteralPath $ready)){throw 'Новая версия не запустилась'}
+  for($i=0;$i -lt 70 -and -not(Test-Path -LiteralPath $ready);$i++){
+   Start-Sleep -Milliseconds 250
+   $launchProcess.Refresh()
+   if($launchProcess.HasExited -and $launchProcess.ExitCode -ne 0){break}
+  }
+  if(-not(Test-Path -LiteralPath $ready)){throw 'Новая версия не запустилась; старые файлы не изменены'}
   $newUrl=[IO.File]::ReadAllText($ready).Trim()
   if($newUrl -notmatch '^http://127\.0\.0\.1:\d+/$'){throw 'Неверный локальный адрес новой версии'}
   $request=[Net.WebRequest]::Create($newUrl);$request.Timeout=3000

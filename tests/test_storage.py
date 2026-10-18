@@ -18,6 +18,23 @@ class StorageTests(unittest.TestCase):
                 self.assertEqual(db.get("memories", "one"), {"text": "Помню"})
                 self.assertIsNone(db.get("memories", "missing"))
 
+    def test_delete_record_is_exact_and_persistent(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            with Store(root) as db:
+                db.put("memories", "shared", {"text": "Удалить"})
+                db.put("settings", "shared", {"text": "Сохранить"})
+                self.assertTrue(db.delete_record("memories", "shared"))
+                self.assertFalse(db.delete_record("memories", "shared"))
+                self.assertIsNone(db.get("memories", "shared"))
+                self.assertEqual(db.get("settings", "shared"), {"text": "Сохранить"})
+                for namespace, record_id in (("", "shared"), ("memories", ""), (None, "shared")):
+                    with self.assertRaises(ValueError):
+                        db.delete_record(namespace, record_id)
+            with Store(root) as db:
+                self.assertIsNone(db.get("memories", "shared"))
+                self.assertEqual(db.get("settings", "shared"), {"text": "Сохранить"})
+
     def test_list_records_is_bounded_and_namespace_scoped(self):
         with tempfile.TemporaryDirectory() as temp:
             with Store(Path(temp)) as db:

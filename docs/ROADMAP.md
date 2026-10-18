@@ -154,3 +154,9 @@ powershell -ExecutionPolicy Bypass -File scripts/validate-windows.ps1
 ```
 
 Отсутствие выполненных шагов в GitHub Actions не считается результатом тестов приложения.
+
+## Единая тестовая приёмка (2026-10-19)
+
+- [ ] QA-005 — Запуск полного Python suite, SQLite-конкуренции и безопасного восстановления через `python scripts/run-acceptance.py --report yorika-acceptance.json`. Добавлен `workflow_dispatch` и выгрузка отчёта в Actions. Вся приёмка остаётся открытой до фактического запуска и результатов на Linux/Windows.
+
+После прогона сохранить `yorika-acceptance.json`, проверить ошибки и только затем закрывать MEMORY-004, DATA-006, QA-004. Ошибка GitHub Actions до назначения runner сама по себе не свидетельствует о проблемах приложения.

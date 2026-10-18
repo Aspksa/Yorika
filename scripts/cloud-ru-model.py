@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from backend.storage import Store
+from backend.cloud_ru_history import load_history, save_turn
 from backend.persona_profile import load_persona_capsule
 from backend.persona_bank import choose_example
 from backend.persona_dialogues import choose_scenario
@@ -46,10 +47,12 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
     if not isinstance(key, str) or not key.strip() or len(key) > 8192 or any(c in key for c in "\r\n"):
         raise RuntimeError("Cloud.ru Foundation Models API key not configured")
     memories = []
+    recent_messages = []
     persona_example = None
     scenario_example = None
     if include_memory:
         with Store(directory) as db:
+            recent_messages = load_history(db)
             try:
                 scenario_example = choose_scenario(db, query)
             except (OSError, ValueError, KeyError, TypeError):
@@ -90,6 +93,7 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
         "model": name,
         "messages": [
             {"role": "system", "content": instruction},
+            *recent_messages,
             {"role": "user", "content": query},
         ],
         "stream": False, "max_completion_tokens": 450,
@@ -129,6 +133,9 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
         raise RuntimeError("Invalid Cloud.ru API response") from None
     if not isinstance(output, str) or not output.strip():
         raise RuntimeError("Empty Cloud.ru response")
+    if include_memory:
+        with Store(directory) as db:
+            save_turn(db, query, output)
     return {"answer": output[:8000], "model": name, "memories_used": memories,
             "provider": "cloud-ru-foundation-models"}
 

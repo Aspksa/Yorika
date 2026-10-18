@@ -32,3 +32,9 @@ Current limitations: static starter website only; no AI API or backend. Windows 
 - No separate launcher user interface.
 
 Planned but not yet implemented: automatic process recovery, backups, updates/rollback, and live API backend.
+
+## 60-scenario verification
+
+Run `Yorika-Verify.bat` to display a 60-row report. Its results distinguish **PASS**, **FAIL**, and **MANUAL**. Structural PASS results do not mean the scenario has been reproduced and passed on Windows. Manual entries need actual Windows, USB, OneDrive, browser and fault-injection testing. See `docs/FAILURE-MATRIX-60.md`.
+
+**Current limitations:** This update is not a guarantee of fault-free operation. In particular, the browser IndexedDB is per port and is not durable memory across random-port launches; backing up and restoring data is future work.

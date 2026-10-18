@@ -15,6 +15,9 @@ on:
       - 'backend/storage.py'
       - 'www/avatar.js'
       - 'tests/**'
+      - 'scripts/cloud-ru-*.py'
+      - 'backend/cloud_ru_vault.py'
+      - 'scripts/yorika-tray.ps1'
       - '.github/workflows/chat-memory-tests.yml'
 
 jobs:

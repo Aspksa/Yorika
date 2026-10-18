@@ -53,6 +53,24 @@ class StorageTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     db.search_records("memories", "   ")
 
+    def test_search_ignores_json_keys_but_finds_nested_text_values(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with Store(Path(folder)) as db:
+                db.put("memories", "nested", {
+                    "секретный_ключ": {"notes": ["Привет, ЁРИКА", {"text": "Вспомни"}]},
+                    "count": 42,
+                })
+                db.put("memories", "only-key", {"ЁРИКА": 1})
+                self.assertEqual(
+                    [x["record_id"] for x in db.search_records("memories", "ёрика")],
+                    ["nested"],
+                )
+                self.assertEqual(
+                    [x["record_id"] for x in db.search_records("memories", "вспомни")],
+                    ["nested"],
+                )
+                self.assertEqual(db.search_records("memories", "секретный_ключ"), [])
+
     def test_events_backup_and_restore(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

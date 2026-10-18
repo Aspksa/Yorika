@@ -173,6 +173,20 @@ class Store:
                     break
         return matches
 
+    def export_records(self, namespace: str) -> dict:
+        """Export all records from one namespace, including stable IDs and timestamps."""
+        if not isinstance(namespace, str) or not namespace:
+            raise ValueError("namespace must be non-empty")
+        rows = self.connection.execute(
+            "SELECT record_id, payload, updated_at FROM records "
+            "WHERE namespace=? ORDER BY record_id ASC",
+            (namespace,),
+        )
+        return {"format": "yorika-records-v1", "namespace": namespace,
+                "records": [{"record_id": record_id, "value": json.loads(payload),
+                             "updated_at": updated_at}
+                            for record_id, payload, updated_at in rows]}
+
     def append_event(self, event_type: str, value: dict) -> int:
         if not event_type or not isinstance(value, dict):
             raise ValueError("event_type must be non-empty and value must be an object")

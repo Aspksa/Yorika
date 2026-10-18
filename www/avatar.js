@@ -16,13 +16,13 @@
   var fab=make("button","yc-fab");
   fab.type="button";fab.title="Чат с Yorika";fab.setAttribute("aria-label","Открыть чат с Yorika");
   fab.setAttribute("aria-expanded","false");fab.setAttribute("aria-controls","yc-panel");
-  var face=make("img","yc-face");face.src=IMG;face.alt="";face.width=64;face.height=64;face.decoding="async";
+  var face=make("img","yc-face");face.src=IMG;face.alt="";face.width=140;face.height=140;face.decoding="async";
   fab.appendChild(face);
 
   var panel=make("section","yc-panel");panel.id="yc-panel";panel.hidden=true;
   panel.setAttribute("role","dialog");panel.setAttribute("aria-label","Чат с Yorika");
   var head=make("header","yc-head");
-  var hface=make("img","yc-head-face");hface.src=IMG;hface.alt="";hface.width=40;hface.height=40;
+  var hface=make("img","yc-head-face");hface.src=IMG;hface.alt="";hface.width=46;hface.height=46;
   var who=make("div","yc-who");who.appendChild(make("strong",null,"Yorika"));
   var sub=make("span","yc-sub","Локальный чат");who.appendChild(sub);
   var clear=make("button","yc-icon","Очистить");clear.type="button";clear.title="Очистить историю чата";

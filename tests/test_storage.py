@@ -67,9 +67,9 @@ class StorageTests(unittest.TestCase):
                     "format": "yorika-records-v1", "namespace": "memories",
                     "records": [
                         {"record_id": "same", "value": {"text": "replace"},
-                         "updated_at": "2026-10-19"},
+                         "updated_at": "2026-10-19T00:00:00+00:00"},
                         {"record_id": "new", "value": {"text": "add"},
-                         "updated_at": "2026-10-19"},
+                         "updated_at": "2026-10-19T00:00:00+00:00"},
                     ],
                 }
                 result = target.import_records(bundle, dry_run=False, on_conflict="skip")
@@ -77,6 +77,49 @@ class StorageTests(unittest.TestCase):
                 self.assertEqual(result["applied"], 1)
                 self.assertEqual(target.get("memories", "same"), {"text": "keep"})
                 self.assertEqual(target.get("memories", "new"), {"text": "add"})
+
+    def test_import_hardening_rejects_untrusted_shapes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with Store(Path(temp)) as db:
+                base_item = {"record_id": "one", "value": {"text": "Ёрика"},
+                             "updated_at": "2026-10-19T00:00:00+00:00"}
+                base = {"format": "yorika-records-v1", "namespace": "memories",
+                        "records": [base_item]}
+                def replace_item(**kw):
+                    return {**base, "records": [{**base_item, **kw}]}
+                invalid = [
+                    {**base, "unknown": 1},
+                    {**base, "namespace": "x" * 257},
+                    {**base, "namespace": "bad\\nnamespace"},
+                    replace_item(extra="field"),
+                    replace_item(record_id="a" * 513),
+                    replace_item(record_id="bad\\x00id"),
+                    replace_item(updated_at="2026-10-19"),
+                    replace_item(updated_at="invalid"),
+                    replace_item(updated_at="x" * 65),
+                    replace_item(value={"text": "x" * (1024 * 1024 + 1)}),
+                    replace_item(value={"invalid": object()}),
+                ]
+                for document in invalid:
+                    with self.subTest(document=str(document)[:120]):
+                        with self.assertRaises(ValueError):
+                            db.import_records(document, dry_run=False)
+                self.assertEqual(db.export_records("memories")["records"], [])
+                report = db.import_records(base)
+                self.assertGreater(report["bytes"], 0)
+                self.assertEqual(report["applied"], 0)
+
+    def test_import_rejects_total_size_limit_atomically(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with Store(Path(temp)) as db:
+                records = [{"record_id": str(i), "value": {"text": "x" * 900000},
+                            "updated_at": "2026-10-19T00:00:00+00:00"}
+                           for i in range(38)]
+                bundle = {"format": "yorika-records-v1", "namespace": "memories",
+                          "records": records}
+                with self.assertRaisesRegex(ValueError, "32 MiB"):
+                    db.import_records(bundle, dry_run=False)
+                self.assertEqual(db.export_records("memories")["records"], [])
 
     def test_unicode_persistence_and_upsert(self):
         with tempfile.TemporaryDirectory() as temp:

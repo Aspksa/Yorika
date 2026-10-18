@@ -53,6 +53,34 @@ class ChatStoreTests(unittest.TestCase):
             self.assertEqual(module.run("put", {"history": a + b, "revision": 1}, target)["revision"], 2)
             self.assertEqual(module.run("get", directory=target)["history"], a + b)
 
+    def test_explicit_remember_message_creates_sourced_memory_atomically(self):
+        from backend.storage import Store
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            messages = [
+                {"from": "me", "text": "Запомни: любимый цвет — синий", "ts": 100},
+                {"from": "bot", "text": "Запомни: выдуманный факт", "ts": 101},
+                {"from": "me", "text": "Обычная переписка", "ts": 102},
+            ]
+            self.assertEqual(module.run("put", {"revision": 0, "history": messages}, root),
+                             {"ok": True, "revision": 1})
+            with Store(root) as store:
+                saved = store.list_records("memories")
+                self.assertEqual(len(saved), 1)
+                value = saved[0]["value"]
+                self.assertEqual(value["text"], "любимый цвет — синий")
+                self.assertEqual(value["source"], "explicit-chat-request")
+                self.assertTrue(value["source_id"].startswith("chat:"))
+            self.assertEqual(module.run("put", {"revision": 1, "history": messages}, root),
+                             {"ok": True, "revision": 2})
+            with Store(root) as store:
+                self.assertEqual(len(store.list_records("memories")), 1)
+            self.assertTrue(module.run("put", {"revision": 0, "history": []}, root)["conflict"])
+            self.assertEqual(module.run("clear", {"revision": 2}, root),
+                             {"ok": True, "revision": 3})
+            with Store(root) as store:
+                self.assertEqual(len(store.list_records("memories")), 1)
+
     def test_bad_revision_rejected_without_database(self):
         with tempfile.TemporaryDirectory() as temp:
             env = dict(os.environ, LOCALAPPDATA=temp)

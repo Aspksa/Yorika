@@ -1,7 +1,7 @@
 // Yorika's floating avatar and chat panel, shared by every page. History lives per browser in localStorage.
 // A real responder can be plugged in with YorikaChat.setResponder(async (text, history) => "reply").
 (function(){
- var KEY="yorika.chat",LIMIT=200,IMG="./assets/yorika-avatar.webp";
+ var KEY="yorika.chat",POS="yorika.avatar",LIMIT=200,IMG="./assets/yorika-avatar.webp",MARGIN=12,GAP=12;
  var responder=function(){
   return "Я пока не подключена к языковой модели, поэтому отвечать по-настоящему не умею. Но я всё запоминаю: история чата сохраняется в этом браузере.";
  };
@@ -14,9 +14,9 @@
   var history=load();
   var root=make("div","yc");
   var fab=make("button","yc-fab");
-  fab.type="button";fab.title="Чат с Yorika";fab.setAttribute("aria-label","Открыть чат с Yorika");
+  fab.type="button";fab.title="Чат с Yorika. Перетащите, чтобы переместить";fab.setAttribute("aria-label","Открыть чат с Yorika");
   fab.setAttribute("aria-expanded","false");fab.setAttribute("aria-controls","yc-panel");
-  var face=make("img","yc-face");face.src=IMG;face.alt="";face.width=140;face.height=140;face.decoding="async";
+  var face=make("img","yc-face");face.src=IMG;face.alt="";face.width=140;face.height=140;face.decoding="async";face.draggable=false;
   fab.appendChild(face);
 
   var panel=make("section","yc-panel");panel.id="yc-panel";panel.hidden=true;
@@ -47,14 +47,47 @@
   }
   function render(){
    log.textContent="";
-   if(!history.length)bubble({from:"bot",text:"Привет! Я Yorika. Нажми на меня на любой странице, и я буду рядом.",ts:Date.now()});
+   if(!history.length)bubble({from:"bot",text:"Привет! Я Yorika. Я буду рядом на любой странице. Меня можно перетащить в любое место экрана.",ts:Date.now()});
    history.forEach(bubble);
    log.scrollTop=log.scrollHeight;
   }
   function grow(){input.style.height="auto";input.style.height=Math.min(input.scrollHeight,120)+"px"}
+  // Positions are kept as a share of the free space, so the avatar stays in the same corner after a resize.
+  // Coordinates from the browser are visual pixels; styles are divided by the page zoom from the size setting.
+  function zoom(){return parseFloat(getComputedStyle(document.documentElement).zoom)||1}
+  function clamp(v,lo,hi){return Math.max(lo,Math.min(v,hi))}
+  function readPos(){try{var p=JSON.parse(localStorage.getItem(POS));if(p&&isFinite(p.x)&&isFinite(p.y))return{x:clamp(p.x,0,1),y:clamp(p.y,0,1)}}catch(e){}return null}
+  var pos=readPos();
+  function place(left,top){
+   var z=zoom(),r=fab.getBoundingClientRect();
+   left=clamp(left,MARGIN,Math.max(MARGIN,innerWidth-r.width-MARGIN));top=clamp(top,MARGIN,Math.max(MARGIN,innerHeight-r.height-MARGIN));
+   root.style.left=left/z+"px";root.style.top=top/z+"px";root.style.right="auto";root.style.bottom="auto";
+   return{left:left,top:top,w:r.width,h:r.height};
+  }
+  function applyPos(){
+   if(!pos){root.style.left=root.style.top=root.style.right=root.style.bottom="";layout();return}
+   var r=fab.getBoundingClientRect();
+   place(pos.x*Math.max(0,innerWidth-r.width-2*MARGIN)+MARGIN,pos.y*Math.max(0,innerHeight-r.height-2*MARGIN)+MARGIN);layout();
+  }
+  function savePos(p){
+   pos={x:(p.left-MARGIN)/Math.max(1,innerWidth-p.w-2*MARGIN),y:(p.top-MARGIN)/Math.max(1,innerHeight-p.h-2*MARGIN)};
+   try{localStorage.setItem(POS,JSON.stringify(pos))}catch(e){}
+  }
+  // The panel opens on whichever side of the avatar has more room.
+  function layout(){
+   if(panel.hidden)return;
+   var z=zoom(),r=fab.getBoundingClientRect(),vw=innerWidth,vh=innerHeight;
+   var w=Math.min(380*z,vw-2*MARGIN),max=560*z;
+   var left=r.left+r.width/2>vw/2?r.right-w:r.left;left=clamp(left,MARGIN,vw-w-MARGIN);
+   var above=r.top-GAP-MARGIN,below=vh-r.bottom-GAP-MARGIN,h,top;
+   if(Math.max(above,below)<260*z){h=Math.min(max,vh-2*MARGIN);top=MARGIN}
+   else if(above>=below){h=Math.min(max,above);top=r.top-GAP-h}
+   else{h=Math.min(max,below);top=r.bottom+GAP}
+   panel.style.left=left/z+"px";panel.style.top=top/z+"px";panel.style.width=w/z+"px";panel.style.height=h/z+"px";
+  }
   function setOpen(open){
    panel.hidden=!open;fab.setAttribute("aria-expanded",String(open));root.classList.toggle("yc-open",open);
-   if(open){render();input.focus()}else fab.focus();
+   if(open){layout();render();input.focus()}else fab.focus();
   }
   var busy=false;
   async function submit(){
@@ -69,7 +102,36 @@
    log.scrollTop=log.scrollHeight;busy=false;send.disabled=false;input.focus();
   }
 
-  fab.addEventListener("click",function(){setOpen(panel.hidden)});
+  // Dragging moves the avatar; a press without movement still opens the chat.
+  var drag=null,moved=false;
+  fab.addEventListener("pointerdown",function(e){
+   if(e.button!==0)return;
+   var r=fab.getBoundingClientRect();
+   drag={id:e.pointerId,dx:e.clientX-r.left,dy:e.clientY-r.top,sx:e.clientX,sy:e.clientY,last:null};moved=false;
+   fab.setPointerCapture(e.pointerId);
+  });
+  fab.addEventListener("pointermove",function(e){
+   if(!drag||e.pointerId!==drag.id)return;
+   if(!moved&&Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy)<6)return;
+   if(!moved){moved=true;root.classList.add("yc-dragging")}
+   drag.last=place(e.clientX-drag.dx,e.clientY-drag.dy);layout();
+  });
+  function endDrag(e){
+   if(!drag||e.pointerId!==drag.id)return;
+   if(moved&&drag.last)savePos(drag.last);
+   root.classList.remove("yc-dragging");drag=null;
+  }
+  fab.addEventListener("pointerup",endDrag);
+  fab.addEventListener("pointercancel",endDrag);
+  fab.addEventListener("click",function(e){if(moved){moved=false;e.preventDefault();return}setOpen(panel.hidden)});
+  // Arrow keys move the avatar for keyboard users; Home puts it back in the corner.
+  fab.addEventListener("keydown",function(e){
+   var step=e.shiftKey?60:20,d={ArrowLeft:[-step,0],ArrowRight:[step,0],ArrowUp:[0,-step],ArrowDown:[0,step]}[e.key];
+   if(e.key==="Home"){e.preventDefault();pos=null;try{localStorage.removeItem(POS)}catch(x){}applyPos();return}
+   if(!d)return;
+   e.preventDefault();var r=fab.getBoundingClientRect();savePos(place(r.left+d[0],r.top+d[1]));layout();
+  });
+  window.addEventListener("resize",applyPos);
   close.addEventListener("click",function(){setOpen(false)});
   clear.addEventListener("click",function(){history=[];store(history);render();input.focus()});
   form.addEventListener("submit",function(e){e.preventDefault();submit()});
@@ -77,7 +139,8 @@
   input.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();submit()}});
   panel.addEventListener("keydown",function(e){if(e.key==="Escape")setOpen(false)});
   // Keep the same conversation in other open Yorika tabs.
-  window.addEventListener("storage",function(e){if(e.key===KEY){history=load();if(!panel.hidden)render()}});
+  window.addEventListener("storage",function(e){if(e.key===KEY){history=load();if(!panel.hidden)render()}if(e.key===POS){pos=readPos();applyPos()}});
+  applyPos();
 
   api.open=function(){setOpen(true)};api.close=function(){setOpen(false)};
   api.label=function(text){sub.textContent=text};if(label)sub.textContent=label;

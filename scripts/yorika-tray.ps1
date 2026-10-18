@@ -15,6 +15,7 @@ function Log([string]$message) {
 $mutex = [System.Threading.Mutex]::new($false, 'Local\Yorika-Tray-Launcher')
 if (-not $mutex.WaitOne(0)) {
   Log 'Yorika is already running.'
+  Write-Host '[YORIKA] Another Yorika instance is already running.'
   exit 0
 }
 $listener = $null
@@ -112,11 +113,12 @@ try {
   })
   $timer.Start()
   # Start the local site only after the listener has bound successfully.
-  Start-Process $url
+  try { Start-Process $url } catch { Log "Browser launch failed: $($_.Exception.Message)" }
   [System.Windows.Forms.Application]::Run()
 } catch {
   Log "Startup error: $($_.Exception.ToString())"
-  [System.Windows.Forms.MessageBox]::Show("Yorika failed to start. See .yorika\yorika.log", 'Yorika') | Out-Null
+  Write-Host ("[YORIKA] Startup error: " + $_.Exception.ToString())
+  try { [System.Windows.Forms.MessageBox]::Show("Yorika failed to start. See .yorika\yorika.log", 'Yorika') | Out-Null } catch {}
 } finally {
   if ($timer) { $timer.Stop(); $timer.Dispose() }
   if ($tray) { $tray.Visible = $false; $tray.Dispose() }

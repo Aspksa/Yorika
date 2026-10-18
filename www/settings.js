@@ -130,6 +130,38 @@ el("export-data").onclick=async()=>{
  }catch(e){el("data-status").textContent="Ошибка экспорта: "+e.message}
  finally{button.disabled=false}
 };
+// Browser restore accepts both export formats. No server upload or implicit overwrite.
+let stagedImport=null;
+el("import-data-file").onchange=async event=>{
+ stagedImport=null;
+ el("import-preview").hidden=true;
+ const file=event.target.files?.[0];event.target.value="";
+ if(!file)return;
+ try{
+  if(file.size>50*1024*1024)throw Error("Файл больше 50 МиБ");
+  const backup=JSON.parse(await file.text());
+  const report=await db.restoreSnapshot(backup,{dryRun:true});
+  stagedImport=backup;
+  const other=backup.origin&&backup.origin!==location.origin;
+  el("import-summary").textContent=`Записей: ${report.records}; разделов: ${report.stores}.`+
+   (other?` Исходный адрес ${backup.origin} отличается от текущего ${location.origin}. Данные старого порта будут скопированы в текущий.`:"")+
+   " Существующие записи не заменяются; при конфликте восстановление целиком отменится.";
+  el("import-preview").hidden=false;
+  el("data-status").textContent="Файл проверен. Данные пока не изменены.";
+ }catch(e){el("data-status").textContent="Ошибка проверки копии: "+e.message}
+};
+el("apply-import").onclick=async()=>{
+ if(!stagedImport||!db)return;
+ if(!confirm("Восстановить записи из копии в текущий браузер? При конфликте всё восстановление будет отменено."))return;
+ const button=el("apply-import");button.disabled=true;
+ try{
+  const report=await db.restoreSnapshot(stagedImport,{dryRun:false});
+  el("data-status").textContent=`Восстановлено записей: ${report.applied}. Перезагрузите страницу, чтобы увидеть данные.`;
+  el("import-preview").hidden=true;stagedImport=null;
+  await showStores();
+ }catch(e){el("data-status").textContent="Не удалось восстановить: "+e.message}
+ finally{button.disabled=false}
+};
 el("clear-data").onclick=async()=>{
  if(!confirm("Удалить все данные Yorika из этого браузера для текущего адреса? Настройки обновлений и токен на компьютере не затрагиваются."))return;
  el("clear-data").disabled=true;

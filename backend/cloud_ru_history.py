@@ -45,16 +45,24 @@ def load_history(store, conversation_id=None):
 def save_turn(store, question, answer, conversation_id=None):
     if not isinstance(question, str) or not isinstance(answer, str):
         raise ValueError("Invalid dialogue turn")
-    messages = load_history(store, conversation_id)
-    messages.extend([
-        {"role": "user", "content": question[:MAX_TEXT]},
-        {"role": "assistant", "content": answer[:MAX_TEXT]},
-    ])
-    messages = messages[-MAX_TURNS * 2:]
-    with store.connection:
-        store.connection.execute(
+    db = store.connection
+    if db.in_transaction:
+        raise RuntimeError("Cloud.ru history update requires its own transaction")
+    db.execute("BEGIN IMMEDIATE")
+    try:
+        messages = load_history(store, conversation_id)
+        messages.extend([
+            {"role": "user", "content": question[:MAX_TEXT]},
+            {"role": "assistant", "content": answer[:MAX_TEXT]},
+        ])
+        messages = messages[-MAX_TURNS * 2:]
+        db.execute(
             "INSERT INTO records(namespace,record_id,payload,updated_at) VALUES(?,?,?,?) "
             "ON CONFLICT(namespace,record_id) DO UPDATE SET "
             "payload=excluded.payload, updated_at=excluded.updated_at",
             (NAMESPACE, record_id(conversation_id), json.dumps(messages, ensure_ascii=False), utc_now()),
         )
+        db.commit()
+    except BaseException:
+        db.rollback()
+        raise

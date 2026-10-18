@@ -153,7 +153,15 @@ try{
         $output=$proc.StandardOutput.ReadToEnd()
         $null=$proc.StandardError.ReadToEnd()
         if(-not $proc.WaitForExit(28000)){try{$proc.Kill()}catch{};throw 'Истекло время ожидания'}
-        if($proc.ExitCode -ne 0){$status='400 Bad Request';throw 'Операция Cloud.ru не выполнена'}
+        if($proc.ExitCode -ne 0){
+         $status='400 Bad Request'
+         $remote=$null
+         try{$remote=$output|ConvertFrom-Json}catch{}
+         if($remote -and $remote.error -and ([string]$remote.error).Length -lt 170){
+          throw ([string]$remote.error)
+         }
+         throw 'Операция Cloud.ru не выполнена'
+        }
         $bytes=[Text.Encoding]::UTF8.GetBytes($output.Trim())
        }finally{$proc.Dispose()}
       }catch{

@@ -45,6 +45,20 @@ class StorageTests(unittest.TestCase):
                 self.assertEqual(target.read_bytes(), original)
                 self.assertEqual(db.get("chat", "one"), {"text": "Ёрика"})
 
+    def test_backup_rejects_uncommitted_changes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            with Store(root / "data") as db:
+                db.connection.execute("BEGIN")
+                db.connection.execute("INSERT INTO events(event_type,payload,recorded_at) VALUES(?,?,?)",
+                                      ("test", "{}", "2026-10-18"))
+                target = root / "snapshot.sqlite3"
+                with self.assertRaisesRegex(RuntimeError, "Commit or rollback"):
+                    db.backup(target)
+                self.assertFalse(target.exists())
+                db.connection.rollback()
+                self.assertTrue(db.backup(target).exists())
+
     def test_reject_future_schema(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

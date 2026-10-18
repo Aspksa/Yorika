@@ -13,7 +13,7 @@ def recall(query: str, directory=None, limit: int = 3) -> dict:
         raise ValueError("Invalid recall query")
     with Store(directory) as db:
         try:
-            found = db.search_records_fts("memories", query, limit)
+            found = db.search_memory_index(query, limit)
         except RuntimeError as exc:
             if "FTS5" not in str(exc):
                 raise

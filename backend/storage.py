@@ -66,6 +66,18 @@ class Store:
                 )
                 self.connection.execute("PRAGMA user_version=1")
 
+        if current == SCHEMA_VERSION:
+            required = {
+                "records": {"namespace", "record_id", "payload", "updated_at"},
+                "events": {"event_id", "event_type", "payload", "recorded_at"},
+            }
+            for table, columns in required.items():
+                rows = self.connection.execute(
+                    "PRAGMA table_info(" + table + ")").fetchall()
+                actual = {row[1] for row in rows}
+                if not columns.issubset(actual):
+                    raise RuntimeError("Yorika database schema mismatch: " + table)
+
     def put(self, namespace: str, record_id: str, value: dict) -> None:
         if not namespace or not record_id or not isinstance(value, dict):
             raise ValueError("namespace/record_id must be non-empty and value must be an object")

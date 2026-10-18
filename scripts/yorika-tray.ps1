@@ -8,13 +8,13 @@ $ProjectRoot = [IO.Path]::GetFullPath($ProjectRoot)
 $siteRoot = [IO.Path]::GetFullPath((Join-Path $ProjectRoot 'www'))
 $logDir = Join-Path $ProjectRoot '.yorika'
 [IO.Directory]::CreateDirectory($logDir) | Out-Null
-$logPath = Join-Path $logDir 'launcher.log'
+$logPath = Join-Path $logDir 'yorika.log'
 function Log([string]$message) {
   try { [IO.File]::AppendAllText($logPath, ("[{0}] {1}`r`n" -f (Get-Date -Format o), $message), [Text.Encoding]::UTF8) } catch {}
 }
 $mutex = New-Object System.Threading.Mutex($false, 'Local\Yorika-Tray-Launcher')
 if (-not $mutex.WaitOne(0)) {
-  Log 'Launcher is already running.'
+  Log 'Yorika is already running.'
   exit 0
 }
 $listener = $null
@@ -33,6 +33,9 @@ try {
   $openItem = $menu.Items.Add('Open Yorika')
   $addressItem = $menu.Items.Add("Local address: $url")
   $addressItem.Enabled = $false
+  $copyItem = $menu.Items.Add('Copy website address')
+  $statusItem = $menu.Items.Add('System status')
+  $logItem = $menu.Items.Add('Open diagnostic log')
   $exitItem = $menu.Items.Add('Exit Yorika')
   $tray = New-Object System.Windows.Forms.NotifyIcon
   $tray.Icon = [Drawing.SystemIcons]::Application
@@ -43,6 +46,11 @@ try {
   $openAction = { Start-Process $url }
   $openItem.add_Click($openAction)
   $tray.add_DoubleClick($openAction)
+  $copyItem.add_Click({ [System.Windows.Forms.Clipboard]::SetText($url) })
+  $statusItem.add_Click({
+    [System.Windows.Forms.MessageBox]::Show("Yorika online`nURL: $url`nProcess: $PID`nPython: not required", 'Yorika status') | Out-Null
+  })
+  $logItem.add_Click({ if ([IO.File]::Exists($logPath)) { Start-Process notepad.exe -ArgumentList ('"' + $logPath + '"') } })
   $exitItem.add_Click({ [System.Windows.Forms.Application]::ExitThread() })
 
   $timer = New-Object System.Windows.Forms.Timer
@@ -103,6 +111,7 @@ try {
     } catch { Log "HTTP error: $($_.Exception.Message)" }
   })
   $timer.Start()
+  # Start the local site only after the listener has bound successfully.
   Start-Process $url
   [System.Windows.Forms.Application]::Run()
 } catch {
@@ -113,5 +122,5 @@ try {
   if ($tray) { $tray.Visible = $false; $tray.Dispose() }
   if ($listener) { $listener.Stop() }
   if ($mutex) { $mutex.ReleaseMutex(); $mutex.Dispose() }
-  Log 'Launcher stopped.'
+  Log 'Yorika stopped.'
 }

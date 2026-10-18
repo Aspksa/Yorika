@@ -6,6 +6,7 @@ unless an independently opened copy passes SQLite integrity_check.
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 import hashlib
 import os
 from pathlib import Path
@@ -26,7 +27,7 @@ def verify_snapshot(path: Path) -> dict:
     if not path.is_file():
         raise FileNotFoundError(path)
     uri = path.as_uri() + "?mode=ro"
-    with sqlite3.connect(uri, uri=True) as database:
+    with closing(sqlite3.connect(uri, uri=True)) as database:
         status = database.execute("PRAGMA integrity_check").fetchone()[0]
         version = database.execute("PRAGMA user_version").fetchone()[0]
         if status != "ok":
@@ -48,8 +49,8 @@ def create_verified_backup(source: Path, target: Path) -> dict:
     temporary = Path(tmp_name)
     try:
         source_uri = source.as_uri() + "?mode=ro"
-        with sqlite3.connect(source_uri, uri=True) as active:
-            with sqlite3.connect(str(temporary)) as destination:
+        with closing(sqlite3.connect(source_uri, uri=True)) as active:
+            with closing(sqlite3.connect(str(temporary))) as destination:
                 active.backup(destination)
         report = verify_snapshot(temporary)
         # Exclusive creation: never replace another file created during backup.

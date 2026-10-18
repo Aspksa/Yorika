@@ -87,6 +87,18 @@ class StorageTests(unittest.TestCase):
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 1)
                 self.assertEqual(len(db.execute("PRAGMA table_info(records)").fetchall()), 2)
 
+    def test_reject_existing_schema_with_wrong_constraints(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            with sqlite3.connect(root / "yorika.sqlite3") as db:
+                db.execute("CREATE TABLE records (namespace TEXT, record_id TEXT, payload TEXT, updated_at TEXT)")
+                db.execute("CREATE TABLE events (event_id INTEGER PRIMARY KEY, event_type TEXT NOT NULL, payload TEXT NOT NULL, recorded_at TEXT NOT NULL)")
+                db.execute("PRAGMA user_version=1")
+            with self.assertRaisesRegex(RuntimeError, "schema mismatch: records"):
+                Store(root)
+            with sqlite3.connect(root / "yorika.sqlite3") as db:
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 1)
+
     def test_reject_future_schema(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

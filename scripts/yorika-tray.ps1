@@ -112,7 +112,7 @@ try{
        $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
        Log ('Chat memory: '+$_.Exception.Message)
       }
-     }elseif($path -match '^/api/cloud-ru/(status|save|check|delete|diagnostics)$'){
+     }elseif($path -match '^/api/cloud-ru/(status|save|check|delete|diagnostics)\z'){
       $action=$Matches[1]
       try{
        if($requestHost -ne "127.0.0.1:$port"){throw 'Недопустимый Host'}

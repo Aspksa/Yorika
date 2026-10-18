@@ -23,6 +23,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .workspace-center p{color:#afa3a8;font-size:14px;margin:0}
 .workspace-bottom{padding-bottom:32px}
 .bottom-hint span{margin:0 5px;color:#bfa7ae}
+.menu{display:flex;flex-wrap:wrap;gap:12px}
 .launcher{position:relative;display:flex;align-items:center;gap:11px;padding:14px 21px;border:1px solid #e8d9df;border-radius:15px;background:rgba(255,255,255,.93);color:#813d56;font-size:13px;font-weight:650;box-shadow:0 8px 35px #693d5014;transition:transform .2s,box-shadow .2s,border-color .2s}
 .launcher:hover{text-decoration:none;transform:translateY(-2px);box-shadow:0 12px 34px #693d5026;border-color:#dbbbca}
 .launcher-icon{font-size:21px;line-height:1}

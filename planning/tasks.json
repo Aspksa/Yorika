@@ -1,0 +1,380 @@
+{
+  "schema_version": "1.0.0",
+  "project": "Yorika",
+  "repository": "Aspksa/Yorika",
+  "snapshot": {
+    "date": "2026-10-18",
+    "base_branch": "main",
+    "base_sha": "f3b2efca11ec10b979f61eff175ef313fe7d8588"
+  },
+  "status_values": [
+    "todo",
+    "in_progress",
+    "blocked",
+    "done",
+    "cancelled"
+  ],
+  "rules": {
+    "completion": "done requires evidence, actual implementation for functional tasks, and validation",
+    "checkbox": "docs/ROADMAP.md [x] iff status=done",
+    "timestamps": "ISO8601 UTC, not fabricated",
+    "dependencies": "All depends_on IDs must be done before starting",
+    "owner": "Session assistant must re-fetch git tree and task registry",
+    "no_auto_merge": true
+  },
+  "tasks": [
+    {
+      "id": "BASE-001",
+      "title": "Windows BAT launch, tray, localhost server",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [],
+      "evidence": [
+        "Yorika.bat",
+        "scripts/yorika-tray.ps1",
+        "README.md"
+      ],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "BASE-002",
+      "title": "Web avatar, chat, settings and updater shell",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [],
+      "evidence": [
+        "www/avatar.js",
+        "www/settings.html",
+        "www/updates.html"
+      ],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "BASE-003",
+      "title": "Document random-port browser storage issue",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [],
+      "evidence": [
+        "docs/ARCHITECTURE.md",
+        "README.md"
+      ],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "BASE-004",
+      "title": "Windows live smoke tests for current app",
+      "status": "todo",
+      "priority": "P0",
+      "depends_on": [],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "DATA-001",
+      "title": "Stable durable SQLite storage outside release",
+      "status": "todo",
+      "priority": "P0",
+      "depends_on": [
+        "BASE-003"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "DATA-002",
+      "title": "Export/import and recovery of browser storage",
+      "status": "todo",
+      "priority": "P0",
+      "depends_on": [
+        "DATA-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "DATA-003",
+      "title": "SQLite migrations, backups, restore tests",
+      "status": "todo",
+      "priority": "P0",
+      "depends_on": [
+        "DATA-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "API-001",
+      "title": "Optional local Python backend integrated into startup",
+      "status": "todo",
+      "priority": "P0",
+      "depends_on": [
+        "DATA-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "API-002",
+      "title": "Loopback API security and logging",
+      "status": "todo",
+      "priority": "P0",
+      "depends_on": [
+        "API-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "CHAT-001",
+      "title": "Wire real backend responder into existing avatar",
+      "status": "todo",
+      "priority": "P1",
+      "depends_on": [
+        "API-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "CHAT-002",
+      "title": "Consent-based proactive notifications and controls",
+      "status": "todo",
+      "priority": "P1",
+      "depends_on": [
+        "API-002",
+        "LIFE-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "CHAT-003",
+      "title": "Opt-in local speech and microphone control",
+      "status": "todo",
+      "priority": "P3",
+      "depends_on": [
+        "CHAT-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "BRAIN-001",
+      "title": "Optional PyTorch environment and GPU checks",
+      "status": "todo",
+      "priority": "P2",
+      "depends_on": [
+        "API-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "BRAIN-002",
+      "title": "Own tokenizer and 5–10M param random-init Transformer",
+      "status": "todo",
+      "priority": "P2",
+      "depends_on": [
+        "BRAIN-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "BRAIN-003",
+      "title": "Reproducible checkpoints and training loop",
+      "status": "todo",
+      "priority": "P2",
+      "depends_on": [
+        "BRAIN-002"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "BRAIN-004",
+      "title": "Held-out evaluations and regressions",
+      "status": "todo",
+      "priority": "P2",
+      "depends_on": [
+        "BRAIN-003"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "MEMORY-001",
+      "title": "Event/semantic memory with FTS5 provenance",
+      "status": "todo",
+      "priority": "P1",
+      "depends_on": [
+        "DATA-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "MEMORY-002",
+      "title": "Optional embeddings, graph links, conflict checks",
+      "status": "todo",
+      "priority": "P3",
+      "depends_on": [
+        "MEMORY-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "MEMORY-003",
+      "title": "Consolidation and cross-generation data migrations",
+      "status": "todo",
+      "priority": "P3",
+      "depends_on": [
+        "MEMORY-001",
+        "DATA-003"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "LIFE-001",
+      "title": "Persistent event-driven goals and task queue",
+      "status": "todo",
+      "priority": "P1",
+      "depends_on": [
+        "API-001",
+        "DATA-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "LIFE-002",
+      "title": "Permissioned initiative logic and no fabricated events",
+      "status": "todo",
+      "priority": "P1",
+      "depends_on": [
+        "CHAT-002"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "LIFE-003",
+      "title": "Respectful fictional kitsune persona policy",
+      "status": "todo",
+      "priority": "P1",
+      "depends_on": [
+        "CHAT-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "AGENT-001",
+      "title": "Restricted tool sandbox and approval system",
+      "status": "todo",
+      "priority": "P3",
+      "depends_on": [
+        "API-002"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "LAB-001",
+      "title": "Isolated controlled model experiment lab",
+      "status": "todo",
+      "priority": "P2",
+      "depends_on": [
+        "BRAIN-004"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "LAB-002",
+      "title": "Evidence-based architectural growth proposals",
+      "status": "todo",
+      "priority": "P3",
+      "depends_on": [
+        "LAB-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "CLOUD-001",
+      "title": "Cloud.ru manual budget-gated integration",
+      "status": "todo",
+      "priority": "P3",
+      "depends_on": [
+        "LAB-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "UI-001",
+      "title": "Dashboard for brain, memory and task state",
+      "status": "todo",
+      "priority": "P1",
+      "depends_on": [
+        "LIFE-001",
+        "MEMORY-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "QA-001",
+      "title": "Python CI, migration tests and Windows smoke checks",
+      "status": "todo",
+      "priority": "P1",
+      "depends_on": [
+        "API-001"
+      ],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "DOC-001",
+      "title": "Review architecture, roadmap and AGENTS for handoff",
+      "status": "todo",
+      "priority": "P1",
+      "depends_on": [],
+      "evidence": [],
+      "completed_at": null,
+      "notes": ""
+    }
+  ]
+}

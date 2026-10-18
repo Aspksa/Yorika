@@ -45,9 +45,9 @@ def run(action, data=None, *, test_call=None):
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             test_call = module.answer
-        # This makes one billable API request only when the user presses Check.
+        # Explicit check: never attach SQLite memories to a diagnostic request.
         response = test_call("Ответь одним словом: готово", model=credential["model"],
-                             api_key=credential["key"])
+                             api_key=credential["key"], include_memory=False)
         return {"connected": bool(response.get("answer")), "model": credential["model"]}
     raise ValueError("Unknown action")
 

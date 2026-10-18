@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Tiny, optional JSON-over-stdin bridge to the stable SQLite store.
-
-Never executes code from chat text; never talks to external services.
-"""
+"""Versioned SQLite chat snapshots. Only exact-revision writes are accepted."""
 import json
+import sqlite3
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -12,6 +11,7 @@ from backend.storage import Store
 
 MAX_MESSAGES = 5000
 MAX_TEXT = 4000
+
 
 def valid_history(obj):
     if not isinstance(obj, list) or len(obj) > MAX_MESSAGES:
@@ -28,24 +28,60 @@ def valid_history(obj):
         result.append({"from": m["from"], "text": m["text"], "ts": ts})
     return result
 
-def main():
-    action = sys.argv[1] if len(sys.argv) == 2 else ""
+
+def read_record(db):
+    row = db.execute("SELECT payload FROM records WHERE namespace=? AND record_id=?",
+                     ("chat", "default")).fetchone()
+    value = json.loads(row[0]) if row else None
+    return {"history": valid_history(value["history"]) if value else None,
+            "revision": value.get("revision", 0) if value else 0}
+
+
+def run(action, payload=None, directory=None):
     if action not in ("get", "put", "clear"):
         raise ValueError("Unknown action")
-    payload = json.load(sys.stdin) if action == "put" else None
-    history = valid_history(payload) if action == "put" else None
-    with Store() as store:
+    if action in ("put", "clear"):
+        if not isinstance(payload, dict):
+            raise ValueError("Expected revision and history")
+        expected = payload.get("revision")
+        if type(expected) is not int or expected < 0:
+            raise ValueError("Expected nonnegative integer revision")
+        history = valid_history(payload.get("history")) if action == "put" else []
+    with Store(directory) as store:
+        db = store.connection
         if action == "get":
-            item = store.get("chat", "default")
-            result = {"history": valid_history(item["history"]) if item else None}
-        else:
-            store.put("chat", "default", {"history": history if action == "put" else []})
-            result = {"ok": True}
-    print(json.dumps(result, ensure_ascii=False))
+            return read_record(db)
+        db.execute("BEGIN IMMEDIATE")
+        try:
+            current = read_record(db)
+            if expected != current["revision"]:
+                db.rollback()
+                return dict(current, conflict=True)
+            new_revision = expected + 1
+            json_value = json.dumps({"history": history, "revision": new_revision},
+                                    ensure_ascii=False, allow_nan=False)
+            timestamp = datetime.now(timezone.utc).isoformat()
+            db.execute(
+                "INSERT INTO records(namespace,record_id,payload,updated_at) VALUES(?,?,?,?) "
+                "ON CONFLICT(namespace,record_id) DO UPDATE SET "
+                "payload=excluded.payload,updated_at=excluded.updated_at",
+                ("chat", "default", json_value, timestamp))
+            db.commit()
+        except BaseException:
+            db.rollback()
+            raise
+        return {"ok": True, "revision": new_revision}
+
+
+def main():
+    action = sys.argv[1] if len(sys.argv) == 2 else ""
+    payload = json.load(sys.stdin) if action in ("put", "clear") else None
+    print(json.dumps(run(action, payload), ensure_ascii=False))
+
 
 if __name__ == "__main__":
     try:
         main()
-    except (ValueError, OSError, KeyError, TypeError) as exc:
+    except (ValueError, OSError, KeyError, TypeError, sqlite3.DatabaseError) as exc:
         print(json.dumps({"error": str(exc)}, ensure_ascii=False))
         sys.exit(1)

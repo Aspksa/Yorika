@@ -500,10 +500,10 @@
       "depends_on": [
         "DATA-001"
       ],
-      "status": "todo",
+      "status": "in_progress",
       "evidence": [],
       "completed_at": null,
-      "notes": "Acceptance specified by relevant section of docs/YORIKA_VISION.md; verify by tests."
+      "notes": "Revision/CAS implementation and cross-platform tests in chat-concurrency PR. Not done until CI, Windows live multi-tab stress and memory migration verification."
     },
     {
       "id": "MEMORY-005",

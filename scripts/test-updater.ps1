@@ -1,4 +1,4 @@
-# Windows PowerShell 5.1 updater integration tests.
+﻿# Windows PowerShell 5.1 updater integration tests.
 # All destructive operations are confined to a unique TEMP fixture.
 $ErrorActionPreference='Stop'
 $root=Join-Path $env:TEMP ('yorika-update-test-'+[guid]::NewGuid().ToString('N'))

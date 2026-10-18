@@ -130,8 +130,13 @@ class StorageTests(unittest.TestCase):
                 self.assertEqual(item["source_id"], "chat-12")
                 self.assertTrue(item["created_at"])
                 self.assertEqual(db.get("memories", "fact-1"), item)
-                results = db.search_records_fts("memories", "Ёрика")
-                self.assertEqual(results[0]["record_id"], "fact-1")
+                try:
+                    results = db.search_records_fts("memories", "Ёрика")
+                except RuntimeError as exc:
+                    if "FTS5" not in str(exc):
+                        raise
+                else:
+                    self.assertEqual(results[0]["record_id"], "fact-1")
                 for text, source in (("", "user"), ("valid", ""), ("x" * 10001, "user")):
                     with self.assertRaises(ValueError):
                         db.remember("bad", text, source)

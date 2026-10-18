@@ -5,7 +5,9 @@ import argparse
 import json
 from pathlib import Path
 import tempfile
+import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.sqlite_restore_preview import preview
 from scripts.sqlite_restore_copy import restore_copy
 

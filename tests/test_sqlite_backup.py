@@ -50,6 +50,19 @@ class BackupTests(unittest.TestCase):
                 create_verified_backup(original, link)
             self.assertEqual(protected.read_text(), "untouched")
 
+    def test_backup_verification_releases_file_handles(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            live = root / "live.sqlite3"
+            with sqlite3.connect(live) as db:
+                db.execute("CREATE TABLE sample (id INTEGER PRIMARY KEY)")
+                db.execute("INSERT INTO sample VALUES (1)")
+            snapshot = root / "backup.sqlite3"
+            create_verified_backup(live, snapshot)
+            verify_snapshot(snapshot)
+            snapshot.unlink()
+            self.assertFalse(snapshot.exists())
+
     def test_verification_rejects_corrupt_file(self):
         with tempfile.TemporaryDirectory() as folder:
             bad = Path(folder) / "bad.sqlite3"

@@ -1,29 +1,24 @@
 # Yorika
 
-Windows launcher and starter website for Yorika.
+Yorika starts directly from **Yorika.bat**. There is no separate launcher window or launcher UI.
 
-## Start
+## Start on Windows
 
 1. Download or clone the repository.
-2. Double-click **Yorika.bat**.
-3. Your default browser opens the Yorika page automatically.
-4. Find the Yorika icon in the Windows notification area (near the clock; check the **^** menu).
-5. Double-click the icon to reopen the page, or right-click and choose **Exit Yorika** to stop the server.
+2. Double-click `Yorika.bat`.
+3. The local website opens automatically in the default browser.
+4. Yorika runs silently in the Windows notification area (near the clock, possibly under **^**).
+5. Double-click its tray icon to open the website again. Right-click > **Exit Yorika** to stop it.
 
-**Requirements:** Windows 10/11 with Windows PowerShell 5.1 and .NET Framework WinForms (normally included). No Python, Node.js, pip, or administrator privileges are required.
+A small background PowerShell process is necessary to keep the site available and manage the tray icon after the BAT exits. It is **not** a separate launcher interface.
 
-## How it works
+The site is served locally at `127.0.0.1` using a port allocated automatically by Windows. No fixed port is assumed. HTML is UTF-8 and supports Cyrillic. No Python, Node.js, pip, administrator rights, or package installation are required for this starter page.
 
-- The batch script launches a hidden PowerShell tray application, then exits.
-- The launcher binds to `127.0.0.1` on **port 0**, letting Windows allocate an unused port.
-- The selected port stays reserved while Yorika is running.
-- The launcher serves static files from `www/` and opens the actual URL in the browser.
-- UTF-8 HTML supports Cyrillic text; avoid hard-coding paths or ports.
-- A process mutex prevents duplicate tray instances.
-- Logs are saved in `.yorika/launcher.log` (gitignored).
+Source files:
+- `Yorika.bat` — entry point.
+- `scripts/yorika-tray.ps1` — background tray process and static HTTP server.
+- `www/index.html` — starter website.
 
-## Limitations
+Logs: `.yorika/launcher.log` (legacy filename; hidden support logging only).
 
-This version hosts a **local static site only**. Python-backed AI features, APIs, application logic, updates, and packaged installers are not yet implemented. Windows execution has not yet been tested on a real machine.
-
-If the icon is not visible, expand the Windows notification area (^) and inspect `.yorika/launcher.log` if the launcher does not start.
+Current limitations: static starter website only; no AI API or backend. Windows runtime behavior has not yet been tested on a real Windows computer.

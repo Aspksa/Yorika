@@ -121,6 +121,24 @@ class StorageTests(unittest.TestCase):
                     db.import_records(bundle, dry_run=False)
                 self.assertEqual(db.export_records("memories")["records"], [])
 
+    def test_conflicting_explicit_claims_need_review(self):
+        with tempfile.TemporaryDirectory() as root:
+            with Store(Path(root)) as db:
+                db.put("memories", "a", {"subject": "favorite_color",
+                                        "claim": "синий", "source": "user", "source_id": "1"})
+                db.put("memories", "b", {"subject": "favorite_color",
+                                        "claim": "красный", "source": "user", "source_id": "2"})
+                db.put("memories", "c", {"subject": "city",
+                                        "claim": "Москва", "source": "user"})
+                db.put("private", "d", {"subject": "favorite_color", "claim": "secret"})
+                rows = db.find_memory_conflicts("favorite_color")
+                self.assertEqual([item["record_id"] for item in rows], ["a", "b"])
+                self.assertEqual(db.find_memory_conflicts("city"), [])
+                with self.assertRaises(ValueError):
+                    db.find_memory_conflicts("favorite_color", limit=1)
+                with self.assertRaises(ValueError):
+                    db.find_memory_conflicts("")
+
     def test_explicit_memory_includes_provenance(self):
         with tempfile.TemporaryDirectory() as root:
             with Store(Path(root)) as db:

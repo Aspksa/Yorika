@@ -1,17 +1,20 @@
 <!doctype html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#101015">
-  <title>Yorika</title>
-  <link rel="stylesheet" href="./styles.css">
-  <script type="module" src="./main.js"></script>
-</head>
-<body>
-  <main id="app" aria-label="Yorika">
-    <div class="mark" aria-label="Yorika">YORIKA</div>
-    <div id="status" class="status" role="status" aria-live="polite"></div>
-  </main>
-</body>
-</html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Yorika</title><link rel="stylesheet" href="./styles.css"><script type="module" src="./main.js"></script></head>
+<body><main id="app"><div class="mark">YORIKA</div><div id="status" role="status"></div></main>
+<button id="menu-toggle" aria-label="Открыть меню" aria-expanded="false">☰ <span id="update-dot" hidden>●</span></button>
+<aside id="side-menu" hidden><h2>Yorika</h2><button id="open-updates">↻ Обновление</button></aside>
+<section id="update-panel" hidden aria-label="Обновление проекта">
+<header><h2>Обновление проекта</h2><button id="close-updates" aria-label="Закрыть">✕</button></header>
+<p class="muted">Источник: <a href="https://github.com/Aspksa/Yorika" target="_blank" rel="noopener">Aspksa/Yorika</a></p>
+<div class="panel"><h3>Состояние</h3><p id="update-status" role="status">Проверка не запускалась</p><p id="update-details" class="muted"></p>
+<button id="check-update">Проверить обновления</button><button id="stage-update" disabled>Скачать и проверить</button></div>
+<div class="panel"><h3>Настройки обновления</h3>
+<label>Канал<select id="update-channel"><option value="fresh">Свежий (последние изменения)</option><option value="stable">Стабильный (только выпуски)</option></select></label>
+<p class="muted">Свежий — последние изменения main. Стабильный — опубликованные выпуски GitHub.</p>
+<label>Автопроверка<select id="update-interval"><option value="3600000">Каждый час</option><option value="86400000">Раз в сутки</option><option value="0">Выключена</option></select></label>
+<p class="muted">Автопроверка только узнаёт о новой версии. Ничего не скачивается без согласия.</p>
+<label>Токен GitHub<input type="password" id="github-token" autocomplete="off" placeholder="ghp_… или github_pat_…"></label>
+<p class="muted">Токен для приватного репозитория хранится локально в защищённом хранилище Windows (DPAPI), а при запросах отправляется только GitHub. Не вставляйте токен в адрес сайта.</p>
+<p id="token-status" class="muted"></p><button id="save-token">Сохранить</button><button id="delete-token">Удалить</button>
+</div><p class="muted">Архив скачивается во временную папку и проверяется до изменений. Применение пакета с откатом будет включено только после испытаний на Windows; текущая версия не заменяется автоматически.</p>
+</section></body></html>

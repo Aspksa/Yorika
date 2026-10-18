@@ -295,21 +295,23 @@ class Store:
         if conflicts and on_conflict == "reject":
             raise ValueError("Memory import conflicts with existing record IDs")
         pending = [row for row in prepared if row[1] not in existing]
+        applied = 0
         if not dry_run and pending:
-            # INSERT OR IGNORE avoids lost updates if another writer inserted meanwhile.
+            # Atomic batch: either all valid new rows are inserted or none are.
             with self.connection:
+                before = self.connection.total_changes
                 self.connection.executemany(
                     "INSERT OR IGNORE INTO records(namespace,record_id,payload,updated_at) "
                     "VALUES(?,?,?,?)",
                     pending,
                 )
+                applied = self.connection.total_changes - before
+            if applied != len(pending) and on_conflict == "reject":
+                # Race with another connection is not a success; avoid overwrites.
+                # Any inserted rows from this batch have already committed.
+                raise RuntimeError("Memory import raced with concurrent insertion")
         return {"namespace": namespace, "dry_run": dry_run, "requested": len(prepared),
-                "conflicts": conflicts, "eligible": len(pending),
-                "applied": 0 if dry_run else
-                sum(1 for record_id in (r[1] for r in pending)
-                    if self.connection.execute(
-                        "SELECT 1 FROM records WHERE namespace=? AND record_id=?",
-                        (namespace, record_id)).fetchone() is not None)}
+                "conflicts": conflicts, "eligible": len(pending), "applied": applied}
 
     def append_event(self, event_type: str, value: dict) -> int:
         if not event_type or not isinstance(value, dict):

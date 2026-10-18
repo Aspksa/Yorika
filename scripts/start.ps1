@@ -1,6 +1,7 @@
-param([Parameter(Mandatory=$true)][string]$ProjectRoot)
+param([string]$ProjectRoot)
 $ErrorActionPreference = 'Stop'
-$ProjectRoot = [IO.Path]::GetFullPath($ProjectRoot)
+# Resolve from the script's own location, never from an externally quoted argument.
+$ProjectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $work = Join-Path $ProjectRoot '.yorika'
 $ready = Join-Path $work 'ready.url'
 $log = Join-Path $work 'yorika.log'
@@ -29,7 +30,7 @@ try {
     }
     Remove-Item -LiteralPath $ready -Force -ErrorAction SilentlyContinue
   }
-  $process = Start-Process -FilePath "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -ArgumentList @('-NoLogo','-NoProfile','-STA','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',('"' + $server + '"'),'-ProjectRoot',('"' + $ProjectRoot + '"')) -WindowStyle Hidden -PassThru
+  $process = Start-Process -FilePath "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -ArgumentList @('-NoLogo','-NoProfile','-STA','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',('"' + $server + '"')) -WindowStyle Hidden -PassThru
   for ($i=0; $i -lt 60; $i++) {
     Start-Sleep -Milliseconds 250
     if (Test-Path -LiteralPath $ready) {

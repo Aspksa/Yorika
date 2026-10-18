@@ -93,6 +93,23 @@ class CloudRuTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.answer("привет", Path(root), api_key="test", model="bad model", opener=blocked)
 
+    def test_cloud_http_errors_are_classified_without_secrets(self):
+        with tempfile.TemporaryDirectory() as root:
+            for status, expected in ((401, "ключ"), (403, "доступ"),
+                                     (404, "модель"), (429, "лимит"),
+                                     (503, "сервиса")):
+                def failed(req, timeout):
+                    raise HTTPError(req.full_url, status, "provider-secret-body", {}, None)
+                with self.subTest(status=status):
+                    with self.assertRaises(RuntimeError) as ctx:
+                        module.answer("Привет", Path(root), api_key="never-echo-this",
+                                      model="ai-sage/test", opener=failed,
+                                      include_memory=False)
+                    message = str(ctx.exception)
+                    self.assertIn(expected, message)
+                    self.assertNotIn("never-echo-this", message)
+                    self.assertNotIn("provider-secret-body", message)
+
     def test_http_error_does_not_disclose_token(self):
         with tempfile.TemporaryDirectory() as root:
             def forbidden(req, timeout):

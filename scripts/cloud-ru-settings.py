@@ -9,12 +9,14 @@ from backend.cloud_ru_vault import (read_credentials, save_credentials,
                                    delete_credentials, public_status)
 from backend.storage import Store
 from backend.persona_growth import stats, list_replies, remove_reply, set_enabled
+from backend.persona_vocabulary import vocabulary_stats
 
 
 def run(action, data=None, *, test_call=None):
     if action == "persona-status":
         with Store() as store:
-            return {**stats(store), "replies": list_replies(store, 20)}
+            return {**stats(store), "replies": list_replies(store, 20),
+                    "vocabulary": vocabulary_stats(store, limit=10)}
     if action == "persona-config":
         if not isinstance(data, dict):
             raise ValueError("Missing settings")

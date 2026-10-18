@@ -58,7 +58,7 @@ try {
   $exitItem.add_Click({ [System.Windows.Forms.Application]::ExitThread() })
 
   $timer = New-Object System.Windows.Forms.Timer
-  $timer.Interval = 60
+  $timer.Interval = 100
   $timer.add_Tick({
     try {
       $processed = 0
@@ -71,10 +71,15 @@ try {
           $stream = $client.GetStream()
           $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::ASCII, $false, 1024, $true)
           $first = $reader.ReadLine()
-          if (-not $first) { continue }
+          if (-not $first -or $first.Length -gt 4096) { continue }
           $parts = $first.Split(' ')
           if ($parts.Length -lt 2) { continue }
-          do { $line = $reader.ReadLine() } while ($null -ne $line -and $line.Length -gt 0)
+          $headerCount = 0
+          do {
+            $line = $reader.ReadLine()
+            $headerCount++
+            if ($headerCount -gt 80 -or ($null -ne $line -and $line.Length -gt 8192)) { throw 'HTTP request headers exceeded limits' }
+          } while ($null -ne $line -and $line.Length -gt 0)
           $status = '200 OK'
           $mime = 'text/plain; charset=utf-8'
           $body = [Text.Encoding]::UTF8.GetBytes('Yorika')
@@ -83,6 +88,7 @@ try {
             $body = [Text.Encoding]::UTF8.GetBytes('Method not allowed')
           } else {
             $path = [Uri]::UnescapeDataString(($parts[1] -split '[?#]', 2)[0]).Replace('/', [IO.Path]::DirectorySeparatorChar)
+            if ($path.IndexOf([char]0) -ge 0) { throw 'Invalid path' }
             if ($path -eq [IO.Path]::DirectorySeparatorChar.ToString()) { $path = [IO.Path]::DirectorySeparatorChar + 'index.html' }
             $relative = $path.TrimStart([char][IO.Path]::DirectorySeparatorChar)
             $file = [IO.Path]::GetFullPath((Join-Path $siteRoot $relative))

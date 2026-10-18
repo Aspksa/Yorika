@@ -7,7 +7,7 @@ if not exist "%STARTER%" (
  pause
  exit /b 1
 )
-"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File "%STARTER%" -ProjectRoot "%ROOT%"
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File "%STARTER%"
 if errorlevel 1 (
  echo.
  echo [YORIKA] Startup failed. Press a key to exit.

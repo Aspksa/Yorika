@@ -44,6 +44,30 @@ class CloudRuVaultTests(unittest.TestCase):
                         with self.assertRaisesRegex(RuntimeError, "Corrupt"):
                             vault.read_credentials()
 
+    def test_oversized_ciphertext_rejected_before_decrypt(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "cloud.dpapi"
+            path.write_bytes(b"x" * (vault.MAX_CREDENTIAL_FILE_BYTES + 1))
+            with patch.object(vault, "credential_path", return_value=path), \
+                 patch.object(vault, "_crypt", side_effect=AssertionError("Decryption attempted")):
+                with self.assertRaisesRegex(RuntimeError, "too large"):
+                    vault.read_credentials()
+
+    def test_linked_secret_folder_blocks_read_and_delete(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "real").mkdir()
+            linked = root / "linked"
+            try:
+                linked.symlink_to(root / "real", target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("Symlinks unavailable")
+            with patch.object(vault, "credential_path", return_value=linked / "cloud.dpapi"):
+                with self.assertRaisesRegex(RuntimeError, "linked"):
+                    vault.read_credentials()
+                with self.assertRaisesRegex(RuntimeError, "linked"):
+                    vault.delete_credentials()
+
     def test_invalid_input_rejected_without_file(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "cloud.dpapi"

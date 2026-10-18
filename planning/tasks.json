@@ -429,12 +429,20 @@
     {
       "id": "DOC-001",
       "title": "Review architecture, roadmap and AGENTS for handoff",
-      "status": "todo",
+      "status": "done",
       "priority": "P1",
       "depends_on": [],
-      "evidence": [],
-      "completed_at": null,
-      "notes": ""
+      "evidence": [
+        "docs/STATUS_AUDIT.md",
+        "docs/ARCHITECTURE.md",
+        "README.md",
+        "AGENTS.md",
+        "docs/ROADMAP.md",
+        "planning/tasks.json",
+        "scripts/check-plan.py (structural validation of registry)"
+      ],
+      "completed_at": "2026-10-18T12:59:28.770Z",
+      "notes": "Documentation audit completed: source/code and roadmap reviewed; outdated claims updated. No Windows runtime or model training tests performed."
     },
     {
       "id": "VISION-001",

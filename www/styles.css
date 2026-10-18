@@ -27,16 +27,18 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .workspace-meta,.bottom-hint{font-size:12px;color:var(--text-muted);letter-spacing:.015em}
 .live-pip{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:9px;box-shadow:0 0 8px #8cc2a280}
 .workspace-center{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:30px 20px}
-.hero-glyph{font-family:Georgia,serif;font-size:67px;line-height:1;color:var(--gold);text-shadow:0 0 28px #dcbb6c4d;animation:float 6s ease-in-out infinite}
 .workspace-center h1{font-size:clamp(29px,4.1vw,48px);font-weight:350;line-height:1.2;letter-spacing:-.035em;margin:30px 0 13px;color:var(--gold)}
 .workspace-center p{color:var(--text-muted);font-size:14px;margin:0}
 .workspace-bottom{padding-bottom:32px}
 .bottom-hint span{margin:0 5px;color:var(--text-muted)}
-.menu{display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
-.launcher{position:relative;display:flex;align-items:center;gap:11px;padding:14px 21px;border:1px solid var(--line);border-radius:15px;background:var(--bg-raise);color:var(--gold-hi);font-size:13px;font-weight:650;box-shadow:0 8px 30px #0000004d;transition:transform .2s,box-shadow .2s,border-color .2s}
-.launcher:hover{color:var(--gold-hi);text-decoration:none;transform:translateY(-2px);box-shadow:0 12px 34px #00000066,0 0 0 1px var(--gold-glow);border-color:var(--line-strong)}
-.launcher-icon{font-size:21px;line-height:1;color:var(--gold)}
-.notice-dot{position:absolute;right:9px;top:9px;height:7px;width:7px;background:var(--notice);border-radius:100%;box-shadow:0 0 6px var(--notice)}
+.workspace-top{justify-content:flex-end}
+.menu{display:flex;gap:10px}
+.launcher{position:relative;display:grid;place-items:center;width:48px;height:48px;border:1px solid var(--line-strong);border-radius:50%;background:radial-gradient(circle at 30% 25%,var(--surface-hi),var(--bg-raise) 70%);color:var(--gold);box-shadow:0 8px 24px #0000004d,inset 0 1px 0 #ffffff0d;transition:transform .2s,box-shadow .2s,border-color .2s,color .2s}
+.launcher:hover{color:var(--gold-hi);text-decoration:none;transform:translateY(-2px);box-shadow:0 12px 30px #00000066,0 0 18px var(--gold-glow);border-color:var(--gold-deep)}
+.launcher-icon{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;transition:transform .5s ease}
+.launcher-updates:hover .launcher-icon{transform:rotate(180deg)}
+.launcher-settings:hover .launcher-icon{transform:rotate(60deg)}
+.notice-dot{position:absolute;right:3px;top:3px;height:7px;width:7px;background:var(--notice);border-radius:100%;box-shadow:0 0 6px var(--notice)}
 .button-row{display:flex;gap:9px;flex-wrap:wrap}
 .primary,.secondary,.ghost{min-height:40px;border-radius:11px;padding:10px 14px;font-size:12px;font-weight:700}
 .primary{background:var(--gold-deep);border:1px solid var(--gold-deep);color:var(--gold-ink)}
@@ -57,6 +59,5 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .reveal:hover{background:var(--surface-hi)}
 .token-status{font-size:11px;line-height:1.6;color:var(--text-muted);margin:10px 0 14px;overflow-wrap:anywhere}
 .help-link{display:inline-block;margin-top:16px;font-size:12px;font-weight:600}
-@keyframes float{50%{transform:translateY(-8px)}}
 @media(max-width:620px){.workspace-top{padding:23px}.workspace-meta{font-size:10px}.workspace-bottom{padding:19px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}

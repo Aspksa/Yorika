@@ -1,12 +1,12 @@
 # Instructions for AI collaborators working on Yorika
 
-Read this file before modifying code. Source of truth: `planning/tasks.json` and `docs/ROADMAP.md`.
+Read `docs/YORIKA_VISION.md` for the target result and acceptance criteria A01–A20. Do not mistake its target-state descriptions for shipped functions. Source of truth: `planning/tasks.json` and `docs/ROADMAP.md`.
 
 ## Mission
 Build a durable Windows-local fox-girl assistant with its **own from-scratch trained small neural model**, reliable memory, optional proactive chat and a verifiable learning pipeline. No claim of literal life, subjective emotion, consciousness or superintelligence.
 
 ## Start-of-session contract
-1. Fetch current `main` tree and `README.md`, `docs/ARCHITECTURE.md`, `planning/tasks.json`, `docs/ROADMAP.md`, and relevant code. Do not assume a previous chat's view is current.
+1. Fetch current `main` tree and `docs/YORIKA_VISION.md`, `README.md`, `docs/ARCHITECTURE.md`, `planning/tasks.json`, `docs/ROADMAP.md`, and relevant code. Do not assume a previous chat's view is current.
 2. Reconcile task statuses with actual code and evidence; do not silently mark items complete.
 3. Select highest-priority unblocked task and write acceptance criteria. If dependencies are incomplete, work on dependency instead.
 4. Preserve existing `Yorika.bat`, PowerShell tray, updater, appearance, and avatar/chat interactions.

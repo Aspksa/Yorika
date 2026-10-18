@@ -91,13 +91,10 @@ class Store:
 
     def backup(self, destination: Path) -> Path:
         """Create a consistent SQLite snapshot (including WAL contents)."""
-        path = Path(destination).expanduser().resolve()
-        if path == self.path:
-            raise ValueError("Backup destination cannot be live database")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(str(path)) as backup_connection:
-            self.connection.backup(backup_connection)
-        return path
+        # Use the verified exclusive snapshot utility; never overwrite a user backup.
+        from scripts.sqlite_backup import create_verified_backup
+        report = create_verified_backup(self.path, destination)
+        return Path(report["path"])
 
     def close(self) -> None:
         self.connection.close()

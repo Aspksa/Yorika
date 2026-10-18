@@ -32,6 +32,19 @@ class StorageTests(unittest.TestCase):
                 self.assertEqual(restored.execute("SELECT count(*) FROM events").fetchone()[0], 1)
                 self.assertEqual(restored.execute("SELECT count(*) FROM records").fetchone()[0], 1)
 
+    def test_backup_refuses_to_overwrite_existing_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            with Store(root / "data") as db:
+                db.put("chat", "one", {"text": "Ёрика"})
+                target = root / "saved.sqlite3"
+                db.backup(target)
+                original = target.read_bytes()
+                with self.assertRaises(FileExistsError):
+                    db.backup(target)
+                self.assertEqual(target.read_bytes(), original)
+                self.assertEqual(db.get("chat", "one"), {"text": "Ёрика"})
+
     def test_reject_future_schema(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -133,7 +133,7 @@ try{
        if(-not $python){$status='503 Service Unavailable';throw 'Python не установлен'}
        $psi=New-Object Diagnostics.ProcessStartInfo
        $psi.FileName=$python.Source
-       $psi.Arguments=('"' + (Join-Path $root 'scripts\local-model.py') + '"')
+       $psi.Arguments=('"' + (Join-Path $root 'scripts\cloud-ru-model.py') + '"')
        $psi.UseShellExecute=$false
        $psi.CreateNoWindow=$true
        $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
@@ -145,7 +145,7 @@ try{
         $output=$proc.StandardOutput.ReadToEnd()
         $errorOutput=$proc.StandardError.ReadToEnd()
         if(-not $proc.WaitForExit(25000)){try{$proc.Kill()}catch{};throw 'Истекло время ответа модели'}
-        if($proc.ExitCode -ne 0){$status='503 Service Unavailable';throw 'Локальная модель недоступна'}
+        if($proc.ExitCode -ne 0){$status='503 Service Unavailable';throw 'Cloud.ru недоступен или ключ не настроен'}
         $bytes=[Text.Encoding]::UTF8.GetBytes($output.Trim())
        }finally{$proc.Dispose()}
       }catch{

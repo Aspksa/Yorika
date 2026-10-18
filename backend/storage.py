@@ -109,6 +109,20 @@ class Store:
         ).fetchone()
         return json.loads(row[0]) if row else None
 
+    def list_records(self, namespace: str, limit: int = 100) -> list[dict]:
+        """Enumerate saved records in stable newest-first order."""
+        if not isinstance(namespace, str) or not namespace:
+            raise ValueError("namespace must be non-empty")
+        if type(limit) is not int or not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        rows = self.connection.execute(
+            "SELECT record_id, payload, updated_at FROM records "
+            "WHERE namespace=? ORDER BY updated_at DESC, record_id ASC LIMIT ?",
+            (namespace, limit),
+        ).fetchall()
+        return [{"record_id": record_id, "value": json.loads(payload),
+                 "updated_at": updated_at} for record_id, payload, updated_at in rows]
+
     def append_event(self, event_type: str, value: dict) -> int:
         if not event_type or not isinstance(value, dict):
             raise ValueError("event_type must be non-empty and value must be an object")

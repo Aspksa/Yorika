@@ -18,6 +18,23 @@ class StorageTests(unittest.TestCase):
                 self.assertEqual(db.get("memories", "one"), {"text": "Помню"})
                 self.assertIsNone(db.get("memories", "missing"))
 
+    def test_list_records_is_bounded_and_namespace_scoped(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with Store(Path(temp)) as db:
+                db.put("memories", "b", {"text": "Ёрика"})
+                db.put("memories", "a", {"text": "Привет"})
+                db.put("settings", "private", {"secret": "hidden"})
+                rows = db.list_records("memories", limit=1)
+                self.assertEqual(len(rows), 1)
+                self.assertIn(rows[0]["record_id"], {"a", "b"})
+                self.assertEqual({x["record_id"] for x in db.list_records("memories")}, {"a", "b"})
+                self.assertTrue(all("updated_at" in x for x in db.list_records("memories")))
+                for bad in (0, -1, 1001, True, "10"):
+                    with self.assertRaises(ValueError):
+                        db.list_records("memories", bad)
+                with self.assertRaises(ValueError):
+                    db.list_records("")
+
     def test_events_backup_and_restore(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

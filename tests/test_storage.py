@@ -292,6 +292,23 @@ class StorageTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     db.search_records("memories", "   ")
 
+    def test_fts_query_tokenizer_handles_cyrillic_and_punctuation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with Store(Path(temp)) as db:
+                try:
+                    db.connection.execute("CREATE VIRTUAL TABLE temp.fts_test USING fts5(body)")
+                except sqlite3.OperationalError:
+                    self.skipTest("FTS5 unavailable")
+                db.remember("a", "Ёрика любит книги", "user")
+                self.assertEqual(
+                    [row["record_id"] for row in db.search_records_fts("memories", "Ёрика!")],
+                    ["a"],
+                )
+                self.assertEqual(
+                    [row["record_id"] for row in db.search_records_fts("memories", "книги")],
+                    ["a"],
+                )
+
     def test_fts_recall_ranks_text_without_leaking_namespaces(self):
         with tempfile.TemporaryDirectory() as folder:
             with Store(Path(folder)) as db:

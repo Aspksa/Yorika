@@ -10,7 +10,6 @@ from backend.storage import utc_now
 
 NAMESPACE = "persona_generated"
 MAX_REPLY = 2000
-MAX_ENTRIES = 5000
 MIN_REPLY = 32
 
 
@@ -30,12 +29,6 @@ def learn_reply(store, query, response):
         raise RuntimeError("Persona growth requires a separate transaction")
     db.execute("BEGIN IMMEDIATE")
     try:
-        count = db.execute(
-            "SELECT COUNT(*) FROM records WHERE namespace=?", (NAMESPACE,)
-        ).fetchone()[0]
-        if count >= MAX_ENTRIES:
-            db.rollback()
-            return False
         exists = db.execute(
             "SELECT 1 FROM records WHERE namespace=? AND record_id=?",
             (NAMESPACE, fp),

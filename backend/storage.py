@@ -297,19 +297,15 @@ class Store:
         pending = [row for row in prepared if row[1] not in existing]
         applied = 0
         if not dry_run and pending:
-            # Atomic batch: either all valid new rows are inserted or none are.
+            # Plain INSERT ensures an unexpected concurrent conflict rolls back
+            # the whole batch; never overwrite or silently partially import.
             with self.connection:
-                before = self.connection.total_changes
                 self.connection.executemany(
-                    "INSERT OR IGNORE INTO records(namespace,record_id,payload,updated_at) "
+                    "INSERT INTO records(namespace,record_id,payload,updated_at) "
                     "VALUES(?,?,?,?)",
                     pending,
                 )
-                applied = self.connection.total_changes - before
-            if applied != len(pending) and on_conflict == "reject":
-                # Race with another connection is not a success; avoid overwrites.
-                # Any inserted rows from this batch have already committed.
-                raise RuntimeError("Memory import raced with concurrent insertion")
+            applied = len(pending)
         return {"namespace": namespace, "dry_run": dry_run, "requested": len(prepared),
                 "conflicts": conflicts, "eligible": len(pending), "applied": applied}
 

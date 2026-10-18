@@ -2,6 +2,7 @@
 """Versioned SQLite chat snapshots. Only exact-revision writes are accepted."""
 import json
 import hashlib
+import math
 import re
 import sqlite3
 import sys
@@ -25,14 +26,14 @@ def valid_history(obj):
         if len(m["text"]) > MAX_TEXT:
             raise ValueError("Message too long")
         ts = m.get("ts")
-        if not isinstance(ts, (int, float)) or isinstance(ts, bool) or not 0 <= ts < 10**16:
+        if not isinstance(ts, (int, float)) or isinstance(ts, bool) or not 0 <= ts < 10**16 or not math.isfinite(ts):
             raise ValueError("Invalid timestamp")
         result.append({"from": m["from"], "text": m["text"], "ts": ts})
     return result
 
 
 # Only explicit user instructions are captured. Never mine arbitrary private chat.
-REMEMBER_PATTERN = re.compile(r"^\\s*(?:запомни\\s*[:：,]?|remember\\s*[:：,]?)\\s*(.+?)\\s*$", re.I | re.S)
+REMEMBER_PATTERN = re.compile(r"^\s*(?:запомни\s*[:：,]?|remember\s*[:：,]?)\s*(.+?)\s*$", re.I | re.S)
 
 def capture_explicit_memories(db, old_history, new_history):
     """Add source-linked memories from new explicit user requests only."""

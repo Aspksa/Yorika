@@ -7,6 +7,7 @@ Only HTTPS foundation-models.api.cloud.ru is contacted.
 import json
 import os
 import sys
+import subprocess
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -159,7 +160,17 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
         with Store(directory) as db:
             save_turn(db, query, output, conversation_id)
             learn_reply(db, query, output)
-            reserve(db, query)
+            should_expand = reserve(db, query)
+        if should_expand:
+            try:
+                worker = Path(__file__).with_name('auto-persona-worker.py')
+                child = subprocess.Popen([sys.executable, str(worker)], stdin=subprocess.PIPE,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                         cwd=str(worker.parent.parent))
+                child.stdin.write(query.encode('utf-8'))
+                child.stdin.close()
+            except (OSError, BrokenPipeError):
+                pass
     return {"answer": output[:8000], "model": name, "memories_used": memories,
             "provider": "cloud-ru-foundation-models"}
 

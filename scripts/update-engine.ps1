@@ -28,7 +28,7 @@ function Request($uri,[switch]$Binary,[string]$CandidateToken='', [switch]$Stric
   $statusCode=0
   try { $statusCode=[int]$_.Exception.Response.StatusCode } catch {}
   if($statusCode -eq 404) {
-   if($uri.EndsWith('/releases/latest')) { throw 'Нет опубликованного стабильного релиза либо нет доступа к репозиторию. Проверьте токен и канал.' }
+   if($uri.EndsWith('/releases/latest')) { throw 'Стабильный выпуск не найден. Если доступ к репозиторию есть, выберите Свежий.' }
    throw 'GitHub вернул 404. Проверьте Resource owner: Aspksa, Only select repositories: Yorika, Contents: Read и одобрение токена (если требуется).'
   }
   if($statusCode -eq 401) { throw 'GitHub отклонил токен доступа. Укажите действующий токен.' }
@@ -75,13 +75,23 @@ switch($Action){
    try{
      $headers=Request $target.archive -Binary
      Invoke-WebRequest -Uri $target.archive -Headers $headers -OutFile $temp -TimeoutSec 180 -MaximumRedirection 3 -UseBasicParsing
-     if((Get-Item -LiteralPath $temp).Length -lt 128){throw 'Архив подозрительно мал'}
-     Add-Type -AssemblyName System.IO.Compression
+     $downloadSize=(Get-Item -LiteralPath $temp).Length
+     if($downloadSize -lt 128 -or $downloadSize -gt 104857600){throw 'Архив пуст или превышает 100 МБ'}
+     Add-Type -AssemblyName System.IO.Compression.FileSystem
      $zip=[IO.Compression.ZipFile]::OpenRead($temp)
      try {
        $names=@($zip.Entries|ForEach-Object FullName)
        if(-not($names|Where-Object {$_ -match '^[^/]+/Yorika\.bat$'}) -or -not($names|Where-Object {$_ -match '^[^/]+/www/index\.html$'})){throw 'Архив не содержит обязательных файлов'}
-       foreach($entry in $zip.Entries){$name=$entry.FullName;if($name.Contains('..') -or $name.StartsWith('/') -or $name.Contains('\')){throw 'Опасный путь в архиве'}}
+       $totalBytes=[long]0
+       if($zip.Entries.Count -gt 10000){throw 'В архиве слишком много файлов'}
+       foreach($entry in $zip.Entries){
+         $name=$entry.FullName
+         if([string]::IsNullOrWhiteSpace($name) -or $name.StartsWith('/') -or $name.Contains([char]92) -or $name.Contains(':')){throw 'Опасный путь в архиве'}
+         $segments=$name.Split('/')
+         if($segments | Where-Object {$_ -eq '..' -or $_ -eq '.'}){throw 'Выход за пределы папки архива'}
+         $totalBytes += [long]$entry.Length
+         if($totalBytes -gt 536870912){throw 'Распакованные файлы превышают 512 МБ'}
+       }
      }finally{$zip.Dispose()}
      $hash=(Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash
      Move-Item -LiteralPath $temp -Destination $destination -Force

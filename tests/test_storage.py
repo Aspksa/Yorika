@@ -59,6 +59,20 @@ class StorageTests(unittest.TestCase):
                 db.connection.rollback()
                 self.assertTrue(db.backup(target).exists())
 
+    def test_refuse_unversioned_existing_database_without_modification(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            file = root / "yorika.sqlite3"
+            with sqlite3.connect(file) as db:
+                db.execute("CREATE TABLE private_notes (message TEXT)")
+                db.execute("INSERT INTO private_notes VALUES (?)", ("Не удалять",))
+            with self.assertRaisesRegex(RuntimeError, "Unversioned database"):
+                Store(root)
+            with sqlite3.connect(file) as db:
+                self.assertEqual(db.execute("SELECT message FROM private_notes").fetchone()[0], "Не удалять")
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 0)
+                self.assertNotIn("records", {r[0] for r in db.execute("SELECT name FROM sqlite_master")})
+
     def test_reject_future_schema(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

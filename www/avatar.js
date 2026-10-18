@@ -23,7 +23,35 @@
  function time(ts){try{return new Date(ts).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}catch(e){return""}}
 
  function build(){
-  var history=load();
+  var history=load(),serverReady=false,serverBusy=false,dirty=false,needsSync=false;
+  async function syncHistory(){
+   if(!serverReady)return;
+   if(serverBusy){needsSync=true;return;}
+   serverBusy=true;
+   try{
+    var response=await fetch("/api/chat/history",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(history)});
+    if(!response.ok)throw Error("SQLite unavailable");
+    api.label("Память SQLite");
+   }catch(e){serverReady=false;api.label("Память браузера");}
+   finally{serverBusy=false;if(needsSync){needsSync=false;syncHistory();}}
+  }
+  async function initHistory(){
+   try{
+    var response=await fetch("/api/chat/history",{cache:"no-store"});
+    if(!response.ok)throw Error("SQLite unavailable");
+    var value=await response.json();
+    if(dirty){
+      serverReady=true;syncHistory();
+    }else if(value.history===null){
+      var imported=await fetch("/api/chat/history",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(history)});
+      if(!imported.ok)throw Error("Unable to migrate current origin");
+    }else if(Array.isArray(value.history)){
+      history=value.history;store(history);
+    }else throw Error("Invalid server history");
+    serverReady=true;api.label("Память SQLite");
+    if(!panel.hidden)render();
+   }catch(e){serverReady=false;api.label("Память браузера");}
+  }
   var root=make("div","yc");
   var fab=make("button","yc-fab");
   fab.type="button";fab.title="Чат с Yorika. Перетащите, чтобы переместить";fab.setAttribute("aria-label","Открыть чат с Yorika");
@@ -110,7 +138,7 @@
    var reply;
    try{reply=await responder(text,history.slice())}catch(e){reply="Не удалось получить ответ: "+(e&&e.message||e)}
    typing.remove();
-   history.push({from:"bot",text:String(reply||"…"),ts:Date.now()});store(history);bubble(history[history.length-1]);
+   history.push({from:"bot",text:String(reply||"…"),ts:Date.now()});store(history);bubble(history[history.length-1]);syncHistory();
    log.scrollTop=log.scrollHeight;busy=false;send.disabled=false;input.focus();
   }
 
@@ -145,7 +173,7 @@
   });
   window.addEventListener("resize",applyPos);
   close.addEventListener("click",function(){setOpen(false)});
-  clear.addEventListener("click",function(){history=[];store(history);render();input.focus()});
+  clear.addEventListener("click",function(){dirty=true;history=[];store(history);render();syncHistory();input.focus()});
   form.addEventListener("submit",function(e){e.preventDefault();submit()});
   input.addEventListener("input",grow);
   input.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();submit()}});
@@ -161,6 +189,7 @@
   window.addEventListener("yorika-avatar",applyLook);
   window.addEventListener("storage",function(e){if(e.key===LOOK)applyLook()});
   applyLook();
+  initHistory();
 
   api.open=function(){setOpen(true)};api.close=function(){setOpen(false)};
   api.label=function(text){sub.textContent=text};if(label)sub.textContent=label;

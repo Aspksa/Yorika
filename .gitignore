@@ -1,2 +1,17 @@
 .yorika/
 *.log
+
+# Local AI state / secrets / model artifacts
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.db
+*.pt
+*.pth
+*.safetensors
+*.ckpt
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*

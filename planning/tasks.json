@@ -77,14 +77,14 @@
     {
       "id": "DATA-001",
       "title": "Stable durable SQLite storage outside release",
-      "status": "todo",
+      "status": "in_progress",
       "priority": "P0",
       "depends_on": [
         "BASE-003"
       ],
       "evidence": [],
       "completed_at": null,
-      "notes": ""
+      "notes": "SQLite foundation merged in PR #14, browser export/import in PR #15; active bridge implementation in PR #16. Windows runtime verification, old-origin migration and hardening remain."
     },
     {
       "id": "DATA-002",

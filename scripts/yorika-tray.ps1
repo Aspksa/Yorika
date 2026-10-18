@@ -112,7 +112,57 @@ try{
        $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
        Log ('Chat memory: '+$_.Exception.Message)
       }
-     }elseif($path -match '^/api/cloud-ru/(status|save|check|delete|diagnostics)      try{
+     }elseif($path -match '^/api/cloud-ru/(status|save|check|delete|diagnostics)$'){
+      $action=$Matches[1]
+      try{
+       if($requestHost -ne "127.0.0.1:$port"){throw 'Недопустимый Host'}
+       if($action -in @('status','diagnostics')){
+        if($method -ne 'GET'){throw 'Недопустимый метод'}
+       }elseif($method -ne 'POST' -or $origin -ne "http://127.0.0.1:$port"){
+        throw 'Доступ запрещён'
+       }
+       if($len -lt 0 -or $len -gt 16384){throw 'Неверная длина'}
+       $body=''
+       if($len -gt 0){
+        $builder=New-Object Text.StringBuilder;$received=0
+        while($received -lt $len){
+         $chars=New-Object char[] ([Math]::Min(1024,$len-$received))
+         $n=$reader.Read($chars,0,$chars.Length)
+         if($n -le 0){throw 'Неполный запрос'}
+         $chunk=[string]::new($chars,0,$n)
+         [void]$builder.Append($chunk)
+         $received+=[Text.Encoding]::UTF8.GetByteCount($chunk)
+        }
+        if($received -ne $len){throw 'Неверная длина'}
+        $body=$builder.ToString()
+       }
+       if($action -eq 'save' -and -not $body){throw 'Настройки не переданы'}
+       $python=Get-Command python.exe -ErrorAction SilentlyContinue
+       if(-not $python){$status='503 Service Unavailable';throw 'Python недоступен'}
+       $psi=New-Object Diagnostics.ProcessStartInfo
+       $psi.FileName=$python.Source
+       $psi.Arguments=('"' + (Join-Path $root 'scripts\cloud-ru-settings.py') + '" ' + $action)
+       $psi.UseShellExecute=$false;$psi.CreateNoWindow=$true
+       $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
+       $psi.StandardInputEncoding=[Text.Encoding]::UTF8
+       $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
+       $proc=[Diagnostics.Process]::Start($psi)
+       try{
+        if($action -eq 'save'){$proc.StandardInput.Write($body)}
+        $proc.StandardInput.Close()
+        $output=$proc.StandardOutput.ReadToEnd()
+        $null=$proc.StandardError.ReadToEnd()
+        if(-not $proc.WaitForExit(28000)){try{$proc.Kill()}catch{};throw 'Истекло время ожидания'}
+        if($proc.ExitCode -ne 0){$status='400 Bad Request';throw 'Операция Cloud.ru не выполнена'}
+        $bytes=[Text.Encoding]::UTF8.GetBytes($output.Trim())
+       }finally{$proc.Dispose()}
+      }catch{
+       if($status -eq '200 OK'){$status='400 Bad Request'}
+       $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
+       Log ('Cloud.ru settings failed: '+$action)
+      }
+     }elseif($path -eq '/api/chat/respond'){
+      try{
        if($requestHost -ne "127.0.0.1:$port" -or $origin -ne "http://127.0.0.1:$port" -or $method -ne 'POST'){throw 'Доступ запрещён'}
        if($len -lt 1 -or $len -gt 4096){throw 'Неверная длина запроса'}
        $builder=New-Object Text.StringBuilder;$received=0
@@ -142,7 +192,7 @@ try{
        try{
         $proc.StandardInput.Write($question);$proc.StandardInput.Close()
         $output=$proc.StandardOutput.ReadToEnd()
-        $errorOutput=$proc.StandardError.ReadToEnd()
+        $null=$proc.StandardError.ReadToEnd()
         if(-not $proc.WaitForExit(25000)){try{$proc.Kill()}catch{};throw 'Истекло время ответа модели'}
         if($proc.ExitCode -ne 0){$status='503 Service Unavailable';throw 'Cloud.ru недоступен или ключ не настроен'}
         $bytes=[Text.Encoding]::UTF8.GetBytes($output.Trim())
@@ -150,7 +200,7 @@ try{
       }catch{
        if($status -eq '200 OK'){$status='400 Bad Request'}
        $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
-       Log ('Model response: '+$_.Exception.Message)
+       Log ('Cloud.ru response failed')
       }
      }elseif($path -eq '/api/memory/recall'){
       try{

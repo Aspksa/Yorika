@@ -8,6 +8,7 @@ import re
 from backend.persona_profile import PACK_PATH
 from backend.persona_bank import canonical
 from backend.storage import utc_now
+from backend.cloud_ru_history import record_id
 
 NAMESPACE = "persona_rotation"
 STATE_ID = "yorika.soul.ru.dialogues.v1"
@@ -45,9 +46,10 @@ def _allowed(scenario, context):
     return True
 
 
-def choose_scenario(store, query, *, context=None, pack_path=None):
+def choose_scenario(store, query, *, context=None, pack_path=None, conversation_id=None):
     """Return example text only on strong match, with atomic scenario history."""
     context = context or {}
+    state_id = STATE_ID if conversation_id is None else STATE_ID + '.' + record_id(conversation_id)
     with open(pack_path or PACK_PATH, encoding="utf-8") as source:
         extension = json.load(source).get("dialogue_extension", {})
     scenarios = extension.get("scenarios", [])
@@ -59,7 +61,7 @@ def choose_scenario(store, query, *, context=None, pack_path=None):
     db.execute("BEGIN IMMEDIATE")
     try:
         row = db.execute("SELECT payload FROM records WHERE namespace=? AND record_id=?",
-                         (NAMESPACE, STATE_ID)).fetchone()
+                         (NAMESPACE, state_id)).fetchone()
         state = json.loads(row[0]) if row else {"seen": [], "active": None}
         previous = state.get("active")
         choice = None
@@ -105,7 +107,7 @@ def choose_scenario(store, query, *, context=None, pack_path=None):
         db.execute("INSERT INTO records(namespace,record_id,payload,updated_at) "
                    "VALUES(?,?,?,?) ON CONFLICT(namespace,record_id) DO UPDATE SET "
                    "payload=excluded.payload,updated_at=excluded.updated_at",
-                   (NAMESPACE, STATE_ID, json.dumps(state, ensure_ascii=False), utc_now()))
+                   (NAMESPACE, state_id, json.dumps(state, ensure_ascii=False), utc_now()))
         db.commit()
         return {"scenario_id": scenario["id"], "text": node["text"]}
     except BaseException:

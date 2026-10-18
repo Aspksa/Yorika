@@ -33,6 +33,18 @@ def _answer_node(graph, user_node):
     return node if node and node.get("role") == "assistant" else None
 
 
+def _allowed(scenario, context):
+    if scenario.get("adult_romantic_context_required") and not (
+        context.get("adult_context") is True and context.get("romance_enabled") is True
+    ):
+        return False
+    if scenario.get("scene_required") and context.get("scene_enabled") is not True:
+        return False
+    if context.get("distressed") is True and scenario.get("adult_romantic_context_required"):
+        return False
+    return True
+
+
 def choose_scenario(store, query, *, context=None, pack_path=None):
     """Return example text only on strong match, with atomic scenario history."""
     context = context or {}
@@ -53,7 +65,7 @@ def choose_scenario(store, query, *, context=None, pack_path=None):
         choice = None
         if previous:
             scenario = next((s for s in scenarios if s["id"] == previous["id"]), None)
-            if scenario:
+            if scenario and _allowed(scenario, context):
                 graph = {n["id"]: n for n in scenario["nodes"]}
                 active_node = graph.get(previous["node"])
                 if active_node and active_node.get("role") == "assistant":
@@ -73,11 +85,7 @@ def choose_scenario(store, query, *, context=None, pack_path=None):
             for scenario in scenarios:
                 if scenario["id"] in state["seen"]:
                     continue
-                if scenario.get("adult_romantic_context_required") and not (
-                    context.get("adult_context") is True and
-                    context.get("romance_enabled") is True):
-                    continue
-                if scenario.get("scene_required") and context.get("scene_enabled") is not True:
+                if not _allowed(scenario, context):
                     continue
                 graph = {n["id"]: n for n in scenario["nodes"]}
                 entry = graph.get(scenario.get("entry_node"))

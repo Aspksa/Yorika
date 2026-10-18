@@ -33,6 +33,23 @@ class PersonaDialogueTests(unittest.TestCase):
             with Store(dbpath) as store:
                 self.assertIsNone(choose_scenario(store, "Хочу чувствовать твою заботу.", context=consent))
 
+    def test_revoking_consent_blocks_active_scenario(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder) / "data"
+            enabled = {"adult_context": True, "romance_enabled": True}
+            with Store(directory) as store:
+                started = choose_scenario(
+                    store, "Хочу чувствовать твою заботу.", context=enabled
+                )
+            self.assertIsNotNone(started)
+            with Store(directory) as store:
+                self.assertIsNone(choose_scenario(store, "Устал от решений."))
+            with Store(directory) as store:
+                self.assertIsNone(choose_scenario(
+                    store, "Устал от решений.",
+                    context={**enabled, "distressed": True},
+                ))
+
     def test_romantic_scenario_not_selected_without_opt_in(self):
         with tempfile.TemporaryDirectory() as folder:
             with Store(Path(folder) / "data") as store:

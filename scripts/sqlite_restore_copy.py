@@ -44,7 +44,9 @@ def restore_copy(source: Path, destination: Path, sha256: str) -> dict:
             return preview(destination, checked["sha256"])
         except BaseException:
             # Reject a candidate that fails its final verification.
-            destination.unlink()
+            # Only clean up the file we created; another process may replace it.
+            if destination.exists() and destination.samefile(temporary):
+                destination.unlink()
             raise
     finally:
         temporary.unlink(missing_ok=True)

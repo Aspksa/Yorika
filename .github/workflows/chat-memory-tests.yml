@@ -3,10 +3,15 @@ name: Chat memory safety
 on:
   push:
     branches:
-      - feat/chat-cas-20261018
+      - main
   pull_request:
     paths:
       - 'scripts/chat-store.py'
+      - 'scripts/sqlite_*.py'
+      - 'docs/SQLITE_*.md'
+      - 'scripts/check-plan.py'
+      - 'planning/tasks.json'
+      - 'docs/ROADMAP.md'
       - 'backend/storage.py'
       - 'www/avatar.js'
       - 'tests/**'

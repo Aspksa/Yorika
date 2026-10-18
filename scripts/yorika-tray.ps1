@@ -107,7 +107,7 @@ try{
         $prefix=$site.TrimEnd([IO.Path]::DirectorySeparatorChar)+[IO.Path]::DirectorySeparatorChar
         if(-not $resolved.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase) -or -not [IO.File]::Exists($resolved)){throw 'Не найдено'}
         $ext=[IO.Path]::GetExtension($resolved).ToLowerInvariant()
-        $mime=switch($ext){'.html'{'text/html; charset=utf-8'} '.js'{'text/javascript; charset=utf-8'} '.css'{'text/css; charset=utf-8'} '.json'{'application/json; charset=utf-8'} '.svg'{'image/svg+xml'} default{'application/octet-stream'}}
+        $mime=switch($ext){'.html'{'text/html; charset=utf-8'} '.js'{'text/javascript; charset=utf-8'} '.css'{'text/css; charset=utf-8'} '.json'{'application/json; charset=utf-8'} '.svg'{'image/svg+xml'} '.webp'{'image/webp'} '.png'{'image/png'} default{'application/octet-stream'}}
         $bytes=[IO.File]::ReadAllBytes($resolved)
        }catch{$status='404 Not Found';$mime='text/plain; charset=utf-8';$bytes=[Text.Encoding]::UTF8.GetBytes('Не найдено')}
       }

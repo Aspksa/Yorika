@@ -28,6 +28,9 @@ Build a durable Windows-local fox-girl assistant with its **own from-scratch tra
 - Training from random weights is a scientific goal. RAG, roleplay and prompt text are not evidence of neural learning.
 - More parameters ≠ more intelligence. Record baseline and regression tests on every experimental change.
 
+## Cloud.ru integration (planned, not installed)
+Read `docs/CLOUD_RU.md` and tasks CLOUD-001..006 before touching cloud features. Cloud.ru API varies by service: `Key ID + Key Secret` can exchange for short-lived Bearer token through IAM; some services use service-account API keys directly. Never mix auth schemes without verifying target service docs. On Windows store keys only through DPAPI CurrentUser in a file with user-only ACL; never persist secrets in repo, environment files, URL, browser storage, exported backup JSON or logs. Prefer least-privilege service accounts. Display masked IDs and revoke/delete controls. A local spending limit is not a guaranteed provider-side hard billing cap. Require explicit consent for each payable cloud execution. Mark each task done only after real-device security tests and an authenticated API smoke test without revealing credentials.
+
 ## User persona asset
 A user-provided JSON `kitsune_love_loyalty_526_ru.json` describes 526 contextual phrases in 27 categories, with a fictional **adult** kitsune, feminine voice, optional affectionate/honorific address, honesty and consent. It is an optional *dialogue-style reference*, **not** a pretrained model or truth source. Do not make claims of genuinely experiencing feelings. The raw private asset was supplied in chat; do not assume it is present in the repository. Do not reproduce all 526 phrases without explicit user authorization and file access. Respect user-selected address, style and quiet hours.
 

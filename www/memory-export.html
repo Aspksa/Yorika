@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yorika — экспорт браузерной памяти</title>
+<style>body{font:16px system-ui,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem;background:#11121a;color:#eee}button{padding:12px;border-radius:8px;cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#202230;padding:14px;border-radius:8px}a{color:#b7aaff}.notice{border-left:3px solid orange;padding:1rem;background:#29241c}</style></head>
+<body>
+<h1>Экспорт памяти Yorika</h1>
+<p>Этот инструмент сохраняет локальные данные текущего адреса сайта в JSON-файл. Он не удаляет и не отправляет их в интернет.</p>
+<p class="notice">Внимание: из-за случайного порта прежние данные могут находиться на других локальных адресах. Эта страница видит <strong>только текущий origin</strong>, а не все старые порты. Экспорт может содержать личные сообщения и настройки: храните файл приватно.</p>
+<p id="origin"></p>
+<button type="button" id="export">Экспортировать данные этого адреса</button>
+<pre id="status" role="status">Экспорт ещё не выполнялся.</pre>
+<p><a href="./index.html">Назад на главную</a></p>
+<script src="./memory-export.js" defer></script>
+</body></html>

@@ -1,5 +1,6 @@
 import { EventBus } from "./events.js";
 import { Database } from "./database.js";
+import { ModuleRegistry } from "./modules.js";
 
 /** Application composition root. Models, agents and UI features are not installed yet. */
 export class YorikaCore {
@@ -7,12 +8,14 @@ export class YorikaCore {
     this.events = new EventBus();
     this.state = "new";
     this.db = null;
+    this.modules = null;
   }
   async start() {
     if (this.state !== "new") throw new Error("Yorika has already started");
     this.state = "starting";
     try {
       this.db = await Database.open();
+      this.modules = new ModuleRegistry(this.db, this.events);
       this.state = "ready";
       this.events.emit("core:ready", { time: Date.now(), dbVersion: 1 });
       return this;
@@ -22,7 +25,9 @@ export class YorikaCore {
       throw error;
     }
   }
-  stop() {
+  async stop() {
+    await this.modules?.stopAll();
+    this.modules = null;
     this.db?.close();
     this.db = null;
     this.state = "stopped";

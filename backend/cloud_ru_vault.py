@@ -45,7 +45,10 @@ def _crypt(data: bytes, *, decrypt: bool) -> bytes:
     try:
         return ctypes.string_at(target.pbData, target.cbData)
     finally:
-        ctypes.WinDLL("kernel32").LocalFree(ctypes.cast(target.pbData, ctypes.c_void_p))
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.LocalFree.argtypes = [ctypes.c_void_p]
+        kernel.LocalFree.restype = ctypes.c_void_p
+        kernel.LocalFree(ctypes.cast(target.pbData, ctypes.c_void_p))
 
 
 def read_credentials():

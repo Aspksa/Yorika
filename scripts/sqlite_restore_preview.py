@@ -6,6 +6,7 @@ checks expected schema tables, and optionally verifies a published SHA256.
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 import hashlib
 import json
 from pathlib import Path
@@ -33,7 +34,7 @@ def preview(path: Path, expected_sha256: str | None = None) -> dict:
     # immutable=1 prevents writes to the candidate, including WAL/shm files.
     # A backup produced by sqlite_backup.py is a self-contained checkpoint.
     uri = path.as_uri() + "?mode=ro&immutable=1"
-    with sqlite3.connect(uri, uri=True) as db:
+    with closing(sqlite3.connect(uri, uri=True)) as db:
         integrity_rows = [row[0] for row in db.execute("PRAGMA integrity_check")]
         if integrity_rows != ["ok"]:
             raise ValueError("SQLite integrity check failed")

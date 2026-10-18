@@ -9,6 +9,7 @@ $siteRoot = [IO.Path]::GetFullPath((Join-Path $ProjectRoot 'www'))
 $logDir = Join-Path $ProjectRoot '.yorika'
 [IO.Directory]::CreateDirectory($logDir) | Out-Null
 $logPath = Join-Path $logDir 'yorika.log'
+$readyPath = Join-Path $logDir 'ready.url'
 function Log([string]$message) {
   try { [IO.File]::AppendAllText($logPath, ("[{0}] {1}`r`n" -f (Get-Date -Format o), $message), [Text.Encoding]::UTF8) } catch {}
 }
@@ -112,14 +113,17 @@ try {
     } catch { Log "HTTP error: $($_.Exception.Message)" }
   })
   $timer.Start()
-  # Start the local site only after the listener has bound successfully.
-  try { Start-Process $url } catch { Log "Browser launch failed: $($_.Exception.Message)" }
+  # Publish the verified bound port; the BAT opens the default browser.
+  [IO.File]::WriteAllText($readyPath, $url, [Text.Encoding]::ASCII)
   [System.Windows.Forms.Application]::Run()
 } catch {
   Log "Startup error: $($_.Exception.ToString())"
   Write-Host ("[YORIKA] Startup error: " + $_.Exception.ToString())
   try { [System.Windows.Forms.MessageBox]::Show("Yorika failed to start. See .yorika\yorika.log", 'Yorika') | Out-Null } catch {}
 } finally {
+  try {
+    if ([IO.File]::Exists($readyPath) -and [IO.File]::ReadAllText($readyPath).Trim() -eq $url) { [IO.File]::Delete($readyPath) }
+  } catch {}
   if ($timer) { $timer.Stop(); $timer.Dispose() }
   if ($tray) { $tray.Visible = $false; $tray.Dispose() }
   if ($listener) { $listener.Stop() }

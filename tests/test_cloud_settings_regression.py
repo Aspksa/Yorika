@@ -55,6 +55,7 @@ class CloudSettingsRegression(unittest.TestCase):
             result = module.run("check", test_call=fake)
         self.assertTrue(result["connected"])
         self.assertEqual(calls[0]["api_key"], "test-key")
+        self.assertIs(calls[0]["include_memory"], False)
         self.assertNotIn("key", result)
 
 

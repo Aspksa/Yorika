@@ -261,3 +261,35 @@ el("persona-growth-enabled").onchange=async event=>{
 refreshPersonaGrowth().catch(error=>{
  el("persona-growth-status").textContent="Накопленные реплики недоступны: "+error.message;
 });
+
+async function refreshMemoryControls(){
+ const report=await api("/api/cloud-ru/memory-status");
+ const prefList=el("memory-preferences-list"), memList=el("memory-items-list");
+ function entry(text,namespace,id,editable){
+  const li=document.createElement("li"),label=document.createElement("span");
+  label.textContent=text;
+  const remove=document.createElement("button");remove.textContent="Удалить";remove.type="button";
+  remove.onclick=async()=>{
+   if(!confirm("Удалить выбранную запись из памяти?"))return;
+   try{await api("/api/cloud-ru/memory-delete",{method:"POST",body:JSON.stringify({namespace,id})});
+       await refreshMemoryControls()}catch(e){el("memory-controls-status").textContent=e.message}
+  };
+  li.append(label,remove);
+  if(editable){const edit=document.createElement("button");edit.textContent="Исправить";edit.type="button";
+   edit.onclick=async()=>{const value=prompt("Исправить текст воспоминания:",text);if(value===null)return;
+    try{await api("/api/cloud-ru/memory-edit",{method:"POST",body:JSON.stringify({id,text:value})});
+    await refreshMemoryControls()}catch(e){el("memory-controls-status").textContent=e.message}};
+   li.append(edit)}
+  return li;
+ }
+ prefList.replaceChildren(...report.preferences.map(x=>entry(x.key+": "+x.text,"user_preferences",x.key,false)));
+ memList.replaceChildren(...report.memories.map(x=>entry(x.text,"memories",x.id,true)));
+ el("memory-controls-status").textContent="Предпочтений: "+report.preferences.length+"; показано воспоминаний: "+report.memories.length;
+}
+el("memory-controls-refresh").onclick=()=>refreshMemoryControls().catch(e=>{el("memory-controls-status").textContent=e.message});
+el("memory-preference-save").onclick=async()=>{
+ try{await api("/api/cloud-ru/memory-set",{method:"POST",body:JSON.stringify({
+  key:el("memory-preference-key").value.trim(),text:el("memory-preference-text").value.trim()
+ })});await refreshMemoryControls()}catch(e){el("memory-controls-status").textContent=e.message}
+};
+refreshMemoryControls().catch(e=>{el("memory-controls-status").textContent="Управление памятью недоступно: "+e.message});

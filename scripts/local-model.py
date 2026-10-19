@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from backend.neural_router import experimental_answer
+from backend.active_brain import active_brain
 
 MAX_QUERY = 2000
 
@@ -14,7 +15,7 @@ MAX_QUERY = 2000
 def answer(query: str, *, checkpoint=None, generator=None) -> dict:
     if not isinstance(query, str) or not query.strip() or len(query) > MAX_QUERY:
         raise ValueError("Invalid query")
-    path = checkpoint if checkpoint is not None else os.environ.get("YORIKA_NEURAL_CHECKPOINT", "")
+    path = checkpoint if checkpoint is not None else (active_brain(os.environ["YORIKA_MODEL_DIRECTORY"]) if os.environ.get("YORIKA_MODEL_DIRECTORY") else os.environ.get("YORIKA_NEURAL_CHECKPOINT", ""))
     if not path:
         raise RuntimeError("Yorika checkpoint is not configured; no external model fallback")
     kwargs = {"checkpoint": path, "enabled": True}

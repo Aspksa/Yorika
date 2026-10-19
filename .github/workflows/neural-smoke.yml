@@ -27,3 +27,5 @@ jobs:
         run: PYTHONPATH=. python scripts/verify-neural-lab.py
       - name: Verify genuine checkpoint weight continuation with optimizer reset
         run: PYTHONPATH=. python scripts/verify-neural-resume.py
+      - name: Prove bitwise-equivalent resumed native model training
+        run: PYTHONPATH=. python scripts/verify-neural-exact-resume.py

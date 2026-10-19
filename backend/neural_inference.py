@@ -43,7 +43,7 @@ def generate(checkpoint, prompt, *, max_tokens=32):
         data = torch.load(checkpoint, map_location="cpu", weights_only=True)
     except Exception as exc:
         raise ValueError("Cannot load safe checkpoint") from exc
-    config, vocab = validate_checkpoint(data)
+    config, vocab = validate_checkpoint({key: data[key] for key in ("state_dict", "vocab", "config", "steps", "examples")})
     width, heads, context = (config[key] for key in ("width", "heads", "context"))
     class Model(nn.Module):
         def __init__(self):

@@ -16,6 +16,38 @@ function Write-ChildUtf8($process, [string]$value){
  $process.StandardInput.BaseStream.Flush()
 }
 function Log($msg){try{[IO.File]::AppendAllText($log,("["+(Get-Date -Format o)+"] "+$msg+"`r`n"),[Text.Encoding]::UTF8)}catch{}}
+# python.exe in WindowsApps may be the Microsoft Store stub that only prints "Python was not found".
+# Each candidate must report Python 3 before it is used; the py launcher is the fallback.
+$pythonCache=@{}
+function Get-YorikaPython{
+ if($pythonCache.File){return $pythonCache}
+ $candidates=@()
+ foreach($c in @(Get-Command python.exe -All -ErrorAction SilentlyContinue)){if($c.Source){$candidates+=,@($c.Source,'')}}
+ $py=Get-Command py.exe -ErrorAction SilentlyContinue
+ if($py){$candidates+=,@($py.Source,'-3 ')}
+ foreach($candidate in $candidates){
+  try{
+   $check=New-Object Diagnostics.ProcessStartInfo
+   $check.FileName=$candidate[0];$check.Arguments=$candidate[1]+'--version'
+   $check.UseShellExecute=$false;$check.CreateNoWindow=$true
+   $check.RedirectStandardOutput=$true;$check.RedirectStandardError=$true
+   $probe=[Diagnostics.Process]::Start($check)
+   try{
+    $outTask=$probe.StandardOutput.ReadToEndAsync();$errTask=$probe.StandardError.ReadToEndAsync()
+    if(-not $probe.WaitForExit(4000)){try{$probe.Kill()}catch{};continue}
+    $version=($outTask.GetAwaiter().GetResult()+$errTask.GetAwaiter().GetResult()).Trim()
+    $exitCode=$probe.ExitCode
+   }finally{$probe.Dispose()}
+   if($exitCode -eq 0 -and $version -match '^Python 3\.'){
+    $pythonCache.File=$candidate[0];$pythonCache.Prefix=$candidate[1];$pythonCache.Source=$candidate[0]
+    Log ('Python: '+$version+' '+$candidate[0])
+    return $pythonCache
+   }
+  }catch{}
+ }
+ Log 'Python 3 не найден: python.exe и py.exe недоступны'
+ return $null
+}
 $key=[BitConverter]::ToString(([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($root.ToLowerInvariant()))),0,12).Replace('-','')
 $mutex=[Threading.Mutex]::new($false,('Local\Yorika-'+$key))
 if(-not $mutex.WaitOne(0)){Log 'Уже запущена';exit}
@@ -76,8 +108,8 @@ try{
        if($method -eq 'POST' -and $origin -ne "http://127.0.0.1:$port"){throw 'Доступ запрещён'}
        if($len -gt 262144 -or $len -lt 0){throw 'Слишком большой запрос'}
        if($method -eq 'POST' -and $len -le 0){throw 'Пустой запрос'}
-       $python=Get-Command python.exe -ErrorAction SilentlyContinue
-       if(-not $python){$status='503 Service Unavailable';throw 'Python не установлен'}
+       $python=Get-YorikaPython
+       if(-not $python){$status='503 Service Unavailable';throw 'Python 3 не найден. Установите Python 3 с python.org и перезапустите Yorika'}
        $action=if($method -eq 'GET'){'get'}else{'put'}
        $body=''
        if($method -eq 'POST'){
@@ -96,7 +128,7 @@ try{
        }
        $psi=New-Object Diagnostics.ProcessStartInfo
        $psi.FileName=$python.Source
-       $psi.Arguments=('"' + (Join-Path $root 'scripts\chat-store.py') + '" ' + $action)
+       $psi.Arguments=($python.Prefix+'"' + (Join-Path $root 'scripts\chat-store.py') + '" ' + $action)
        $psi.UseShellExecute=$false
        $psi.CreateNoWindow=$true
        $psi.RedirectStandardInput=$true
@@ -144,18 +176,18 @@ try{
         $body=$builder.ToString()
        }
        if($action -in @('save','persona-config','persona-delete','memory-set','memory-delete','memory-edit') -and -not $body){throw 'Настройки не переданы'}
-       $python=Get-Command python.exe -ErrorAction SilentlyContinue
-       if(-not $python){$status='503 Service Unavailable';throw 'Python недоступен'}
+       $python=Get-YorikaPython
+       if(-not $python){$status='503 Service Unavailable';throw 'Python 3 не найден. Установите Python 3 с python.org и перезапустите Yorika'}
        $psi=New-Object Diagnostics.ProcessStartInfo
        $psi.FileName=$python.Source
-       $psi.Arguments=('"' + (Join-Path $root 'scripts\cloud-ru-settings.py') + '" ' + $action)
+       $psi.Arguments=($python.Prefix+'"' + (Join-Path $root 'scripts\cloud-ru-settings.py') + '" ' + $action)
        $psi.UseShellExecute=$false;$psi.CreateNoWindow=$true
        $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
        $psi.EnvironmentVariables['PYTHONIOENCODING']='utf-8:strict'
        $proc=[Diagnostics.Process]::Start($psi)
        try{
-        if($action -in @('save','persona-config','persona-delete')){Write-ChildUtf8 $proc $body}
+        if($action -in @('save','persona-config','persona-delete','memory-set','memory-delete','memory-edit')){Write-ChildUtf8 $proc $body}
         $proc.StandardInput.Close()
         $stdoutTask=$proc.StandardOutput.ReadToEndAsync()
         $stderrTask=$proc.StandardError.ReadToEndAsync()
@@ -193,11 +225,11 @@ try{
        if($received -ne $len){throw 'Invalid request size'}
        $data=$builder.ToString()|ConvertFrom-Json
        if([string]::IsNullOrWhiteSpace([string]$data.query) -or ([string]$data.query).Length -gt 4000){throw 'Invalid query'}
-       $python=Get-Command python.exe -ErrorAction SilentlyContinue
-       if(-not $python){throw 'Python is unavailable'}
+       $python=Get-YorikaPython
+       if(-not $python){throw 'Python 3 не найден'}
        $psi=New-Object Diagnostics.ProcessStartInfo
        $psi.FileName=$python.Source
-       $psi.Arguments=('"' + (Join-Path $root 'scripts\cloud-ru-stream.py') + '"')
+       $psi.Arguments=($python.Prefix+'"' + (Join-Path $root 'scripts\cloud-ru-stream.py') + '"')
        $psi.UseShellExecute=$false;$psi.CreateNoWindow=$true
        $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
@@ -255,11 +287,11 @@ try{
        $request=$body|ConvertFrom-Json
        $question=[string]$request.query
        if([string]::IsNullOrWhiteSpace($question) -or $question.Length -gt 4000){throw 'Неверный запрос'}
-       $python=Get-Command python.exe -ErrorAction SilentlyContinue
-       if(-not $python){$status='503 Service Unavailable';throw 'Python не установлен'}
+       $python=Get-YorikaPython
+       if(-not $python){$status='503 Service Unavailable';throw 'Python 3 не найден. Установите Python 3 с python.org и перезапустите Yorika'}
        $psi=New-Object Diagnostics.ProcessStartInfo
        $psi.FileName=$python.Source
-       $psi.Arguments=('"' + (Join-Path $root 'scripts\cloud-ru-model.py') + '"')
+       $psi.Arguments=($python.Prefix+'"' + (Join-Path $root 'scripts\cloud-ru-model.py') + '"')
        $psi.UseShellExecute=$false
        $psi.CreateNoWindow=$true
        $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
@@ -273,7 +305,15 @@ try{
         if(-not $proc.WaitForExit(25000)){try{$proc.Kill()}catch{};throw 'Истекло время ответа модели'}
         $output=$stdoutTask.GetAwaiter().GetResult()
         $null=$stderrTask.GetAwaiter().GetResult()
-        if($proc.ExitCode -ne 0){$status='503 Service Unavailable';throw 'Cloud.ru недоступен или ключ не настроен'}
+        if($proc.ExitCode -ne 0){
+         $status='503 Service Unavailable'
+         $detail='';try{$detail=[string]($output|ConvertFrom-Json).error}catch{}
+         if($detail -match 'key not configured'){throw 'Cloud.ru: сначала сохраните API-ключ в Настройках'}
+         if($detail -match 'HTTP 401'){throw 'Cloud.ru: неверный API-ключ (401)'}
+         if($detail -match 'HTTP 403'){throw 'Cloud.ru: нет доступа к выбранной модели (403)'}
+         if($detail -match 'HTTP 404'){throw 'Cloud.ru: проверьте ID выбранной модели (404)'}
+         throw 'Cloud.ru недоступен или ключ не настроен'
+        }
         $bytes=[Text.Encoding]::UTF8.GetBytes($output.Trim())
        }finally{$proc.Dispose()}
       }catch{
@@ -299,11 +339,11 @@ try{
        $data=$builder.ToString()|ConvertFrom-Json
        $text=[string]$data.query
        if([string]::IsNullOrWhiteSpace($text) -or $text.Length -gt 4000){throw 'Неверный запрос'}
-       $python=Get-Command python.exe -ErrorAction SilentlyContinue
-       if(-not $python){$status='503 Service Unavailable';throw 'Python не установлен'}
+       $python=Get-YorikaPython
+       if(-not $python){$status='503 Service Unavailable';throw 'Python 3 не найден. Установите Python 3 с python.org и перезапустите Yorika'}
        $psi=New-Object Diagnostics.ProcessStartInfo
        $psi.FileName=$python.Source
-       $psi.Arguments=('"' + (Join-Path $root 'scripts\recall-memory.py') + '"')
+       $psi.Arguments=($python.Prefix+'"' + (Join-Path $root 'scripts\recall-memory.py') + '"')
        $psi.UseShellExecute=$false
        $psi.CreateNoWindow=$true
        $psi.RedirectStandardInput=$true

@@ -18,7 +18,16 @@ class PowerShellStdinCompatibility(unittest.TestCase):
         self.assertIn("cloud-ru-settings.py", source)
         self.assertIn("cloud-ru-stream.py", source)
         self.assertIn("cloud-ru-model.py", source)
-        self.assertIn("if($action -in @('save','persona-config','persona-delete')){Write-ChildUtf8 $proc $body}", source)
+        # memory-set/delete/edit read their JSON from stdin too; without it Settings memory controls fail.
+        self.assertIn("if($action -in @('save','persona-config','persona-delete','memory-set','memory-delete','memory-edit')){Write-ChildUtf8 $proc $body}", source)
+
+    def test_python_is_probed_not_just_found(self):
+        source = (Path(__file__).resolve().parents[1] / "scripts" / "yorika-tray.ps1").read_text(encoding="utf-8-sig")
+        # The Microsoft Store python.exe stub must not be mistaken for a real interpreter.
+        self.assertNotIn("Get-Command python.exe -ErrorAction SilentlyContinue", source)
+        self.assertEqual(source.count("$python=Get-YorikaPython"), 5)
+        self.assertEqual(source.count("$psi.Arguments=($python.Prefix+"), 5)
+        self.assertIn("$version -match '^Python 3\\.'", source)
 
 
 if __name__ == "__main__":

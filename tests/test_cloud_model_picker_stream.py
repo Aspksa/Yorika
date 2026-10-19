@@ -30,7 +30,11 @@ class CloudStreamUiTests(unittest.TestCase):
     def test_errors_are_not_hidden_in_chat(self):
         source = (ROOT / "www/avatar.js").read_text(encoding="utf-8")
         self.assertIn("evt.message||'Cloud.ru не завершил поток'", source)
-        self.assertIn("Fallback to non-streaming", source)
+        # The reason travels to the final chat message instead of a generic "not connected" line.
+        self.assertIn("modelError=e&&e.message||String(e)", source)
+        self.assertIn("Языковая модель не ответила: ", source)
+        self.assertNotIn("Поиск долговременной памяти сейчас недоступен. Языковая модель ещё не подключена.", source)
+        self.assertNotIn('\\\\n', source)
         if shutil.which("node"):
             process = subprocess.run(["node", "--check", str(ROOT / "www/avatar.js")],
                                      capture_output=True, text=True)

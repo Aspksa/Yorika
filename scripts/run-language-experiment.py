@@ -6,7 +6,10 @@ Never downloads data, uses the held-out test set for model selection, or promote
 import argparse
 import hashlib
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from backend.neural_corpus_v2 import prepare
 from backend.neural_language_longrun import run

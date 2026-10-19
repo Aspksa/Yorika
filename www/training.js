@@ -642,3 +642,25 @@ openTab(startTab);
 if(!["exp"].includes(startTab))api("/api/training/sl-status").then(r=>{slStatus=r;renderCounts(r.counts);renderFlow()}).catch(()=>{});
 if(startTab!=="teacher")api("/api/training/teacher-status").then(r=>{tStatus=r;renderFlow()}).catch(()=>{});
 addEventListener("hashchange",()=>openTab(location.hash.slice(1)));
+
+let continualProposal=null;
+async function refreshContinual(){
+ try{
+  const r=await api("/api/training/continual-status");
+  $("continual-enabled").checked=r.settings.enabled;
+  $("continual-device").value=r.settings.device;
+  continualProposal=r.proposal;
+  $("continual-activate").hidden=!continualProposal||r.busy;
+  const names={disabled:"Выключено",idle:"Новых проверенных уроков нет",proposed:"Кандидат прошёл проверки",rejected:"Ухудшение: предыдущие веса сохранены",failed:"Цикл завершился с ошибкой",running:"Обучение",deferred:"Ожидает завершения другого обучения"};
+  const last=r.last;
+  $("continual-state").textContent=(r.busy?"Идёт дообучение…":last?(names[last.state]||last.state):"Циклов ещё не было")+(last?.error?". "+last.error:"")+". Активная модель меняется по вашему выбору.";
+ }catch(e){$("continual-state").textContent=e.message}
+}
+$("continual-save").onclick=e=>act(e.currentTarget,async()=>{
+ await post("continual-settings",{enabled:$("continual-enabled").checked,device:$("continual-device").value});await refreshContinual();
+});
+$("continual-run").onclick=e=>act(e.currentTarget,async()=>{await post("continual-run");await refreshContinual()});
+$("continual-stop").onclick=e=>act(e.currentTarget,async()=>{await post("continual-stop");await refreshContinual()});
+$("continual-activate").onclick=e=>act(e.currentTarget,async()=>{await post("continual-activate",{id:continualProposal});await refreshContinual();await refresh()});
+refreshContinual();
+setInterval(()=>{if(!document.hidden)refreshContinual()},10000);

@@ -1324,6 +1324,38 @@
       ],
       "completed_at": "2026-10-19",
       "notes": "Standalone adapter; не встроен в основной сервер или GUI. Отдельный GPU benchmark пока не реализован."
+    },
+    {
+      "id": "NEURAL-008",
+      "title": "Короткое продолжение весов с replay, копией, проверкой регрессии и ручным выбором",
+      "priority": "P2",
+      "depends_on": [
+        "NEURAL-005"
+      ],
+      "status": "in_progress",
+      "evidence": [
+        "backend/continual_learning.py",
+        "tests/test_continual_learning.py",
+        "docs/CONTINUAL_LEARNING.md"
+      ],
+      "completed_at": null,
+      "notes": "CPU-контур и UI/API реализованы. Приёмка Windows/RTX 3050 не выполнена. Не закрывает PLASTIC-003: нет доказанного непрерывного роста качества и надёжного unlearning."
+    },
+    {
+      "id": "NEURAL-009",
+      "title": "Лабораторная архитектура: recurrent block, top-2 MoE, память и identity growth",
+      "priority": "P2",
+      "depends_on": [
+        "NEURAL-005"
+      ],
+      "status": "in_progress",
+      "evidence": [
+        "backend/neural_adaptive.py",
+        "tests/test_neural_adaptive.py",
+        "docs/CONTINUAL_LEARNING.md"
+      ],
+      "completed_at": null,
+      "notes": "Проверены узкие математические механизмы на CPU. Обучение языковым навыкам, сравнение с baseline, формат checkpoint и интеграция не выполнены. INT4, эволюция, самоигра и выбор черновиков не реализованы."
     }
   ]
 }

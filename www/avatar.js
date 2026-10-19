@@ -137,6 +137,9 @@
      }
      if(result.ok!==true||!Number.isInteger(result.revision))throw Error("Invalid SQLite response");
      revision=result.revision;
+     if(snapshot.length&&snapshot[snapshot.length-1].from==="bot"){
+      fetch("/api/training/continual-experience",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"}).catch(function(){});
+     }
      clearPending=false;
      if(serial===changeSerial)markPending(false);
      api.label("Память SQLite");

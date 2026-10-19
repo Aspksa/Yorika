@@ -122,6 +122,16 @@ def run(launch=True, opener=None):
             step("export", "файл %s, примеров %d" % (exported["name"], exported["count"]))
         except Exception as error:  # noqa: BLE001
             step("export", str(error)[:160])
+        from backend import continual_learning as cl
+        if cl.settings()["enabled"]:
+            try:
+                result = cl.run(night=True)
+                step("consolidate", result["state"])
+            except Exception as error:
+                step("consolidate", str(error)[:160])
+            entry["finished"] = _now()
+            tc._write(tc.folder() / "night-log.json", (log() + [entry])[-14:])
+            return entry
         name = _newest_experience()
         try:
             if not name:

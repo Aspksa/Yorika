@@ -45,7 +45,7 @@ def digest(pairs):
 def run(train, validation, output, *, total_steps, checkpoint_every=20,
         width=320, heads=8, layers=4, context=256, max_merges=128, seed=42,
         max_run_seconds=None, device='cpu', batch_size=1, accumulate=1, precision="fp32",
-        objective="dialogue", init_from=None):
+        objective="dialogue", init_from=None, continue_dialogue=False, stop_requested=None):
     import torch
     from torch.nn import functional as F
     if max_run_seconds is not None and (type(max_run_seconds) not in (int, float) or
@@ -83,12 +83,14 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
         raise ValueError("Invalid examples")
     speed = [batch_size, accumulate, precision]
     base = None
+    if type(continue_dialogue) is not bool or (continue_dialogue and (init_from is None or objective != "dialogue")):
+        raise ValueError("Dialogue continuation requires a dialogue source")
     if init_from is not None:
         base_path = Path(init_from)
         if not base_path.is_file() or not 0 < base_path.stat().st_size <= 200_000_000:
             raise ValueError("Missing pretrained checkpoint")
         base = torch.load(base_path, map_location="cpu", weights_only=True)
-        if (base.get("schema") != SCHEMA or base.get("objective") != "lm" or
+        if (base.get("schema") != SCHEMA or base.get("objective") != ("dialogue" if continue_dialogue else "lm") or
                 base.get("config", [None]*6)[:4] != [width, heads, layers, context]):
             raise ValueError("Pretrained checkpoint does not match this model")
         check_bpe(base["tokenizer"])
@@ -228,6 +230,9 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
     actual_steps = start
     stopped_for_budget = False
     for i in range(start, total_steps):
+        if stop_requested is not None and stop_requested():
+            stopped_for_budget = True
+            break
         if max_run_seconds is not None and i > start and time.monotonic() - started_at >= max_run_seconds:
             stopped_for_budget = True
             break
@@ -259,7 +264,8 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
                        "best_validation_nll": best_nll, "best_step": best_step,
                        "config": [width, heads, layers, context, max_merges, seed],
                        "training_device": device, "speed": speed, "objective": objective,
-                       "init_sha256": base_sha if base else None}
+                       "init_sha256": base_sha if base else None,
+                       "continuation": continue_dialogue}
             if scaler is not None:
                 payload["scaler"] = scaler.state_dict()
             if device == "cuda":

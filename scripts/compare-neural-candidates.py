@@ -4,7 +4,7 @@ from backend.neural_multi_experiment import compare_candidates
 
 
 def main():
-    examples = [(f"Вопрос {i}", f"Ответ {i}") for i in range(10)]
+    examples = [(f"Вопрос {i}", f"Ответ {i}") for i in range(30)]
     report = compare_candidates(
         examples,
         [{"name": "base", "steps": 2, "seed": 42},

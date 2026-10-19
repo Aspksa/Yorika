@@ -56,6 +56,9 @@ def evaluate_checkpoint(checkpoint, heldout_pairs, *, max_tokens=64):
     # Caller must provide examples excluded from checkpoint training.
     result = evaluate_heldout(heldout_pairs, lambda prompt, **kw: generate(checkpoint, prompt, **kw),
                               max_tokens=max_tokens)
+    encoded = json.dumps(sorted([list(pair) for pair in heldout_pairs]), ensure_ascii=False,
+                         separators=(",", ":")).encode("utf-8")
+    result["dataset_sha256"] = hashlib.sha256(encoded).hexdigest()
     result["checkpoint_sha256"] = hashlib.sha256(Path(checkpoint).read_bytes()).hexdigest()
     return result
 

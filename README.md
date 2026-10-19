@@ -27,7 +27,7 @@ Commands:
 - `Yorika.bat /rollback` — go back to the original version after an installed update.
 - `Yorika.bat /help` — list the commands.
 
-Current limitations: the updater API and an experimental SQLite chat-history API exist, but there is **no trained neural inference backend**. Python is optional for the chat database feature, and Windows end-to-end behavior remains unverified.
+Current limitations: the updater API and experimental SQLite chat-history API exist. A separate **experimental Yorika-native PyTorch Transformer and checkpoint inference path** now exist (through PR #149), but a verified conversational-quality model is **not installed or accepted for production**. Python remains optional for the basic browser/tray interface; native neural inference requires its own Python/PyTorch environment and a selected, valid checkpoint. Windows end-to-end behavior and RTX 3050 acceptance remain unverified.
 
 ## Current reliability features
 

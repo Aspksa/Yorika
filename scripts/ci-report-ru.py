@@ -14,6 +14,7 @@ NAMES = {
     "python_full": "Полный набор Python-тестов",
 }
 LABELS = {"passed": "УСПЕШНО", "failed": "ОШИБКА", "error": "СБОЙ", "skipped": "ПРОПУЩЕНО"}
+GITHUB_STATES = {"success": "passed", "failure": "failed", "cancelled": "error", "skipped": "skipped", "": "error"}
 ICONS = {"passed": "✅", "failed": "❌", "error": "❌", "skipped": "⚠️"}
 
 
@@ -64,6 +65,7 @@ def main():
         if "=" not in pair:
             parser.error("--require ожидает NAME=STATE")
         name, status = pair.rsplit("=", 1)
+        status = GITHUB_STATES.get(status, status)
         if status not in LABELS:
             parser.error("неизвестный статус: " + status)
         extras.append((name, status))

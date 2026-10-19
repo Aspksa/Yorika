@@ -29,13 +29,13 @@
       var evt=JSON.parse(line);
       if(evt.type==='delta'){receivedAny=true;full+=evt.text;if(full.length>8000)throw Error('Ответ слишком длинный');if(onChunk)onChunk(full)}
       else if(evt.type==='done'){finished=true;full=evt.answer||full}
-      else if(evt.type==='error')throw Error('Не удалось завершить поток');
+      else if(evt.type==='error')throw Error(evt.message||'Cloud.ru не завершил поток');
      }
     }
     if(finished&&full.trim())return full;
-    if(full)throw Error('Поток оборвался');
+    if(full)throw Error('Поток оборвался до завершения ответа');
    }
-  }catch(e){if(receivedAny)throw e;/* Streaming unavailable before first delta. */}
+  }catch(e){if(receivedAny)throw e;/* Fallback to non-streaming request for meaningful provider errors. */}
 
   try{
    var generated=await fetch("/api/chat/respond",{

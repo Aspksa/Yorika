@@ -118,7 +118,7 @@ try{
        $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
        Log ('Chat memory: '+$_.Exception.Message)
       }
-     }elseif($path -match '^/api/cloud-ru/(status|save|check|delete|diagnostics|persona-status|persona-config|persona-delete|memory-status|memory-set|memory-delete|memory-edit)\z'){
+     }elseif($path -match '^/api/cloud-ru/(status|models|save|check|delete|diagnostics|persona-status|persona-config|persona-delete|memory-status|memory-set|memory-delete|memory-edit)\z'){
       $action=$Matches[1]
       try{
        if($requestHost -ne "127.0.0.1:$port"){throw 'Недопустимый Host'}

@@ -60,11 +60,12 @@
   <form id="cloud-ru-form" autocomplete="off">
    <label class="token-label" for="cloud-ru-key">Ключ Cloud.ru Foundation Models</label>
    <div class="token-field"><input id="cloud-ru-key" type="password" autocomplete="new-password" placeholder="Оставьте пустым, чтобы сохранить действующий ключ" maxlength="8192"></div>
-   <label class="token-label" for="cloud-ru-model">ID модели</label>
-   <div class="token-field"><input id="cloud-ru-model" type="text" maxlength="150" value="ai-sage/GigaChat3-10B-A1.8B" required></div>
+   <label class="token-label" for="cloud-ru-model">Модель Cloud.ru — выберите из списка или введите ID</label>
+   <div class="token-field"><input id="cloud-ru-model" type="text" list="cloud-ru-model-suggestions" maxlength="150" value="ai-sage/GigaChat3-10B-A1.8B" required><datalist id="cloud-ru-model-suggestions"><option value="ai-sage/GigaChat3-10B-A1.8B">GigaChat 3 10B (ID по умолчанию)</option></datalist></div><p class="support-text">Список подсказок не является каталогом всех доступных моделей. Можно вставить любой точный ID модели из Cloud.ru; доступ проверяется отдельной кнопкой и может тарифицироваться.</p>
    <p id="cloud-ru-status" class="setting-note" role="status" aria-live="polite">Проверка сохранённых настроек…</p>
    <div class="button-row">
     <button id="cloud-ru-save" class="secondary" type="submit">Сохранить ключ и модель</button>
+    <button id="cloud-ru-models-refresh" class="ghost" type="button">Загрузить доступные модели</button>
     <button id="cloud-ru-diagnostics" class="ghost" type="button">Диагностика (без запроса к облаку)</button>
     <button id="cloud-ru-check" class="ghost" type="button">Проверить подключение</button>
     <button id="cloud-ru-delete" class="ghost danger" type="button">Удалить ключ</button>

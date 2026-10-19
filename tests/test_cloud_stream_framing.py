@@ -38,6 +38,18 @@ class StreamFramingTests(unittest.TestCase):
             collect_stream([b"data: " + b"x" * 40000 + b"\n",
                             b"data: " + b"x" * 30000 + b"\n"])
 
+    def test_reasoning_model_answer_after_long_reasoning(self):
+        # DeepSeek-style models stream reasoning_content first; only content is the answer.
+        thinking = b"data: " + json.dumps({"choices": [{"delta": {"content": None,
+            "reasoning_content": "x" * 300}}]}).encode("utf-8") + b"\n\n"
+        response = [thinking] * 2000 + [event("Готово"), b"\n", b"data: [DONE]\n"]
+        self.assertEqual(collect_stream(response), "Готово")
+
+    def test_finished_stream_without_answer_is_reported_as_empty(self):
+        thinking = b'data: {"choices":[{"delta":{"reasoning_content":"..."}}]}\n\n'
+        with self.assertRaisesRegex(RuntimeError, "Empty Cloud.ru response"):
+            collect_stream([thinking, b"data: [DONE]\n", b"\n"])
+
 
 if __name__ == "__main__":
     unittest.main()

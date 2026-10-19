@@ -189,7 +189,8 @@ el("clear-data").onclick=async()=>{
 function cloudPill(state,text){const pill=el("cloud-ru-pill");pill.dataset.state=state;pill.textContent=text}
 async function cloudStatus(prefix=""){
  const result=await api("/api/cloud-ru/status");
- el("cloud-ru-model").value=result.model;
+ el("cloud-ru-model").value=result.model;savedModel=result.model;
+ const picker=el("cloud-ru-model-select");if([...picker.options].some(o=>o.value===result.model))picker.value=result.model;
  el("cloud-ru-status").textContent=prefix+(result.configured?"Ключ зашифрован и сохранён на этом компьютере. Чат аватара отвечает через модель "+result.model+".":"Ключ пока не сохранён, поэтому чат аватара не может ответить. Вставьте API-ключ Cloud.ru и нажмите «Сохранить ключ и модель».");
  cloudPill(result.configured?"ready":"off",result.configured?"Ключ сохранён":"Не подключена");
 }
@@ -215,7 +216,15 @@ el("cloud-ru-models-refresh").onclick=async()=>{
  }catch(error){el("cloud-ru-status").textContent="Не удалось получить список моделей: "+error.message}
  finally{button.disabled=false}
 };
-el("cloud-ru-model-select").onchange=event=>{if(event.target.value)el("cloud-ru-model").value=event.target.value};
+// Picking a model saves it at once, like every other setting on this page; the key stays as stored.
+let savedModel="";
+el("cloud-ru-model-select").onchange=async event=>{
+ const model=event.target.value;if(!model)return;
+ el("cloud-ru-model").value=model;
+ try{await api("/api/cloud-ru/save",{method:"POST",body:JSON.stringify({key:null,model})});await cloudStatus("Модель сохранена. ")}
+ catch(error){el("cloud-ru-status").textContent="Не удалось сохранить модель: "+error.message}
+};
+el("cloud-ru-model").oninput=()=>{if(savedModel&&el("cloud-ru-model").value.trim()!==savedModel)el("cloud-ru-status").textContent="ID модели изменён, но ещё не сохранён. Сейчас чат использует "+savedModel+". Нажмите «Сохранить ключ и модель».";};
 el("cloud-ru-form").onsubmit=async event=>{
  event.preventDefault();
  const key=el("cloud-ru-key").value,model=el("cloud-ru-model").value.trim();

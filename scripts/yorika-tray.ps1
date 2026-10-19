@@ -51,6 +51,91 @@ function Get-YorikaPython{
 $key=[BitConverter]::ToString(([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($root.ToLowerInvariant()))),0,12).Replace('-','')
 $mutex=[Threading.Mutex]::new($false,('Local\Yorika-'+$key))
 if(-not $mutex.WaitOne(0)){Log 'Уже запущена';exit}
+# Model replies can take a minute. They run in a background runspace so the
+# tray keeps serving pages, settings and history while Yorika is answering.
+$chatWorker=@'
+param($client,$psi,$body,$mode,$log)
+function Note($msg){try{[IO.File]::AppendAllText($log,("["+(Get-Date -Format o)+"] "+$msg+"`r`n"),[Text.Encoding]::UTF8)}catch{}}
+function Send($target,[byte[]]$data){$target.Write($data,0,$data.Length)}
+# Python errors are our own short English markers; only fixed Russian texts reach the browser.
+function Explain([string]$detail){
+ if($detail -match 'key not configured'){return 'Cloud.ru: сначала сохраните API-ключ в Настройках'}
+ if($detail -match '^Cloud\.ru HTTP [0-9x]+: [^\r\n]{1,80}\z'){return $detail}
+ if($detail -match 'API unavailable'){return 'Cloud.ru: нет соединения с API; проверьте сеть и прокси'}
+ if($detail -match 'Empty Cloud\.ru response'){return 'Cloud.ru: модель вернула пустой ответ; попробуйте ещё раз или выберите другую модель'}
+ if($detail -match 'timed out|timeout'){return 'Cloud.ru: превышено время ожидания ответа'}
+ return 'Cloud.ru: ответ не получен; проверьте ID модели и подключение в Настройках'
+}
+$stream=$client.GetStream();$proc=$null
+try{
+ $client.SendTimeout=10000
+ $proc=[Diagnostics.Process]::Start($psi)
+ $payload=[Text.Encoding]::UTF8.GetBytes($body)
+ $proc.StandardInput.BaseStream.Write($payload,0,$payload.Length);$proc.StandardInput.BaseStream.Flush();$proc.StandardInput.Close()
+ $stderrTask=$proc.StandardError.ReadToEndAsync()
+ if($mode -eq 'stream'){
+  $head="HTTP/1.1 200 OK"+"`r`n"+"Content-Type: application/x-ndjson; charset=utf-8"+"`r`n"+"Transfer-Encoding: chunked"+"`r`n"+"Connection: close"+"`r`n"+"Cache-Control: no-store"+"`r`n"+"X-Content-Type-Options: nosniff"+"`r`n`r`n"
+  Send $stream ([Text.Encoding]::ASCII.GetBytes($head));$stream.Flush()
+  $deadline=[DateTime]::UtcNow.AddSeconds(120)
+  while($true){
+   $lineTask=$proc.StandardOutput.ReadLineAsync()
+   $remaining=[int][Math]::Max(1,($deadline-[DateTime]::UtcNow).TotalMilliseconds)
+   if(-not $lineTask.Wait($remaining)){
+    try{$proc.Kill()}catch{}
+    $line='{"type":"error","message":"Cloud.ru: превышено время ожидания ответа"}'
+   }else{$line=$lineTask.Result}
+   if($null -eq $line){break}
+   if($line.Length -gt 12000){throw 'Stream line too long'}
+   $chunk=[Text.Encoding]::UTF8.GetBytes($line+"`n")
+   Send $stream ([Text.Encoding]::ASCII.GetBytes(("{0:x}" -f $chunk.Length)+"`r`n"));Send $stream $chunk;Send $stream ([byte[]](13,10));$stream.Flush()
+   if($line.StartsWith('{"type":"error","message":"Cloud.ru: превышено')){break}
+  }
+  [void]$proc.WaitForExit(1500)
+  Send $stream ([Text.Encoding]::ASCII.GetBytes("0`r`n`r`n"));$stream.Flush()
+ }else{
+  $status='200 OK'
+  $stdoutTask=$proc.StandardOutput.ReadToEndAsync()
+  if(-not $proc.WaitForExit(90000)){
+   try{$proc.Kill()}catch{}
+   $status='504 Gateway Timeout';$output=(@{error='Cloud.ru: превышено время ожидания ответа'}|ConvertTo-Json -Compress)
+  }else{
+   $output=$stdoutTask.GetAwaiter().GetResult().Trim()
+   if($proc.ExitCode -ne 0){
+    $detail='';try{$detail=[string]($output|ConvertFrom-Json).error}catch{}
+    $status='503 Service Unavailable';$output=(@{error=(Explain $detail)}|ConvertTo-Json -Compress)
+    Note ('Cloud.ru response failed: '+(Explain $detail))
+   }
+  }
+  $bytes=[Text.Encoding]::UTF8.GetBytes($output)
+  $header="HTTP/1.1 $status`r`nContent-Type: application/json; charset=utf-8`r`nContent-Length: $($bytes.Length)`r`nConnection: close`r`nCache-Control: no-store`r`nX-Yorika-App: Yorika`r`nX-Content-Type-Options: nosniff`r`n`r`n"
+  Send $stream ([Text.Encoding]::ASCII.GetBytes($header));Send $stream $bytes;$stream.Flush()
+ }
+}catch{
+ $reason=$_.Exception.Message
+ if($reason -match 'транспортное соединение|transport connection|forcibly closed|разорвала установленное подключение|broken pipe'){Note 'Cloud.ru streaming client disconnected'}
+ else{Note ('Cloud.ru chat worker failed: '+$reason)}
+}finally{
+ if($proc){try{if(-not $proc.HasExited){$proc.Kill()}}catch{};$proc.Dispose()}
+ try{$client.Close()}catch{}
+}
+'@
+$chatPool=[runspacefactory]::CreateRunspacePool(1,4)
+$chatPool.Open()
+$chatJobs=New-Object Collections.ArrayList
+# Hands the open connection to a background runspace; the caller must not close it.
+function Start-ChatWorker($client,$psi,[string]$body,[string]$mode){
+ $job=[PowerShell]::Create();$job.RunspacePool=$chatPool
+ [void]$job.AddScript($chatWorker).AddArgument($client).AddArgument($psi).AddArgument($body).AddArgument($mode).AddArgument($log)
+ [void]$chatJobs.Add(@{ps=$job;handle=$job.BeginInvoke()})
+}
+function Clear-ChatWorkers{
+ foreach($item in @($chatJobs)){
+  if($item.handle.IsCompleted){
+   try{[void]$item.ps.EndInvoke($item.handle)}catch{Log ('Chat worker: '+$_.Exception.Message)}
+   $item.ps.Dispose();$chatJobs.Remove($item)
+  }
+ }
+}
 $server=$null;$tray=$null;$timer=$null;$retire=$null;$url=''
 try{
  $server=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
@@ -77,6 +162,7 @@ try{
  $timer=New-Object Windows.Forms.Timer;$timer.Interval=100
  $timer.add_Tick({
   $stopAfterReply=$false
+  Clear-ChatWorkers
   try {
    $count=0
    while($server.Pending() -and $count -lt 5){
@@ -99,7 +185,7 @@ try{
       if($line -match '^Origin:\s*(.+)\z'){$origin=$Matches[1].Trim()}
       if($line -match '^Host:\s*(.+)\z'){$requestHost=$Matches[1].Trim()}
      }while($null -ne $line -and $line.Length -gt 0)
-     $status='200 OK';$mime='application/json; charset=utf-8';$bytes=[byte[]]@();$streamHandled=$false
+     $status='200 OK';$mime='application/json; charset=utf-8';$bytes=[byte[]]@();$streamHandled=$false;$handedOff=$false
      if($path -eq '/api/chat/history'){
       $mime='application/json; charset=utf-8'
       try{
@@ -226,48 +312,20 @@ try{
        $data=$builder.ToString()|ConvertFrom-Json
        if([string]::IsNullOrWhiteSpace([string]$data.query) -or ([string]$data.query).Length -gt 4000){throw 'Invalid query'}
        $python=Get-YorikaPython
-       if(-not $python){throw 'Python 3 не найден'}
-       $psi=New-Object Diagnostics.ProcessStartInfo
-       $psi.FileName=$python.Source
-       $psi.Arguments=($python.Prefix+'"' + (Join-Path $root 'scripts\cloud-ru-stream.py') + '"')
-       $psi.UseShellExecute=$false;$psi.CreateNoWindow=$true
-       $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
-       $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
-       $psi.EnvironmentVariables['PYTHONIOENCODING']='utf-8:strict'
-       $proc=[Diagnostics.Process]::Start($psi)
-       try{
-        Write-ChildUtf8 $proc ($builder.ToString());$proc.StandardInput.Close()
-        $stderrTask=$proc.StandardError.ReadToEndAsync()
-        $head="HTTP/1.1 200 OK"+"`r`n"+"Content-Type: application/x-ndjson; charset=utf-8"+"`r`n"+"Transfer-Encoding: chunked"+"`r`n"+"Connection: close"+"`r`n"+"Cache-Control: no-store"+"`r`n"+"X-Content-Type-Options: nosniff"+"`r`n`r`n"
-        $headBytes=[Text.Encoding]::ASCII.GetBytes($head)
-        $stream.Write($headBytes,0,$headBytes.Length);$stream.Flush()
-        $streamHandled=$true
-        $deadline=[DateTime]::UtcNow.AddSeconds(65)
-        while($true){
-         $lineTask=$proc.StandardOutput.ReadLineAsync()
-         $remaining=[int][Math]::Max(1,($deadline-[DateTime]::UtcNow).TotalMilliseconds)
-         if(-not $lineTask.Wait($remaining)){throw 'Stream timeout'}
-         $line=$lineTask.Result
-         if($null -eq $line){break}
-         if($line.Length -gt 12000){throw 'Stream line too long'}
-         $chunk=[Text.Encoding]::UTF8.GetBytes($line+"`n")
-         $prefix=[Text.Encoding]::ASCII.GetBytes(("{0:x}" -f $chunk.Length)+"`r`n")
-         $stream.Write($prefix,0,$prefix.Length);$stream.Write($chunk,0,$chunk.Length)
-         $stream.Write([byte[]](13,10),0,2);$stream.Flush()
-        }
-        if(-not $proc.WaitForExit(1500)){throw 'Stream process did not exit'}
-        $null=$stderrTask.GetAwaiter().GetResult()
-        $ending=[Text.Encoding]::ASCII.GetBytes("0`r`n`r`n")
-        $stream.Write($ending,0,$ending.Length);$stream.Flush()
-       }catch{
-        if($proc -and -not $proc.HasExited){try{$proc.Kill()}catch{}}
-        $reason=$_.Exception.Message
-        if($reason -match 'транспортное соединение|transport connection|forcibly closed|разорвала установленное подключение|broken pipe'){
-         Log 'Cloud.ru streaming client disconnected'
-        }else{
-         Log ('Cloud.ru streaming failed: '+$reason)
-        }
-       }finally{if($proc){$proc.Dispose()}}
+       if(-not $python){
+        $status='503 Service Unavailable'
+        $bytes=[Text.Encoding]::UTF8.GetBytes((@{error='Python 3 не найден. Установите Python 3 с python.org и перезапустите Yorika'}|ConvertTo-Json -Compress))
+       }else{
+        $psi=New-Object Diagnostics.ProcessStartInfo
+        $psi.FileName=$python.Source
+        $psi.Arguments=($python.Prefix+'"' + (Join-Path $root 'scripts\cloud-ru-stream.py') + '"')
+        $psi.UseShellExecute=$false;$psi.CreateNoWindow=$true
+        $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
+        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
+        $psi.EnvironmentVariables['PYTHONIOENCODING']='utf-8:strict'
+        Start-ChatWorker $client $psi ($builder.ToString()) 'stream'
+        $streamHandled=$true;$handedOff=$true
+       }
       }
      }elseif($path -eq '/api/chat/respond'){
       try{
@@ -297,29 +355,12 @@ try{
        $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
        $psi.EnvironmentVariables['PYTHONIOENCODING']='utf-8:strict'
-       $proc=[Diagnostics.Process]::Start($psi)
-       try{
-        Write-ChildUtf8 $proc $body;$proc.StandardInput.Close()
-        $stdoutTask=$proc.StandardOutput.ReadToEndAsync()
-        $stderrTask=$proc.StandardError.ReadToEndAsync()
-        if(-not $proc.WaitForExit(25000)){try{$proc.Kill()}catch{};throw 'Истекло время ответа модели'}
-        $output=$stdoutTask.GetAwaiter().GetResult()
-        $null=$stderrTask.GetAwaiter().GetResult()
-        if($proc.ExitCode -ne 0){
-         $status='503 Service Unavailable'
-         $detail='';try{$detail=[string]($output|ConvertFrom-Json).error}catch{}
-         if($detail -match 'key not configured'){throw 'Cloud.ru: сначала сохраните API-ключ в Настройках'}
-         if($detail -match 'HTTP 401'){throw 'Cloud.ru: неверный API-ключ (401)'}
-         if($detail -match 'HTTP 403'){throw 'Cloud.ru: нет доступа к выбранной модели (403)'}
-         if($detail -match 'HTTP 404'){throw 'Cloud.ru: проверьте ID выбранной модели (404)'}
-         throw 'Cloud.ru недоступен или ключ не настроен'
-        }
-        $bytes=[Text.Encoding]::UTF8.GetBytes($output.Trim())
-       }finally{$proc.Dispose()}
+       Start-ChatWorker $client $psi $body 'json'
+       $streamHandled=$true;$handedOff=$true
       }catch{
        if($status -eq '200 OK'){$status='400 Bad Request'}
        $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
-       Log ('Cloud.ru response failed')
+       Log ('Cloud.ru response failed: '+$_.Exception.Message)
       }
      }elseif($path -eq '/api/memory/recall'){
       try{
@@ -424,7 +465,7 @@ try{
      if($method -ne 'HEAD'){$stream.Write($bytes,0,$bytes.Length)}
      $stream.Flush()
      }
-    }finally{$client.Close()}
+    }finally{if(-not $handedOff){$client.Close()}}
    }
   }catch{
    $reason=$_.Exception.Message
@@ -467,5 +508,6 @@ finally{
  if($retire){$retire.Stop();$retire.Dispose()}
  if($tray){$tray.Visible=$false;$tray.Dispose()}
  if($server){$server.Stop()}
+ if($chatPool){try{$chatPool.Close();$chatPool.Dispose()}catch{}}
  try{$mutex.ReleaseMutex()}catch{};$mutex.Dispose()
 }

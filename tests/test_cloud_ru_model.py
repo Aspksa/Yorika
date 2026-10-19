@@ -40,7 +40,7 @@ class CloudRuTests(unittest.TestCase):
             self.assertEqual(req.full_url,
                              "https://foundation-models.api.cloud.ru/v1/chat/completions")
             self.assertEqual(req.get_header("Authorization"), "Bearer test-secret")
-            self.assertEqual(timeout, 20)
+            self.assertEqual(timeout, 60)
             data = json.loads(req.data)
             self.assertIn("Ёрика любит чай", data["messages"][0]["content"])
             self.assertNotIn("секрет Ёрика", data["messages"][0]["content"])

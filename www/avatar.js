@@ -40,7 +40,7 @@
    }else if(!stream.ok)modelError=await serverError(stream);
   }catch(e){if(receivedAny)throw e;modelError=e&&e.message||String(e)}
   // A classified Cloud.ru error (no key, 401, 403, 404) would only repeat on a second paid request.
-  if(!/^Cloud\.ru: (сначала|неверный|нет доступа|проверьте)/.test(modelError)){
+  if(!/^Cloud\.ru: (сначала|неверный|нет доступа|проверьте|модель вернула)/.test(modelError)){
    try{
     var generated=await fetch("/api/chat/respond",{
      method:"POST",headers:{"Content-Type":"application/json"},
@@ -53,11 +53,11 @@
    }catch(e){if(!modelError)modelError="нет связи с локальным сервером Yorika"}
   }
   var because;
-  if(/сначала сохраните|ключ не настроен/.test(modelError))because="Языковая модель ещё не подключена. "+SETTINGS_HINT;
+  if(/сначала сохраните/.test(modelError))because="Языковая модель ещё не подключена. "+SETTINGS_HINT;
   else{
    because="Языковая модель не ответила: "+(modelError||"причина неизвестна").replace(/\.$/,"")+". ";
    if(/Python/.test(modelError))because+="После установки Python перезапустите Yorika.bat.";
-   else if(/^Cloud\.ru: (неверный|нет доступа|проверьте)/.test(modelError))because+="Проверьте ключ и ID модели в Настройках → «Языковая модель».";
+   else if(/^Cloud\.ru(: (неверный|нет доступа|проверьте)| HTTP 40[134])/.test(modelError))because+="Проверьте ключ и ID модели в Настройках → «Языковая модель».";
   }
 
   try{

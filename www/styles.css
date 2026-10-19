@@ -55,6 +55,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .launcher-icon{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;transition:transform .5s ease}
 .launcher-updates:hover .launcher-icon{transform:rotate(180deg)}
 .launcher-settings:hover .launcher-icon{transform:rotate(60deg)}
+.launcher-training:hover .launcher-icon{transform:translateY(-2px)}
 .notice-dot{position:absolute;right:-3px;top:-3px;height:7px;width:7px;background:var(--notice);border-radius:100%;box-shadow:0 0 6px var(--notice)}
 .button-row{display:flex;gap:9px;flex-wrap:wrap}
 .primary,.secondary,.ghost{min-height:40px;border-radius:calc(11px*var(--r));padding:10px 14px;font-size:12px;font-weight:700}

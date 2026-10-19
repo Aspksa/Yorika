@@ -14,7 +14,7 @@ class PublicUpdaterCompatibility(unittest.TestCase):
 
     def test_all_python_children_emit_utf8(self):
         ps = (ROOT / "scripts/yorika-tray.ps1").read_text(encoding="utf-8-sig")
-        self.assertEqual(ps.count("$psi.EnvironmentVariables['PYTHONIOENCODING']='utf-8:strict'"), 5)
+        self.assertEqual(ps.count("$psi.EnvironmentVariables['PYTHONIOENCODING']='utf-8:strict'"), 6)
         self.assertIn("$psi.StandardOutputEncoding=[Text.Encoding]::UTF8", ps)
 
     def test_public_ui_is_clear(self):

@@ -131,13 +131,20 @@ try{
   $stdoutTask=$proc.StandardOutput.ReadToEndAsync()
   if(-not $proc.WaitForExit(90000)){
    try{$proc.Kill()}catch{}
-   $status='504 Gateway Timeout';$output=(@{error='Cloud.ru: превышено время ожидания ответа'}|ConvertTo-Json -Compress)
+   $status='504 Gateway Timeout';$output=(@{error=$(if($mode -eq 'training'){'Истекло время ожидания'}else{'Cloud.ru: превышено время ожидания ответа'})}|ConvertTo-Json -Compress)
   }else{
    $output=$stdoutTask.GetAwaiter().GetResult().Trim()
    if($proc.ExitCode -ne 0){
     $detail='';try{$detail=[string]($output|ConvertFrom-Json).error}catch{}
+    if($mode -eq 'training'){
+     # training-center.py reports short Russian texts meant for the page.
+     $reason=if($detail -and $detail.Length -lt 170){$detail}else{'Операция обучения не выполнена'}
+     $status='400 Bad Request';$output=(@{error=$reason}|ConvertTo-Json -Compress)
+     Note ('Training: '+$reason)
+    }else{
     $status='503 Service Unavailable';$output=(@{error=(Explain $detail)}|ConvertTo-Json -Compress)
     Note ('Cloud.ru response failed: '+(Explain $detail))
+    }
    }
   }
   $bytes=[Text.Encoding]::UTF8.GetBytes($output)
@@ -441,6 +448,45 @@ try{
        if($status -eq '200 OK'){$status='400 Bad Request'}
        $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
        Log ('Memory recall: '+$_.Exception.Message)
+      }
+     }elseif($path -match '^/api/training/(status|probe|install-torch|data-check|folder|open-folder|start|control|activate|rollback|compare)\z'){
+      # The «Обучение» page. Loading PyTorch can take many seconds, so every action runs in the
+      # background pool; training itself is a detached process started by training-center.py.
+      $action=$Matches[1]
+      try{
+       if($requestHost -ne "127.0.0.1:$port"){throw 'Недопустимый Host'}
+       if($action -eq 'status'){if($method -ne 'GET'){throw 'Недопустимый метод'}}
+       elseif($method -ne 'POST' -or $origin -ne "http://127.0.0.1:$port"){throw 'Доступ запрещён'}
+       if($len -lt 0 -or $len -gt 16384){throw 'Неверная длина'}
+       $body=''
+       if($len -gt 0){
+        $builder=New-Object Text.StringBuilder;$received=0
+        while($received -lt $len){
+         $chars=New-Object char[] ([Math]::Min(1024,$len-$received))
+         $n=$reader.Read($chars,0,$chars.Length)
+         if($n -le 0){throw 'Неполный запрос'}
+         $chunk=[string]::new($chars,0,$n)
+         [void]$builder.Append($chunk)
+         $received+=[Text.Encoding]::UTF8.GetByteCount($chunk)
+        }
+        if($received -ne $len){throw 'Неверная длина'}
+        $body=$builder.ToString()
+       }
+       $python=Get-YorikaPython
+       if(-not $python){$status='503 Service Unavailable';throw 'Python 3 не найден. Установите Python 3 с python.org и перезапустите Yorika'}
+       $psi=New-Object Diagnostics.ProcessStartInfo
+       $psi.FileName=$python.Source
+       $psi.Arguments=($python.Prefix+'"' + (Join-Path $root 'scripts\training-center.py') + '" ' + $action)
+       $psi.UseShellExecute=$false;$psi.CreateNoWindow=$true
+       $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
+       $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
+       $psi.EnvironmentVariables['PYTHONIOENCODING']='utf-8:strict'
+       Start-ChatWorker $client $psi $body 'training'
+       $streamHandled=$true;$handedOff=$true
+      }catch{
+       if($status -eq '200 OK'){$status='400 Bad Request'}
+       $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
+       Log ('Training: '+$_.Exception.Message)
       }
      }elseif($path -match '^/api/updates/(settings|token|check|stage|apply)\z'){
       $action=$Matches[1]

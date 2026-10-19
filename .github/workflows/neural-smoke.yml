@@ -29,3 +29,5 @@ jobs:
         run: PYTHONPATH=. python scripts/verify-neural-resume.py
       - name: Prove bitwise-equivalent resumed native model training
         run: PYTHONPATH=. python scripts/verify-neural-exact-resume.py
+      - name: Verify periodic checkpoint crash recovery
+        run: PYTHONPATH=. python scripts/verify-neural-longrun.py

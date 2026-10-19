@@ -449,13 +449,13 @@ try{
        $bytes=[Text.Encoding]::UTF8.GetBytes((@{error=$_.Exception.Message}|ConvertTo-Json -Compress))
        Log ('Memory recall: '+$_.Exception.Message)
       }
-     }elseif($path -match '^/api/training/(status|probe|install-torch|data-check|folder|open-folder|start|control|activate|rollback|compare)\z'){
+     }elseif($path -match '^/api/training/(status|probe|install-torch|data-check|folder|open-folder|start|control|activate|rollback|compare|stop-all|sl-status|sl-collect-setting|sl-collect|sl-list|sl-rate|sl-delete|sl-export|sl-dismiss)\z'){
       # The «Обучение» page. Loading PyTorch can take many seconds, so every action runs in the
       # background pool; training itself is a detached process started by training-center.py.
       $action=$Matches[1]
       try{
        if($requestHost -ne "127.0.0.1:$port"){throw 'Недопустимый Host'}
-       if($action -eq 'status'){if($method -ne 'GET'){throw 'Недопустимый метод'}}
+       if($action -in @('status','sl-status')){if($method -ne 'GET'){throw 'Недопустимый метод'}}
        elseif($method -ne 'POST' -or $origin -ne "http://127.0.0.1:$port"){throw 'Доступ запрещён'}
        if($len -lt 0 -or $len -gt 16384){throw 'Неверная длина'}
        $body=''

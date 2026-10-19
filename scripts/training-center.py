@@ -8,11 +8,13 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from backend import self_learning as sl
 from backend import training_center as tc
 
-READS = {"status"}
+READS = {"status", "sl-status"}
 WRITES = {"probe", "install-torch", "data-check", "folder", "open-folder", "start", "control",
-          "activate", "rollback", "compare"}
+          "activate", "rollback", "compare", "stop-all", "sl-collect-setting", "sl-collect",
+          "sl-list", "sl-rate", "sl-delete", "sl-export", "sl-dismiss"}
 
 
 def handle(action, body):
@@ -40,6 +42,24 @@ def handle(action, body):
         return tc.rollback()
     if action == "compare":
         return tc.compare(body.get("ids"), body.get("questions"))
+    if action == "stop-all":
+        return tc.stop_all()
+    if action == "sl-status":
+        return sl.status()
+    if action == "sl-collect-setting":
+        return sl.set_collect(body.get("enabled"))
+    if action == "sl-collect":
+        return sl.collect()
+    if action == "sl-list":
+        return sl.list_items(body.get("view", "unrated"), body.get("offset", 0), body.get("limit", 20))
+    if action == "sl-rate":
+        return sl.rate(body.get("id"), body.get("rating"), body.get("correction"))
+    if action == "sl-delete":
+        return sl.delete(body.get("id"))
+    if action == "sl-export":
+        return sl.export()
+    if action == "sl-dismiss":
+        return sl.dismiss(body.get("id"))
     raise ValueError("Неизвестное действие")
 
 

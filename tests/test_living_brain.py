@@ -200,6 +200,8 @@ class LivingTrainingTests(LabBase):
         first = self.train(name)
         tc.activate(first["id"])
         continual.set_settings(True, auto_activate=True, min_new=10, minutes=1)
+        from backend import schedule
+        schedule.set_grid("always")
         store = sl._load()
         for i in range(15):
             store["items"].append({"id": "q%d" % i, "prompt": "Новый вопрос %d?" % i, "answer": "Новый ответ %d." % i,
@@ -227,7 +229,7 @@ class LivingTrainingTests(LabBase):
         self.assertIsNone(continual.maybe_start(launch=False))  # nothing new since
         # Night: sleep continues the active version on today's experience plus replay.
         time.sleep(1.1)
-        night.set_settings(True, "02:00", hours=1, apply=False, curiosity=True)
+        night.set_settings(True, "02:00", hours=1, apply=False, curiosity=True, lives=5)
         exported = sl.export()
         self.assertTrue(exported["name"].startswith("опыт-"))
         entry = night.run(launch=False)

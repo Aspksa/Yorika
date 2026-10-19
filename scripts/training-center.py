@@ -21,7 +21,8 @@ WRITES = {"probe", "install-torch", "data-check", "folder", "open-folder", "star
           "teacher-limits", "teacher-estimate", "teacher-start", "teacher-stop", "teacher-accept",
           "night-settings", "series", "sl-pack-preview", "sl-pack-add", "blind-start", "blind-vote", "blind-results",
           "teacher-models", "chat-engine", "continual-settings", "continual-now", "evolve", "merge",
-          "compress", "grow", "curiosity-now", "think"}
+          "compress", "grow", "curiosity-now", "think", "plan-start", "schedule-set", "autopilot",
+          "programs-learn", "sim-now", "introspect"}
 
 
 def handle(action, body):
@@ -97,8 +98,41 @@ def handle(action, body):
         return {"results": blind.results()}
     if action == "brain-status":
         from backend import brain, continual, curiosity
+        from backend import autopilot, plans, programs, simworld
         return {"engine": brain.engine(), "continual": continual.status(), "wishes": curiosity.wishes(),
-                "frontier": curiosity.logic_frontier(), "curiosity": curiosity.last()}
+                "frontier": curiosity.logic_frontier(), "curiosity": curiosity.last(), "plans": plans.status(),
+                "sim": dict(simworld.totals(), job=tc._read(tc.folder() / "sim-job.json")),
+                "skills": programs.describe(), "autopilot": autopilot.status()}
+    if action == "plan-start":
+        from backend import plans
+        return plans.start(body.get("kind"), copies=body.get("copies"), branches=body.get("branches", 3),
+                           rounds=body.get("rounds", 2), minutes=body.get("minutes", 20),
+                           prompts=body.get("prompts", 120))
+    if action == "schedule-set":
+        from backend import schedule
+        result = schedule.set_grid(body.get("grid"), body.get("enforce", True) is True)
+        if night.settings()["enabled"] and night.os.name == "nt":
+            night.apply_schedule(True)
+        return result
+    if action == "autopilot":
+        from backend import autopilot
+        return autopilot.set_enabled(body.get("enabled"))
+    if action == "programs-learn":
+        from backend import curiosity, programs
+        found = programs.learn()
+        added = curiosity._add(programs.lessons(found), "programs") if found else 0
+        return {"found": found, "lessons": added, "skills": programs.describe()}
+    if action == "sim-now":
+        job = tc._read(tc.folder() / "sim-job.json", {}) or {}
+        if job.get("state") == "running" and __import__("time").time() - job.get("t", 0) < 3600:
+            raise ValueError("Мир задач уже работает")
+        tc._write(tc.folder() / "sim-job.json", {"state": "running", "t": __import__("time").time(), "result": None})
+        tc._spawn([sys.executable, str(tc.CLI), "sim-worker"], tc.folder() / "sim.log")
+        return {"state": "running"}
+    if action == "introspect":
+        tc._run_dir(body.get("id"))
+        tc._spawn([sys.executable, str(tc.CLI), "introspect-worker", body.get("id")], tc.folder() / "introspect.log")
+        return {"state": "running"}
     if action == "chat-engine":
         from backend import brain
         return brain.set_engine(body.get("engine"), body.get("drafts", 3), body.get("compressed", False) is True)
@@ -144,7 +178,9 @@ def handle(action, body):
         return night.set_settings(body.get("enabled"), body.get("time", "02:00"), body.get("hours", 4.0),
                                   body.get("teacher_tokens", 0), body.get("selfplay", 20),
                                   sizes=body.get("sizes"), sleep=body.get("sleep", True) is True,
-                                  curiosity=body.get("curiosity", True) is True, evolve=body.get("evolve", 0))
+                                  curiosity=body.get("curiosity", True) is True, evolve=body.get("evolve", 0),
+                                  week=body.get("week"), lives=body.get("lives", 300),
+                                  programs=body.get("programs", True) is True)
     raise ValueError("Неизвестное действие")
 
 
@@ -160,6 +196,19 @@ def main(argv):
     if len(argv) == 2 and argv[1] == "curiosity-worker":
         from backend import curiosity
         return curiosity.worker()
+    if len(argv) == 2 and argv[1] == "plan-worker":
+        from backend import plans
+        return plans.worker()
+    if len(argv) == 2 and argv[1] == "sim-worker":
+        import time
+        try:
+            result, state = night._sim_lives(150), "finished"
+        except Exception as error:  # noqa: BLE001 - the page shows why it stopped
+            result, state = str(error)[:200], "failed"
+        tc._write(tc.folder() / "sim-job.json", {"state": state, "t": time.time(), "result": result})
+        return 0 if state == "finished" else 1
+    if len(argv) == 3 and argv[1] == "introspect-worker":
+        return tc.introspect_worker(argv[2])
     if len(argv) == 2 and argv[1] == "night-run":
         night.run()
         return 0

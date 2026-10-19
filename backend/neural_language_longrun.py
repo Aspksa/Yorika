@@ -45,7 +45,7 @@ def digest(pairs):
 def run(train, validation, output, *, total_steps, checkpoint_every=20,
         width=320, heads=8, layers=4, context=256, max_merges=128, seed=42,
         max_run_seconds=None, device='cpu', batch_size=1, accumulate=1, precision="fp32",
-        objective="dialogue", init_from=None, arch=None):
+        objective="dialogue", init_from=None, arch=None, lr=0.0003):
     import torch
     from torch.nn import functional as F
     if max_run_seconds is not None and (type(max_run_seconds) not in (int, float) or
@@ -62,6 +62,8 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
         raise ValueError("Half precision requires CUDA")
     if objective not in ("dialogue", "lm"):
         raise ValueError("Unknown training objective")
+    if type(lr) is not float or not 1e-6 <= lr <= 1e-2:
+        raise ValueError("Invalid learning rate")
     train_device = torch.device(device)
     started_at = time.monotonic()
     if (not isinstance(train, (list, tuple)) or not train or
@@ -110,7 +112,7 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
                 state.get("speed", [1, 1, "fp32"]) != speed or
                 state.get("objective", "dialogue") != objective or
                 state.get("init_sha256") != (base_sha if base else None) or
-                state.get("arch", {}) != arch):
+                state.get("arch", {}) != arch or state.get("lr", 0.0003) != lr):
             raise ValueError("Checkpoint incompatible with current experiment")
         tokenizer = state["tokenizer"]
         check_bpe(tokenizer)
@@ -137,7 +139,7 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
         if base.get("vocab_size") != vocab:
             raise ValueError("Vocab mismatch")
         model.load_state_dict(base["weights"], strict=True)
-    opt = torch.optim.AdamW(model.parameters(), lr=0.0003)
+    opt = torch.optim.AdamW(model.parameters(), lr=lr)
     half = {"bf16": torch.bfloat16, "fp16": torch.float16}.get(precision)
     scaler = torch.amp.GradScaler("cuda") if precision == "fp16" else None
     start = 0
@@ -266,7 +268,7 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
                        "best_validation_nll": best_nll, "best_step": best_step,
                        "config": [width, heads, layers, context, max_merges, seed],
                        "training_device": device, "speed": speed, "objective": objective,
-                       "init_sha256": base_sha if base else None, "arch": arch}
+                       "init_sha256": base_sha if base else None, "arch": arch, "lr": lr}
             if scaler is not None:
                 payload["scaler"] = scaler.state_dict()
             if device == "cuda":

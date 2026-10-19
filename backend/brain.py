@@ -95,7 +95,8 @@ def think(model, state, prompt, *, drafts=3, max_tokens=96, seed=0):
         candidates.append({"text": text, "score": score, "errors": errors, "tools": calls})
     best = max(candidates, key=lambda c: c["score"])
     return {"answer": best["text"], "drafts": len(candidates), "passes": passes, "hard": hard,
-            "fixed": best is not candidates[0], "errors": best["errors"], "tools": best["tools"]}
+            "fixed": best is not candidates[0], "errors": best["errors"], "tools": best["tools"],
+            "texts": [c["text"] for c in candidates]}
 
 
 # ---- loading: full checkpoints and 4-bit compressed copies ----------------

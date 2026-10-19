@@ -39,7 +39,7 @@ DEFAULT_CONFIG = {"width": 320, "heads": 8, "layers": 4, "context": 256,
 SIZES = {"s": {"width": 320, "heads": 8, "layers": 4, "max_merges": 1024},
          "m": {"width": 512, "heads": 8, "layers": 8, "max_merges": 2048},
          "l": {"width": 640, "heads": 10, "layers": 10, "batch_size": 8, "accumulate": 2, "max_merges": 2048}}
-KINDS = ("quick", "sleep", "evolution", "merge", "grow")
+KINDS = ("quick", "sleep", "evolution", "merge", "grow", "swarm", "copy", "branch", "distill")
 RUN_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-(pilot|long|pretrain)\Z")
 TEXT_NAME = re.compile(r"^[^\\/:*?\"<>|]{1,120}\.txt\Z")
 TEXT_LICENSES = ("public-domain", "user-consent")
@@ -389,6 +389,7 @@ def _summary(path):
             "logic": progress.get("logic"), "kind": run.get("kind"), "verdict": progress.get("verdict"),
             "arch": (run.get("config") or {}).get("arch") or {}, "layers": (run.get("config") or {}).get("layers"),
             "grown_from": run.get("grown_from"), "compressed": progress.get("compressed"),
+            "introspection": progress.get("introspection"), "lr": (run.get("config") or {}).get("lr"),
             "history": progress.get("history", []), "has_best": best.is_file(),
             "resumable": progress.get("state") in ("paused", "interrupted") and run.get("mode") in ("long", "pretrain")}
 
@@ -421,7 +422,7 @@ def config_for(size, arch=None):
 
 
 def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, config=None, launch=True, base=None,
-          size="s", series=None, arch=None, kind=None, init=None, grow=None, records=None):
+          size="s", series=None, arch=None, kind=None, init=None, grow=None, records=None, scheduled=False):
     """init: a checkpoint (relative to the folder) whose weights and tokenizer the run continues;
     grow: {"from": run id, "layers": n} grows that version deeper first; records: a prepared
     dataset for internal runs (quick learning, sleep), which skip the 10 000 gate."""
@@ -491,7 +492,9 @@ def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, c
                                "config": config, "total_steps": total_steps,
                                "time_limit": limit, "created": _now(), "base": base, "series": series,
                                "kind": kind, "init": init, "internal": internal,
-                               "grown_from": grow["from"] if grow else None})
+                               "grown_from": grow["from"] if grow else None,
+                               # Started by the night cycle or a plan: pauses outside study hours.
+                               "scheduled": scheduled is True})
     _write(path / "progress.json", {"state": "starting", "t": time.time(), "steps": 0, "history": []})
     if launch:
         _spawn([sys.executable, str(CLI), "worker", run_id], path / "worker.log")
@@ -513,7 +516,7 @@ def control(run_id, action):
             raise ValueError("Обучение уже идёт")
         (path / "control.json").unlink(missing_ok=True)
         progress = _read(path / "progress.json", {}) or {}
-        progress.update({"state": "starting", "t": time.time(), "error": None})
+        progress.update({"state": "starting", "t": time.time(), "error": None, "paused_by": None})
         _write(path / "progress.json", progress)
         _spawn([sys.executable, str(CLI), "worker", run_id], path / "worker.log")
         return {"resumed": run_id}
@@ -685,6 +688,23 @@ def exam_worker(run_id):
     return 0
 
 
+def introspect_worker(run_id):
+    """Looks inside an older version on demand; new versions are looked into after their exam."""
+    from backend import introspect
+    from backend.neural_language_benchmark import load_candidate
+    path = _run_dir(run_id)
+    info = _read(path / "run.json")
+    progress = _read(path / "progress.json", {}) or {}
+    try:
+        records = _read(path / "dataset.json") if info.get("internal") else _load_records(info["dataset"])
+        progress["introspection"] = introspect.inspect(load_candidate(path / "language-longrun.pt.best.pt"),
+                                                       _prepare(records)["test"])
+    except Exception as error:  # noqa: BLE001 - the page shows why
+        progress["introspection"] = {"error": str(error)[:200]}
+    _write(path / "progress.json", progress)
+    return 0
+
+
 def compress(run_id):
     """4-bit copy of a version for answering; reports the size and what the exam says it cost."""
     from backend.neural_language_longrun import score_checkpoint
@@ -733,6 +753,8 @@ def stop_all():
     if plan and plan.get("queue"):
         plan["queue"], plan["error"] = [], "Остановлено кнопкой «Стоп всё»"
         _write(folder() / "series.json", plan)
+    from backend import plans
+    plans.stop()
     stopped = []
     for item in runs():
         if item["state"] in ("starting", "running"):
@@ -780,6 +802,31 @@ def _exam(path, data, lm, save):
         save(logic=logic.exam(loaded))
     except (ValueError, ImportError):
         pass
+    try:
+        from backend import introspect
+        save(introspection=introspect.inspect(loaded, data["test"]))
+    except (ValueError, ImportError, RuntimeError):
+        pass
+
+
+def _outside_schedule():
+    try:
+        from backend import schedule
+        plan = schedule.settings()
+        return plan["enforce"] and not schedule.allowed(grid=plan["grid"])
+    except Exception:  # noqa: BLE001 - a broken schedule never stops a lesson
+        return False
+
+
+def resume_scheduled():
+    """At the start of study hours: lessons the schedule paused continue where they stopped."""
+    resumed = []
+    for item in runs():
+        progress = _read(_run_dir(item["id"]) / "progress.json", {}) or {}
+        if item["state"] == "paused" and progress.get("paused_by") == "schedule" and item["resumable"] and not _active_job():
+            control(item["id"], "resume")
+            resumed.append(item["id"])
+    return resumed
 
 
 def _heartbeat(path, stop):
@@ -840,6 +887,13 @@ def worker(run_id):
                 (path / "control.json").unlink(missing_ok=True)
                 _exam(path, data, lm, save)
                 save(state="paused" if request == "pause" and run_info["mode"] != "pilot" else "stopped")
+                if request == "stop":
+                    from backend import plans
+                    plans.on_stopped(run_id, "Урок остановлен")
+                return 0
+            if run_info.get("scheduled") and _outside_schedule():
+                _exam(path, data, lm, save)
+                save(state="paused", paused_by="schedule")
                 return 0
             if progress.get("steps", 0) >= run_info["total_steps"] or elapsed >= run_info["time_limit"]:
                 _exam(path, data, lm, save)
@@ -848,6 +902,11 @@ def worker(run_id):
                     from backend import continual
                     save(verdict=continual.judge(run_id))
                 _continue_series(run_id)
+                try:
+                    from backend import plans
+                    plans.on_finished(run_id)
+                except Exception as error:  # noqa: BLE001 - the plan records its own failure
+                    print(repr(error), file=sys.stderr)
                 return 0
             chunk = max(1.0, min(CHUNK_SECONDS, run_info["time_limit"] - elapsed))
             began = time.monotonic()
@@ -857,7 +916,8 @@ def worker(run_id):
                          context=cfg["context"], max_merges=cfg["max_merges"], seed=cfg["seed"],
                          max_run_seconds=chunk, device=device, batch_size=cfg.get("batch_size", 1),
                          accumulate=cfg.get("accumulate", 1), precision=precision,
-                         objective="lm" if lm else "dialogue", init_from=init_from, arch=cfg.get("arch"))
+                         objective="lm" if lm else "dialogue", init_from=init_from, arch=cfg.get("arch"),
+                         lr=float(cfg.get("lr", 0.0003)))
             elapsed += time.monotonic() - began
             if status["steps"] <= status["resumed_from"] and status["steps"] < run_info["total_steps"]:
                 raise RuntimeError("Обучение не продвигается")
@@ -875,6 +935,11 @@ def worker(run_id):
             message = "Не хватило памяти видеокарты"
         save(state="failed", error=message[:200])
         print(repr(error), file=sys.stderr)
+        try:
+            from backend import plans
+            plans.on_stopped(run_id, message[:200])
+        except Exception:  # noqa: BLE001
+            pass
         return 1
     finally:
         stop.set()

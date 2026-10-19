@@ -20,8 +20,8 @@ MAX_ITEMS = 100000
 RATINGS = (None, "up", "down")
 SOURCES = {"yorika-chat": "user-consent", "teacher": "synthetic", "selfplay": "synthetic",
            "honesty": "synthetic", "tools": "synthetic", "selfcheck": "synthetic", "memory": "user-consent",
-           "logic": "synthetic"}
-PACKS = ("honesty", "tools", "logic")
+           "logic": "synthetic", "sim": "synthetic", "programs": "synthetic", "distill": "synthetic"}
+PACKS = ("honesty", "tools", "logic", "sim", "programs")
 MAX_SCORED = 400
 
 
@@ -303,6 +303,14 @@ def _pack(name):
     if name == "logic":
         from backend import curiosity, logic
         return logic.lessons(min(5, curiosity.logic_frontier() + 1))
+    if name == "sim":
+        from backend import simworld
+        return simworld.lessons()
+    if name == "programs":
+        from backend import programs
+        if not programs.library():
+            programs.learn()
+        return programs.lessons()
     raise ValueError("Неизвестный урок")
 
 

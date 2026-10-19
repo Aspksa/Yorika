@@ -23,6 +23,12 @@ class CloudSettingsRegression(unittest.TestCase):
         self.assertIn("scripts\\cloud-ru-model.py", content)
         self.assertIn("$origin -ne", content)
 
+    def test_models_read_only_route_and_client_disconnect_logging(self):
+        content = SERVER.read_text(encoding="utf-8-sig")
+        self.assertIn("@('status','models','diagnostics','persona-status','memory-status')", content)
+        self.assertIn("Log 'Cloud.ru streaming client disconnected'", content)
+        self.assertIn('Log "HTTP: browser disconnected"', content)
+
     def test_cloud_subprocess_timeout_precedes_blocking_stdout_read(self):
         content = SERVER.read_text(encoding="utf-8-sig")
         settings = content.split("}elseif($path -match '^/api/cloud-ru/", 1)[1].split(

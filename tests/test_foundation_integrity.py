@@ -3,7 +3,6 @@
 All memory tests operate in an isolated temporary directory, never the user profile.
 """
 import re
-import sqlite3
 import subprocess
 import sys
 import tempfile

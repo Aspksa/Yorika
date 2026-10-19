@@ -1,17 +1,18 @@
 @echo off
 setlocal EnableExtensions
+chcp 65001 >nul
 cd /d "%~dp0.."
 title YORIKA - Control Center
 
 :MENU
 echo.
 echo ============== YORIKA CENTER ==============
-echo 1. Check and install dependencies
-echo 2. Check GitHub CI (actionlint + zizmor)
-echo 3. Open PowerShell testing menu
-echo 4. Show tool versions
-echo 0. Exit
-choice /C 12340 /N /M "Select: "
+echo 1. Проверить и установить компоненты
+echo 2. Проверить GitHub CI (actionlint + zizmor)
+echo 3. Открыть меню тестов Yorika
+echo 4. Проверить установленные программы
+echo 0. Выход
+choice /C 12340 /N /M "Выбор: "
 if errorlevel 5 exit /b 0
 if errorlevel 4 goto VERSIONS
 if errorlevel 3 goto CENTER

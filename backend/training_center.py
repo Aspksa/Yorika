@@ -389,6 +389,8 @@ def _summary(path):
             "logic": progress.get("logic"), "kind": run.get("kind"), "verdict": progress.get("verdict"),
             "arch": (run.get("config") or {}).get("arch") or {}, "layers": (run.get("config") or {}).get("layers"),
             "grown_from": run.get("grown_from"), "compressed": progress.get("compressed"),
+            "parent": run.get("parent"), "merged": run.get("merged"), "sim": progress.get("sim"),
+            "tournament": progress.get("tournament"),
             "introspection": progress.get("introspection"), "lr": (run.get("config") or {}).get("lr"),
             "history": progress.get("history", []), "has_best": best.is_file(),
             "resumable": progress.get("state") in ("paused", "interrupted") and run.get("mode") in ("long", "pretrain")}
@@ -437,7 +439,17 @@ def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, c
         if source["mode"] != "long" or not source["has_best"]:
             raise ValueError("Вырастить можно обученную версию диалогов")
         config = dict(_read(_run_dir(source["id"]) / "run.json")["config"])
-        config["layers"] = config["layers"] + grow.get("layers", 2)
+        if grow.get("experts"):
+            # Wider instead of deeper: two experts split or removed (backend/growth.py).
+            from backend.neural_language_bpe_v2 import check_arch
+            try:
+                config["arch"] = check_arch(dict(config.get("arch") or {}, experts=(config.get("arch") or {}).get("experts", 0) + grow["experts"]))
+            except ValueError:
+                raise ValueError("Экспертов может быть 2, 4, 6 или 8") from None
+            if not (source["arch"] or {}).get("experts"):
+                raise ValueError("У этой версии нет роя экспертов")
+        else:
+            config["layers"] = config["layers"] + grow.get("layers", 2)
         if config["layers"] > 16:
             raise ValueError("Больше 16 слоёв не поддерживается")
     if device not in ("cpu", "cuda"):
@@ -480,25 +492,45 @@ def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, c
         _write(path / "dataset.json", records)
         dataset = dataset or "(%s)" % kind
     if grow is not None:
-        from backend.growth import grow as grow_brain
+        from backend.growth import grow as grow_brain, reshape_experts
         try:
-            grow_brain(_run_dir(grow["from"]) / "language-longrun.pt.best.pt", path / "grown.pt", grow.get("layers", 2))
+            source_best = _run_dir(grow["from"]) / "language-longrun.pt.best.pt"
+            if grow.get("experts"):
+                usage = ((_read(_run_dir(grow["from"]) / "progress.json", {}) or {}).get("introspection") or {}).get("experts")
+                reshape_experts(source_best, path / "grown.pt", usage, grow["experts"])
+            else:
+                grow_brain(source_best, path / "grown.pt", grow.get("layers", 2))
         except ValueError:
             shutil.rmtree(path, ignore_errors=True)
             raise
         init, kind = "runs/%s/grown.pt" % run_id, kind or "grow"
+    parent = _parent_of(init, base, grow) or config.get("from_run")
     _write(path / "run.json", {"schema": "yorika-training-run-v1", "id": run_id, "mode": mode,
                                "dataset": dataset, "manifest": data["manifest"], "device": device,
                                "config": config, "total_steps": total_steps,
                                "time_limit": limit, "created": _now(), "base": base, "series": series,
                                "kind": kind, "init": init, "internal": internal,
-                               "grown_from": grow["from"] if grow else None,
+                               "grown_from": grow["from"] if grow else None, "parent": parent,
                                # Started by the night cycle or a plan: pauses outside study hours.
                                "scheduled": scheduled is True})
     _write(path / "progress.json", {"state": "starting", "t": time.time(), "steps": 0, "history": []})
     if launch:
         _spawn([sys.executable, str(CLI), "worker", run_id], path / "worker.log")
     return {"id": run_id}
+
+
+def _parent_of(init, base, grow):
+    """The version a run starts from, for the family tree and tournaments against ancestors."""
+    if grow:
+        return grow["from"]
+    if init:
+        match = re.match(r"^runs/([0-9]{8}-[0-9]{6}-(?:pilot|long|pretrain))/", init)
+        if match:
+            return match.group(1)
+        current = active()
+        if current and current.get("checkpoint") == init:
+            return current.get("run")
+    return base
 
 
 def control(run_id, action):
@@ -613,14 +645,22 @@ def start_evolution(dataset, population=4, *, device="cuda", total_steps=100000,
     import random
     if type(population) is not int or not 3 <= population <= 8:
         raise ValueError("В поколении от 3 до 8 вариантов")
+    rng = random.Random(seed)
     finished = [r for r in runs() if r["mode"] == "long" and r.get("exam_per_char") is not None]
-    if finished:
+    from backend import archive
+    elite = archive.pick_parent(rng)
+    if elite:
+        # Open-ended: the parent is any elite of the archive, not always the single best.
+        best = {"id": elite}
+    elif finished:
         best = min(finished, key=lambda r: r["exam_per_char"])
-        parent = dict(_read(_run_dir(best["id"]) / "run.json")["config"])
+    else:
+        best = None
+    if best:
+        parent = dict(_read(_run_dir(best["id"]) / "run.json")["config"], from_run=best["id"])
     else:
         parent = config_for("s")
     parent["label"] = "родитель: " + _describe(parent)
-    rng = random.Random(seed)
     children, seen = [parent], {json.dumps({k: v for k, v in parent.items() if k != "label"}, sort_keys=True)}
     for _ in range(population * 10):
         if len(children) >= population:
@@ -685,7 +725,18 @@ def exam_worker(run_id):
     except Exception as error:  # noqa: BLE001 - the page shows why the exam failed
         save(error=str(error)[:200])
         return 1
+    _to_archive(run_id)
     return 0
+
+
+def _to_archive(run_id):
+    """A tournament against the parent and a place in the archive; never stops the run's end."""
+    try:
+        from backend import archive
+        return archive.update(run_id)
+    except Exception as error:  # noqa: BLE001
+        print(repr(error), file=sys.stderr)
+        return None
 
 
 def introspect_worker(run_id):
@@ -803,6 +854,11 @@ def _exam(path, data, lm, save):
     except (ValueError, ImportError):
         pass
     try:
+        from backend import simworld
+        save(sim=simworld.exam(loaded))
+    except (ValueError, ImportError):
+        pass
+    try:
         from backend import introspect
         save(introspection=introspect.inspect(loaded, data["test"]))
     except (ValueError, ImportError, RuntimeError):
@@ -898,6 +954,9 @@ def worker(run_id):
             if progress.get("steps", 0) >= run_info["total_steps"] or elapsed >= run_info["time_limit"]:
                 _exam(path, data, lm, save)
                 save(state="finished")
+                if not lm:
+                    _to_archive(run_id)
+                    progress.update(_read(path / "progress.json", {}) or {})
                 if run_info.get("kind") in ("quick", "sleep"):
                     from backend import continual
                     save(verdict=continual.judge(run_id))

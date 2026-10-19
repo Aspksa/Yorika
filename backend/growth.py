@@ -45,3 +45,51 @@ def grow(source, target, add_layers=2):
     torch.save(payload, temp)
     temp.replace(target)
     return {"layers": layers + add_layers, "parameters": sum(p.numel() for p in new.parameters())}
+
+
+def reshape_experts(source, target, usage=None, change=2):
+    """More experts where the router is crowded, fewer where experts sit idle.
+
+    change=+2 splits the two busiest experts: each gets a twin with the same weights and a
+    slightly perturbed router row, so the twins share the load and can then specialise.
+    change=-2 removes the two least used. Unlike growing layers this is not an exact identity;
+    the exam after the next lesson says what it cost.
+    """
+    import torch
+    from backend.neural_language_bpe_v2 import check_arch
+    if change not in (2, -2):
+        raise ValueError("Экспертов можно добавить или убрать по два")
+    state = torch.load(Path(source), map_location="cpu", weights_only=True)
+    arch = dict(state.get("arch") or {})
+    count = arch.get("experts", 0)
+    if not count:
+        raise ValueError("У этой версии нет роя экспертов")
+    new_count = count + change
+    try:
+        arch = check_arch(dict(arch, experts=new_count))
+    except ValueError:
+        raise ValueError("Экспертов может быть 2, 4, 6 или 8") from None
+    share = list(usage) if usage and len(usage) == count else [1.0 / count] * count
+    order = sorted(range(count), key=lambda e: -share[e])
+    keep = list(range(count)) if change > 0 else sorted(order[:new_count])
+    twins = order[:change] if change > 0 else []
+    generator = torch.Generator().manual_seed(7)
+    weights = {}
+    for name, value in state["weights"].items():
+        if ".ffn.router.weight" in name:
+            rows = [value[e] for e in keep] + [value[e] + torch.randn(value.shape[1], generator=generator) * value.std() * 0.01
+                                               for e in twins]
+            weights[name] = torch.stack(rows)
+        elif name.endswith(".ffn.up") or name.endswith(".ffn.down"):
+            weights[name] = torch.stack([value[e] for e in keep] + [value[e].clone() for e in twins])
+        else:
+            weights[name] = value
+    payload = dict(state, weights=weights, arch=arch, step=0)
+    payload.pop("optimizer", None)
+    target = Path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temp = target.with_name(target.name + ".tmp")
+    torch.save(payload, temp)
+    temp.replace(target)
+    return {"experts": new_count, "split" if change > 0 else "removed": twins if change > 0 else
+            sorted(set(range(count)) - set(keep))}

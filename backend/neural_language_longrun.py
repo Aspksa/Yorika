@@ -33,7 +33,14 @@ class _LazyRows:
         if index not in self.rows:
             ids, masked = self.encode(self.examples[index])
             if len(ids) > self.context + 1:
-                raise ValueError("Sequence exceeds configured context")
+                # A lesson longer than the context: drop the start of the question so the whole
+                # answer stays; if the answer alone is too long, keep the question's end and the answer's start. Exams never cut.
+                cut = len(ids) - (self.context + 1)
+                if cut < masked:
+                    ids, masked = ids[cut:], masked - cut
+                else:
+                    start = max(0, masked - self.context // 4)
+                    ids, masked = ids[start:start + self.context + 1], masked - start
             self.rows[index] = (ids, masked)
         return self.rows[index]
 

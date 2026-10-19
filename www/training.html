@@ -33,6 +33,7 @@
  <div class="tabs" role="tablist" aria-label="Разделы обучения">
   <button class="tab" role="tab" id="tab-train" aria-controls="pane-train" aria-selected="true" data-tab="train"><span class="tab-ic" data-icon="zap" aria-hidden="true"></span>Обучение</button>
   <button class="tab" role="tab" id="tab-brain" aria-controls="pane-brain" aria-selected="false" data-tab="brain" tabindex="-1"><span class="tab-ic" data-icon="brain" aria-hidden="true"></span>Мозг</button>
+  <button class="tab" role="tab" id="tab-evo" aria-controls="pane-evo" aria-selected="false" data-tab="evo" tabindex="-1"><span class="tab-ic" data-icon="dna" aria-hidden="true"></span>Эволюция</button>
   <button class="tab" role="tab" id="tab-exp" aria-controls="pane-exp" aria-selected="false" data-tab="exp" tabindex="-1"><span class="tab-ic" data-icon="thumb" aria-hidden="true"></span>Опыт<span class="tab-badge" id="tab-exp-badge" hidden></span></button>
   <button class="tab" role="tab" id="tab-teacher" aria-controls="pane-teacher" aria-selected="false" data-tab="teacher" tabindex="-1"><span class="tab-ic" data-icon="teacher" aria-hidden="true"></span>Учитель</button>
   <button class="tab" role="tab" id="tab-night" aria-controls="pane-night" aria-selected="false" data-tab="night" tabindex="-1"><span class="tab-ic" data-icon="calendar" aria-hidden="true"></span>Расписание</button>
@@ -315,6 +316,52 @@
    <div class="button-row"><button class="secondary" id="think-go">Подумать</button></div>
    <div id="think-out" class="think-out" hidden></div>
   </section>
+ </div>
+
+ <!-- ============ Эволюция ============ -->
+ <div class="pane" role="tabpanel" id="pane-evo" aria-labelledby="tab-evo" hidden>
+  <section class="dawn" aria-labelledby="dawn-title">
+   <div class="dawn-sky" aria-hidden="true"><span class="dawn-sun"></span><span class="dawn-ray"></span></div>
+   <div class="dawn-body">
+    <p class="dawn-kicker" id="dawn-since">Утренний отчёт</p>
+    <h2 id="dawn-title">Что было, пока вы спали</h2>
+    <ul class="dawn-lines" id="dawn-lines"></ul>
+    <div class="dawn-tonight" id="dawn-tonight"></div>
+   </div>
+   <aside class="dawn-health" aria-labelledby="health-title">
+    <h3 id="health-title"><span class="health-dot" id="health-dot"></span>Здоровье</h3>
+    <ul id="health-list"></ul>
+    <div class="dawn-switches">
+     <label class="mini-switch"><input type="checkbox" id="opt-week"><span>Сама выбирает занятие ночи</span></label>
+     <label class="mini-switch"><input type="checkbox" id="opt-tidy"><span>Убирает старые рабочие копии</span></label>
+    </div>
+    <button class="ghost small" id="tidy-now">Убрать сейчас</button>
+   </aside>
+  </section>
+
+  <section class="card species-card" aria-labelledby="species-title">
+   <header class="card-head"><span class="card-ic" data-icon="hex" aria-hidden="true"></span><div><h2 id="species-title">Карта видов</h2><p id="species-sub">Лучшая версия каждого вида: размер × устройство. Эволюция берёт родителя из любой клетки, поэтому не застревает на одном пути.</p></div></header>
+   <div class="species" id="species" role="table" aria-label="Архив версий"></div>
+   <ul class="live-log" id="species-log"></ul>
+  </section>
+
+  <div class="brain-grid">
+   <section class="card" aria-labelledby="ladder-title">
+    <header class="card-head"><span class="card-ic" data-icon="stairs" aria-hidden="true"></span><div><h2 id="ladder-title">Лестница задач</h2><p>Побеждает в 80 % жизней — задачи становятся сложнее; меньше 20 % — шаг назад. Цепочка собрана из двух других задач.</p></div></header>
+    <div class="ladders" id="ladders"></div>
+   </section>
+   <section class="card" aria-labelledby="recipe-title">
+    <header class="card-head"><span class="card-ic" data-icon="flask" aria-hidden="true"></span><div><h2 id="recipe-title">Рецепт учёбы</h2><p>Как она учится тоже эволюционирует: доли уроков, шаг обучения, длина. Побеждает рецепт с лучшим ростом экзаменов за час.</p></div></header>
+    <div class="genome" id="genome" aria-label="Доли уроков в рецепте"></div>
+    <p class="genome-line" id="genome-line"></p>
+    <ol class="recipe-board" id="recipe-board"></ol>
+    <div class="evo-actions">
+     <button class="primary small" data-evo-plan="recipes">Конкурс рецептов</button>
+     <button class="secondary small" data-evo-plan="shrink">Сжать выросшую</button>
+    </div>
+   </section>
+  </div>
+  <p class="hint">Все числа здесь измерены на коротких уроках этого ноутбука и служат подсказкой для следующего выбора, а не законом. Ни один шаг эволюции не включает версию без вашего решения, если вы сами не разрешили «включать, если не хуже».</p>
  </div>
 
  <!-- ============ Опыт ============ -->

@@ -15,6 +15,12 @@ Future self (distill): the slow version of Yorika (five drafts, every pass, chec
 questions; only answers the program confirms, or that most drafts agree on, are kept; the fast
 version (one draft) learns to answer like that. Repeated, each student becomes the next teacher.
 
+Recipes: the best known way to study and its mutants run from the same version; the one that
+improved the exams most per hour becomes the way quick lessons and sleep study (recipes.py).
+
+Shrink: a version that grew (deeper or wider) teaches a version of the size it grew from. The
+small one learns the big one's checked answers; it is kept only if it is not worse.
+
 Nothing here activates a version by itself, except through «включать сама, если не хуже».
 """
 import random
@@ -25,12 +31,13 @@ from datetime import datetime, timezone
 from backend import self_learning as sl
 from backend import training_center as tc
 
-KINDS = ("swarm", "search", "distill")
+KINDS = ("swarm", "search", "distill", "recipes", "shrink")
 SKILLS = ("logic", "sim", "programs", "tools", "experience")
 SKILL_NAMES = {"logic": "логика", "sim": "мир задач", "programs": "программы", "tools": "инструменты",
                "experience": "ваши разговоры"}
 LRS = (0.0001, 0.0003, 0.0006, 0.0002, 0.0004, 0.0008)
 TRIM = 0.2
+MAX_CHARS = 360
 
 
 def _now():
@@ -87,7 +94,8 @@ def _synthetic(pairs, source):
     seen, out = set(), []
     for prompt, answer in pairs:
         key = prompt.casefold().strip()
-        if key in banned or key in seen:
+        # Very long lessons (big mazes, chains of tasks) would not fit the model's context.
+        if key in banned or key in seen or len(prompt) + len(answer) > MAX_CHARS:
             continue
         seen.add(key)
         out.append({"prompt": prompt, "answer": answer, "source": source, "license": "synthetic",
@@ -155,7 +163,7 @@ def _tools_exam(loaded):
 # ---- start ------------------------------------------------------------------
 
 def start(kind, *, copies=None, branches=3, rounds=2, minutes=20, prompts=120, device=None, launch=True,
-          scheduled=False):
+          scheduled=False, teacher=None):
     if kind not in KINDS:
         raise ValueError("Неизвестный план")
     current_brain = tc.active()
@@ -176,6 +184,20 @@ def start(kind, *, copies=None, branches=3, rounds=2, minutes=20, prompts=120, d
         if not 2 <= len(copies) <= 6 or len(set(copies)) != len(copies) or any(c not in SKILLS for c in copies):
             raise ValueError("Выберите от 2 до 6 разных навыков")
         plan["copies"] = copies
+    elif kind == "recipes":
+        if type(branches) is not int or not 2 <= branches <= 6:
+            raise ValueError("Рецептов от 2 до 6")
+        plan.update(branches=branches, rounds=1)
+    elif kind == "shrink":
+        teacher = teacher or shrink_teacher()
+        if not teacher:
+            raise ValueError("Нет выросшей версии, которую можно сжать")
+        item = tc._summary(tc._run_dir(teacher))
+        if not item.get("grown_from") or not item["has_best"]:
+            raise ValueError("Сжать после роста можно только выросшую обученную версию")
+        if type(prompts) is not int or not 20 <= prompts <= 1000:
+            raise ValueError("Вопросов от 20 до 1000")
+        plan.update(teacher=teacher, student=_root(teacher), rounds=1, prompts=prompts)
     elif kind == "search":
         if type(branches) is not int or not 2 <= branches <= 6 or type(rounds) is not int or not 1 <= rounds <= 5:
             raise ValueError("Веток от 2 до 6, раундов от 1 до 5")
@@ -218,7 +240,28 @@ def _prepare_round(plan):
     base_run, base_ckpt = plan.get("init_run") or plan["base"]["run"], plan.get("init") or plan["base"]["checkpoint"]
     config = _config(base_run)
     queue = []
-    if plan["kind"] == "swarm":
+    if plan["kind"] == "recipes":
+        from backend import recipes
+        plan["recipes"] = recipes.candidates(plan["branches"], seed=int(plan["id"][-6:]))
+        for k, recipe in enumerate(plan["recipes"]):
+            records = recipes.records(recipe, seed=k)
+            if len(records) < 20:
+                raise ValueError("Для рецептов мало уроков: %d" % len(records))
+            queue.append({"label": "рецепт %d: %s" % (k + 1, recipes.describe(recipe)), "records": records,
+                          "kind": "branch", "recipe": k, "minutes": max(1, plan["minutes"] * recipe["time"]),
+                          "config": dict(config, lr=recipe["lr"], seed=config["seed"] + 77 * (k + 1))})
+    elif plan["kind"] == "shrink":
+        student = plan["student"]
+        records, made = distill_set(tc._run_dir(plan["teacher"]) / "language-longrun.pt.best.pt", plan["prompts"],
+                                    seed=plan["round"])
+        plan["made"] = made
+        if made["kept"] < 10:
+            raise ValueError("Большая версия ещё слаба для учителя: проверенных ответов %d из %d" % (made["kept"], made["asked"]))
+        base_ckpt = "runs/%s/language-longrun.pt.best.pt" % student
+        queue.append({"label": "малая учится у выросшей %s" % plan["teacher"], "records": records, "kind": "distill",
+                      "config": _config(student)})
+        _note(plan, "выросшая ответила: оставлено %d из %d" % (made["kept"], made["asked"]))
+    elif plan["kind"] == "swarm":
         for k, skill in enumerate(plan["copies"]):
             records = skill_set(skill, seed=k)
             if len(records) < 20:
@@ -264,7 +307,8 @@ def _next(plan):
         launch = plan.get("launch", True)
         for attempt in range(3):
             try:
-                run = tc.start("long", device=plan["device"], total_steps=1000000, hours=plan["minutes"] / 60,
+                run = tc.start("long", device=plan["device"], total_steps=1000000,
+                               hours=round(item.get("minutes", plan["minutes"]) / 60, 4),
                                config=item["config"], kind=item["kind"], init=item["init"],
                                records=tc._read(tc.folder() / item["records_file"]),
                                dataset="(%s)" % item["label"], launch=launch, scheduled=plan.get("scheduled", False))
@@ -273,7 +317,8 @@ def _next(plan):
                 if "секунду" not in str(error) or attempt == 2:
                     raise
                 time.sleep(1.1)
-        entry = {"id": run["id"], "label": item["label"], "skill": item.get("skill"), "round": plan["round"]}
+        entry = {"id": run["id"], "label": item["label"], "skill": item.get("skill"), "round": plan["round"],
+                 "recipe": item.get("recipe"), "minutes": item.get("minutes", plan["minutes"])}
         plan["runs"].append(entry)
         plan["round_runs"].append(run["id"])
         _save(plan)
@@ -295,6 +340,10 @@ def on_finished(run_id):
             return _finish_swarm(plan)
         if plan["kind"] == "search":
             return _finish_search_round(plan)
+        if plan["kind"] == "recipes":
+            return _finish_recipes(plan)
+        if plan["kind"] == "shrink":
+            return _finish_shrink(plan)
         return _finish_distill_round(plan)
     except Exception as error:  # noqa: BLE001
         return _end(plan, "failed", str(error)[:200])
@@ -445,6 +494,76 @@ def _finish_search(plan):
     return _end(plan, "finished", "Лучший путь найден за %d раунд(а): %s" % (plan["round"], {
         "rolled_back": "но он хуже активной на её экзамене, отложен", "waiting": "ждёт вашего решения",
         "activated": "включён сам"}[verdict["result"]]))
+
+
+def _finish_recipes(plan):
+    from backend import continual, recipes
+    from backend.neural_language_benchmark import load_candidate
+    test = _base_test(plan)
+    before = recipes.scores(load_candidate(tc.folder() / plan["base"]["checkpoint"]), test)
+    results = []
+    for entry in plan["runs"]:
+        if entry.get("recipe") is None or not tc._summary(tc._run_dir(entry["id"]))["has_best"]:
+            continue
+        after = recipes.scores(_load(entry["id"]), test)
+        per_hour, delta = recipes.gain(before, after, entry["minutes"] / 60)
+        results.append({"recipe": plan["recipes"][entry["recipe"]], "run": entry["id"], "gain_per_hour": per_hour,
+                        "gain": delta, "hours": entry["minutes"] / 60})
+    if not results:
+        return _end(plan, "failed", "Ни один рецепт не дошёл до экзамена")
+    outcome = recipes.remember(results)
+    plan["recipes_report"] = [{k: r[k] for k in ("run", "gain_per_hour", "gain")} | {"label": recipes.describe(r["recipe"])}
+                              for r in results]
+    winner = outcome["winner"]
+    if winner["gain"] <= 0:
+        return _end(plan, "finished", "Ни один рецепт не улучшил экзамены; прежний рецепт остаётся")
+    plan["result_run"] = winner["run"]
+    verdict = continual.judge(winner["run"])
+    return _end(plan, "finished", "Лучший рецепт: %s (+%.4f за час)%s; его урок %s" % (
+        recipes.describe(winner["recipe"]), winner["gain_per_hour"], ", теперь так учатся быстрые уроки и сон" if outcome["changed"] else "",
+        {"rolled_back": "хуже активной, отложен", "waiting": "ждёт вашего решения", "activated": "включён сам"}[verdict["result"]]))
+
+
+def _root(run_id):
+    """The version a grown one grew from, following several growths back to the first size."""
+    seen = set()
+    while run_id and run_id not in seen:
+        seen.add(run_id)
+        source = (tc._read(tc._run_dir(run_id) / "run.json", {}) or {}).get("grown_from")
+        if not source:
+            return run_id
+        run_id = source
+    return run_id
+
+
+def shrink_teacher():
+    """The newest finished grown version whose smaller ancestor still has its weights."""
+    for item in tc.runs():
+        if item.get("grown_from") and item["has_best"] and item["state"] == "finished":
+            try:
+                if tc._summary(tc._run_dir(_root(item["id"])))["has_best"]:
+                    return item["id"]
+            except ValueError:
+                continue
+    return None
+
+
+def _finish_shrink(plan):
+    from backend import continual
+    run_id = plan["round_runs"][-1]
+    item = tc._summary(tc._run_dir(run_id))
+    if not item["has_best"]:
+        return _end(plan, "failed", "Урок не сохранил точку")
+    teacher = tc._summary(tc._run_dir(plan["teacher"]))
+    plan["result_run"] = run_id
+    verdict = continual.judge(run_id)
+    progress = tc._read(tc._run_dir(run_id) / "progress.json", {}) or {}
+    progress["verdict"] = verdict
+    tc._write(tc._run_dir(run_id) / "progress.json", progress)
+    small, big = item.get("parameters") or 0, teacher.get("parameters") or 0
+    return _end(plan, "finished", "Сжатие: малая версия %s (%.1f млн против %.1f млн у выросшей), экзамен %s против %s; %s" % (
+        run_id, small / 1e6, big / 1e6, item.get("exam_per_char"), teacher.get("exam_per_char"),
+        {"rolled_back": "хуже активной, отложена", "waiting": "ждёт вашего решения", "activated": "включена сама"}[verdict["result"]]))
 
 
 def distill_set(checkpoint, prompts=120, seed=0):

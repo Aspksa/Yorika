@@ -13,7 +13,8 @@ REQUIRED = ["ЦЕНТР_YORIKA/ЦЕНТР_YORIKA.bat", "ЦЕНТР_YORIKA/center
             "scripts/run-acceptance.py", "scripts/ci-report-ru.py",
             "www/avatar.js", "docs/ROADMAP.md", "planning/tasks.json"]
 EXCLUDED = {".git", ".yorika", "__pycache__", "node_modules", "python312-runtime", ".venv"}
-SECRET_NAMES = {".env", ".credentials", "id_rsa", "id_ed25519"}
+SECRET_NAMES = {".env", ".credentials", ".netrc", "id_rsa", "id_ed25519"}
+SECRET_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".dpapi"}
 
 
 def eligible(path):
@@ -22,7 +23,9 @@ def eligible(path):
         return False
     if any(part in SECRET_NAMES or part.startswith(".env.") for part in parts):
         return False
-    if path.suffix in (".pyc", ".db", ".sqlite", ".sqlite3", ".dpapi"):
+    if path.suffix.lower() in (".pyc", ".db", ".sqlite", ".sqlite3") or path.suffix.lower() in SECRET_SUFFIXES:
+        return False
+    if any(part.lower() in SECRET_NAMES or part.lower().startswith(".env.") for part in parts):
         return False
     if path.name.startswith("python-") and path.name.endswith("-embed-amd64.zip"):
         return False

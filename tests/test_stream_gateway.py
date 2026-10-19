@@ -24,8 +24,11 @@ class StreamGatewayTests(unittest.TestCase):
                 on_delta("При")
                 on_delta("вет")
                 return {"answer": "Привет"}
+        class FakeLoader:
+            def exec_module(self, module):
+                pass
         class FakeSpec:
-            loader = None
+            loader = FakeLoader()
         original_spec = gateway.importlib.util.spec_from_file_location
         original_module = gateway.importlib.util.module_from_spec
         try:

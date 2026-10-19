@@ -123,7 +123,7 @@ try{
       $action=$Matches[1]
       try{
        if($requestHost -ne "127.0.0.1:$port"){throw 'Недопустимый Host'}
-       if($action -in @('status','diagnostics','persona-status','memory-status')){
+       if($action -in @('status','models','diagnostics','persona-status','memory-status')){
         if($method -ne 'GET'){throw 'Недопустимый метод'}
        }elseif($method -ne 'POST' -or $origin -ne "http://127.0.0.1:$port"){
         throw 'Доступ запрещён'

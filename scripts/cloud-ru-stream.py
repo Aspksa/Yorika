@@ -75,6 +75,14 @@ if __name__ == "__main__":
             message = "Cloud.ru: проверьте ID выбранной модели (404)"
         elif "HTTP 429" in detail:
             message = "Cloud.ru: превышен лимит запросов (429)"
+        elif "Cloud.ru API unavailable" in detail:
+            message = "Cloud.ru: нет соединения с API; проверьте сеть и прокси"
+        elif "timed out" in detail.lower() or "timeout" in detail.lower():
+            message = "Cloud.ru: превышено время ожидания ответа"
+        elif "Invalid Cloud.ru stream event" in detail:
+            message = "Cloud.ru: несовместимый формат потокового ответа"
+        elif "Cloud.ru streamed answer too long" in detail:
+            message = "Cloud.ru: ответ превышает допустимый размер"
         elif "Incomplete Cloud.ru stream" in detail:
             message = "Cloud.ru: сервер прервал поток ответа"
         elif "key not configured" in detail:

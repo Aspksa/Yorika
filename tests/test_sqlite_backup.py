@@ -36,6 +36,21 @@ class BackupTests(unittest.TestCase):
                 create_verified_backup(path, destination)
             self.assertEqual(destination.read_bytes(), b"keep me")
 
+    def test_rejects_source_alias_with_existing_snapshot(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "db.sqlite3"
+            with closing(sqlite3.connect(source)) as db:
+                db.execute("CREATE TABLE example (id INTEGER)")
+            alias = root / "alias.sqlite3"
+            try:
+                alias.symlink_to(source)
+            except (OSError, NotImplementedError):
+                self.skipTest("Symlinks unavailable on this runner")
+            with self.assertRaises(ValueError):
+                create_verified_backup(source, alias)
+            self.assertTrue(source.exists())
+
     def test_reject_symlink_destination(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

@@ -41,6 +41,10 @@ jobs:
           $python = Join-Path $PWD 'ЦЕНТР_YORIKA/python312-runtime/python.exe'
           if (Test-Path $python) { & $python --version }
           else { Write-Warning 'Встроенный Python ещё не установлен. Следующий этап попробует подготовить его.' }
+      - name: 'Удалить прошлый отчёт перед проверками'
+        run: |
+          $old = Join-Path $env:LOCALAPPDATA 'YorikaTestReports/yorika-portable-acceptance.json'
+          if (Test-Path $old) { Remove-Item -LiteralPath $old -Force }
       - name: Check changed files
         run: |
           & './ЦЕНТР_YORIKA/check-changes.ps1'

@@ -54,51 +54,61 @@
   </section>
  </div>
 
- <section class="panel appearance-panel" aria-labelledby="cloud-ru-title">
-  <header class="panel-head"><span class="panel-index">03</span><h2 id="cloud-ru-title">Cloud.ru — ИИ</h2></header>
-  <p class="support-text">API-ключ шифруется Windows DPAPI для текущего пользователя. В браузере ключ не хранится и повторно не показывается. Отправка сообщений и выбранных воспоминаний в Cloud.ru может тарифицироваться.</p>
-  <form id="cloud-ru-form" autocomplete="off">
-   <label class="token-label" for="cloud-ru-key">Ключ Cloud.ru Foundation Models</label>
-   <div class="token-field"><input id="cloud-ru-key" type="password" autocomplete="new-password" placeholder="Оставьте пустым, чтобы сохранить действующий ключ" maxlength="8192"></div>
-   <label class="token-label" for="cloud-ru-model">Модель Cloud.ru — выберите из списка или введите ID</label>
-   <div class="token-field"><input id="cloud-ru-model" type="text" list="cloud-ru-model-suggestions" maxlength="150" value="ai-sage/GigaChat3-10B-A1.8B" required><datalist id="cloud-ru-model-suggestions"><option value="ai-sage/GigaChat3-10B-A1.8B">GigaChat 3 10B (ID по умолчанию)</option></datalist></div><p class="support-text">Список подсказок не является каталогом всех доступных моделей. Можно вставить любой точный ID модели из Cloud.ru; доступ проверяется отдельной кнопкой и может тарифицироваться.</p>
-   <label class="token-label" for="cloud-ru-model-select">Доступные модели (после загрузки)</label><div class="token-field"><select id="cloud-ru-model-select" disabled><option value="">Сначала нажмите «Загрузить доступные модели»</option></select></div><p id="cloud-ru-status" class="setting-note" role="status" aria-live="polite">Проверка сохранённых настроек…</p>
+ <section class="panel appearance-panel" id="model" aria-labelledby="cloud-ru-title">
+  <header class="panel-head"><span class="panel-index">03</span><h2 id="cloud-ru-title">Языковая модель</h2><span id="cloud-ru-pill" class="model-pill" data-state="unknown">Проверка…</span></header>
+  <p class="support-text">Чат с аватаром отвечает через <b>Cloud.ru Foundation Models</b>. Запросы идут через локальный сервер Yorika: ключ шифруется Windows DPAPI для текущего пользователя, в браузере не хранится и повторно не показывается. Отправка сообщений и выбранных воспоминаний в Cloud.ru может тарифицироваться.</p>
+  <form id="cloud-ru-form" class="field-stack" autocomplete="off">
+   <div>
+    <label class="token-label" for="cloud-ru-key">API-ключ Cloud.ru Foundation Models</label>
+    <div class="token-field"><input id="cloud-ru-key" type="password" autocomplete="new-password" placeholder="Оставьте пустым, чтобы сохранить действующий ключ" maxlength="8192"></div>
+   </div>
+   <div>
+    <label class="token-label" for="cloud-ru-model">ID модели</label>
+    <div class="token-field"><input id="cloud-ru-model" type="text" list="cloud-ru-model-suggestions" maxlength="150" value="ai-sage/GigaChat3-10B-A1.8B" required spellcheck="false"><datalist id="cloud-ru-model-suggestions"><option value="ai-sage/GigaChat3-10B-A1.8B">GigaChat 3 10B (ID по умолчанию)</option></datalist></div>
+    <p class="field-hint">Выберите из загруженного списка ниже или введите ID вручную: подойдёт любой точный ID из Cloud.ru.</p>
+   </div>
+   <div>
+    <label class="token-label" for="cloud-ru-model-select">Доступные модели</label>
+    <div class="select-row"><div class="token-field select-field"><select id="cloud-ru-model-select" disabled><option value="">Сначала загрузите список</option></select></div><button id="cloud-ru-models-refresh" class="ghost" type="button">Загрузить список</button></div>
+   </div>
+   <p id="cloud-ru-status" class="setting-note" role="status" aria-live="polite">Проверка сохранённых настроек…</p>
    <div class="button-row">
-    <button id="cloud-ru-save" class="secondary" type="submit">Сохранить ключ и модель</button>
-    <button id="cloud-ru-models-refresh" class="ghost" type="button">Загрузить доступные модели</button>
-    <button id="cloud-ru-diagnostics" class="ghost" type="button">Диагностика (без запроса к облаку)</button>
-    <button id="cloud-ru-check" class="ghost" type="button">Проверить подключение</button>
-    <button id="cloud-ru-delete" class="ghost danger" type="button">Удалить ключ</button>
+    <button id="cloud-ru-save" class="primary" type="submit">Сохранить ключ и модель</button>
+    <button id="cloud-ru-check" class="secondary" type="button">Проверить подключение</button>
+    <button id="cloud-ru-diagnostics" class="ghost" type="button">Диагностика без запроса</button>
+    <button id="cloud-ru-delete" class="ghost danger push-end" type="button">Удалить ключ</button>
    </div>
   </form>
  </section>
 
- <section class="panel appearance-panel" aria-labelledby="persona-growth-title">
-  <header class="panel-head"><span class="panel-index">04</span><h2 id="persona-growth-title">Рост личности Йорики</h2></header>
-  <p class="support-text">Дополнительные реплики хранятся локально в SQLite. При включённом накоплении после каждых 20 подходящих сообщений Йорика автоматически запрашивает у Cloud.ru новые варианты; это может тарифицироваться. Проверка личных данных и похожих фраз эвристическая и не гарантирует полной защиты.</p>
-  <label><input id="persona-growth-enabled" type="checkbox"> Сохранять новые реплики</label>
-  <p id="persona-growth-status" class="setting-note" role="status" aria-live="polite">Загрузка статистики…</p>
-  <button id="persona-growth-refresh" class="ghost" type="button">Обновить список</button>
-  <ul id="persona-growth-replies" aria-label="Недавние накопленные реплики"></ul>
- </section>
-
  <section class="panel appearance-panel" aria-labelledby="memory-controls-title">
-  <header class="panel-head"><h2 id="memory-controls-title">Моя память и предпочтения</h2></header>
-  <p class="support-text">Предпочтения сохраняются только по вашему явному действию. Воспоминания можно исправить или удалить.</p>
-  <label for="memory-preference-key">Название предпочтения (латиница, без пробелов)</label>
-  <input id="memory-preference-key" maxlength="64" placeholder="communication_style">
-  <label for="memory-preference-text">Значение</label>
-  <input id="memory-preference-text" maxlength="500" placeholder="Отвечай кратко">
+  <header class="panel-head"><span class="panel-index">04</span><h2 id="memory-controls-title">Память и предпочтения</h2></header>
+  <p class="support-text">Долговременная память Yorika хранится в SQLite на этом компьютере. Предпочтения сохраняются только по вашему явному действию, воспоминания можно исправить или удалить.</p>
+  <div class="pref-form">
+   <div><label class="token-label" for="memory-preference-key">Название (латиница, без пробелов)</label><div class="token-field"><input id="memory-preference-key" maxlength="64" placeholder="communication_style" spellcheck="false"></div></div>
+   <div><label class="token-label" for="memory-preference-text">Значение</label><div class="token-field"><input id="memory-preference-text" maxlength="500" placeholder="Отвечай кратко"></div></div>
+  </div>
   <div class="button-row">
    <button id="memory-preference-save" class="secondary" type="button">Сохранить предпочтение</button>
-   <button id="memory-controls-refresh" class="ghost" type="button">Обновить память</button>
+   <button id="memory-controls-refresh" class="ghost" type="button">Обновить</button>
   </div>
-  <p id="memory-controls-status" role="status" aria-live="polite"></p>
-  <h3>Предпочтения</h3><ul id="memory-preferences-list"></ul>
-  <h3>Воспоминания</h3><ul id="memory-items-list"></ul>
+  <p id="memory-controls-status" class="token-status" role="status" aria-live="polite"></p>
+  <div class="memory-columns">
+   <div><h3 class="list-title">Предпочтения</h3><ul id="memory-preferences-list" class="item-list" data-empty="Пока нет сохранённых предпочтений"></ul></div>
+   <div><h3 class="list-title">Воспоминания</h3><ul id="memory-items-list" class="item-list" data-empty="Пока нет воспоминаний"></ul></div>
+  </div>
  </section>
+
+ <section class="panel appearance-panel" aria-labelledby="persona-growth-title">
+  <header class="panel-head"><span class="panel-index">05</span><h2 id="persona-growth-title">Рост личности Йорики</h2></header>
+  <p class="support-text">Дополнительные реплики хранятся локально в SQLite. При включённом накоплении после каждых 20 подходящих сообщений Йорика автоматически запрашивает у Cloud.ru новые варианты; это может тарифицироваться. Проверка личных данных и похожих фраз эвристическая и не гарантирует полной защиты.</p>
+  <label class="switch"><input id="persona-growth-enabled" type="checkbox"><span class="switch-track" aria-hidden="true"></span><span><strong>Сохранять новые реплики</strong><small id="persona-growth-status" role="status" aria-live="polite">Загрузка статистики…</small></span></label>
+  <div class="list-head"><h3 class="list-title">Недавние реплики</h3><button id="persona-growth-refresh" class="ghost" type="button">Обновить список</button></div>
+  <ul id="persona-growth-replies" class="item-list" aria-label="Недавние накопленные реплики" data-empty="Накопленных реплик пока нет"></ul>
+ </section>
+
  <section class="panel appearance-panel" aria-labelledby="look-title">
-  <header class="panel-head"><span class="panel-index">03</span><h2 id="look-title">Внешний вид</h2></header>
+  <header class="panel-head"><span class="panel-index">06</span><h2 id="look-title">Внешний вид</h2></header>
   <p class="support-text">Тема, цвет, скругления и размер интерфейса. Меняются сразу, хранятся в этом браузере.</p>
   <div class="appearance-grid">
    <fieldset class="choice-group">
@@ -125,7 +135,7 @@
  </section>
 
  <section class="panel avatar-panel" aria-labelledby="avatar-title">
-  <header class="panel-head"><span class="panel-index">04</span><h2 id="avatar-title">Аватар</h2></header>
+  <header class="panel-head"><span class="panel-index">07</span><h2 id="avatar-title">Аватар</h2></header>
   <p class="support-text">Картинка, которая живёт на всех страницах и открывает чат. Загруженные картинки хранятся в этом браузере.</p>
   <fieldset class="choice-group">
    <legend>Картинка <small>Лучше всего подходит PNG или WebP с прозрачным фоном</small></legend>
@@ -144,11 +154,11 @@
  </section>
 
  <section class="panel data-panel" aria-labelledby="data-title">
-  <header class="panel-head"><span class="panel-index">05</span><h2 id="data-title">Данные браузера</h2></header>
+  <header class="panel-head"><span class="panel-index">08</span><h2 id="data-title">Данные браузера</h2></header>
   <p class="support-text">Хранилище IndexedDB привязано к адресу с портом, поэтому после перезапуска Yorika на другом порту оно начинается заново.</p><p class="support-text"><a href="./memory.html">Открыть память браузера →</a></p>
   <ul id="store-list" class="store-list" aria-label="Разделы хранилища"><li class="store-empty">Подсчёт записей…</li></ul>
   <p id="data-status" class="token-status" role="status" aria-live="polite"></p>
-  <div class="button-row"><button class="secondary" id="export-data" type="button" disabled>Скачать копию JSON</button><label class="secondary avatar-upload"><input id="import-data-file" type="file" accept=".json,application/json">Проверить копию JSON</label><button class="ghost danger" id="clear-data" disabled>Очистить данные браузера</button></div><div id="import-preview" hidden><p id="import-summary" class="support-text"></p><button class="secondary" id="apply-import" type="button">Восстановить без перезаписи</button></div>
+  <div class="button-row"><button class="secondary" id="export-data" type="button" disabled>Скачать копию JSON</button><label class="secondary avatar-upload"><input id="import-data-file" type="file" accept=".json,application/json">Проверить копию JSON</label><button class="ghost danger" id="clear-data" type="button" disabled>Очистить данные браузера</button></div><div id="import-preview" hidden><p id="import-summary" class="support-text"></p><button class="secondary" id="apply-import" type="button">Восстановить без перезаписи</button></div>
  </section>
 </main>
 </body></html>

@@ -185,10 +185,13 @@ el("clear-data").onclick=async()=>{
  catch(e){const li=document.createElement("li");li.className="store-empty";li.textContent="Хранилище недоступно: "+e.message;el("store-list").replaceChildren(li)}
 })();
 
-async function cloudStatus(){
+// The pill in the panel header tells at a glance whether the avatar chat can answer.
+function cloudPill(state,text){const pill=el("cloud-ru-pill");pill.dataset.state=state;pill.textContent=text}
+async function cloudStatus(prefix=""){
  const result=await api("/api/cloud-ru/status");
  el("cloud-ru-model").value=result.model;
- el("cloud-ru-status").textContent=result.configured?"Ключ зашифрован и сохранён на этом компьютере.":"Ключ пока не сохранён.";
+ el("cloud-ru-status").textContent=prefix+(result.configured?"Ключ зашифрован и сохранён на этом компьютере. Чат аватара отвечает через модель "+result.model+".":"Ключ пока не сохранён, поэтому чат аватара не может ответить. Вставьте API-ключ Cloud.ru и нажмите «Сохранить ключ и модель».");
+ cloudPill(result.configured?"ready":"off",result.configured?"Ключ сохранён":"Не подключена");
 }
 el("cloud-ru-models-refresh").onclick=async()=>{
  const button=el("cloud-ru-models-refresh");button.disabled=true;
@@ -220,7 +223,7 @@ el("cloud-ru-form").onsubmit=async event=>{
  try{
   await api("/api/cloud-ru/save",{method:"POST",body:JSON.stringify({key:key||null,model})});
   el("cloud-ru-key").value="";
-  await cloudStatus();
+  await cloudStatus("Сохранено. ");
  }catch(error){el("cloud-ru-status").textContent="Не удалось сохранить настройки: "+error.message}
  finally{button.disabled=false}
 };
@@ -241,7 +244,8 @@ el("cloud-ru-check").onclick=async()=>{
  try{
   const result=await api("/api/cloud-ru/check",{method:"POST",body:"{}"});
   el("cloud-ru-status").textContent=result.connected?"Подключение работает. Модель: "+result.model:"Cloud.ru не подтвердил ответ.";
- }catch(error){el("cloud-ru-status").textContent="Проверка не пройдена: "+error.message}
+  if(result.connected)cloudPill("ok","Подключена");else cloudPill("error","Нет ответа");
+ }catch(error){el("cloud-ru-status").textContent="Проверка не пройдена: "+error.message;cloudPill("error","Ошибка")}
  finally{button.disabled=false}
 };
 el("cloud-ru-delete").onclick=async()=>{
@@ -249,10 +253,10 @@ el("cloud-ru-delete").onclick=async()=>{
  try{
   await api("/api/cloud-ru/delete",{method:"POST",body:"{}"});
   el("cloud-ru-key").value="";
-  await cloudStatus();
+  await cloudStatus("Ключ удалён с этого компьютера. ");
  }catch(error){el("cloud-ru-status").textContent="Ошибка удаления: "+error.message}
 };
-cloudStatus().catch(error=>{el("cloud-ru-status").textContent="Настройки Cloud.ru недоступны: "+error.message});
+cloudStatus().catch(error=>{el("cloud-ru-status").textContent="Настройки Cloud.ru недоступны: "+error.message;cloudPill("error","Недоступна")});
 
 async function refreshPersonaGrowth(){
  const report=await api("/api/cloud-ru/persona-status");
@@ -261,8 +265,8 @@ async function refreshPersonaGrowth(){
  const list=el("persona-growth-replies");
  list.replaceChildren(...report.replies.map(item=>{
   const li=document.createElement("li");
-  const snippet=document.createElement("span");snippet.textContent=item.text.slice(0,180);
-  const del=document.createElement("button");del.type="button";del.textContent="Удалить";del.className="ghost danger";
+  const snippet=document.createElement("span");snippet.className="item-text";snippet.textContent=item.text.slice(0,180);
+  const del=document.createElement("button");del.type="button";del.textContent="Удалить";del.className="ghost danger small";
   del.onclick=async()=>{del.disabled=true;try{
    await api("/api/cloud-ru/persona-delete",{method:"POST",body:JSON.stringify({id:item.id})});
    await refreshPersonaGrowth();
@@ -290,19 +294,21 @@ async function refreshMemoryControls(){
  const prefList=el("memory-preferences-list"), memList=el("memory-items-list");
  function entry(text,namespace,id,editable){
   const li=document.createElement("li"),label=document.createElement("span");
-  label.textContent=text;
-  const remove=document.createElement("button");remove.textContent="Удалить";remove.type="button";
+  label.className="item-text";label.textContent=text;
+  const actions=document.createElement("span");actions.className="item-actions";
+  const remove=document.createElement("button");remove.textContent="Удалить";remove.type="button";remove.className="ghost danger small";
   remove.onclick=async()=>{
    if(!confirm("Удалить выбранную запись из памяти?"))return;
    try{await api("/api/cloud-ru/memory-delete",{method:"POST",body:JSON.stringify({namespace,id})});
        await refreshMemoryControls()}catch(e){el("memory-controls-status").textContent=e.message}
   };
-  li.append(label,remove);
-  if(editable){const edit=document.createElement("button");edit.textContent="Исправить";edit.type="button";
+  li.append(label,actions);
+  if(editable){const edit=document.createElement("button");edit.textContent="Исправить";edit.type="button";edit.className="ghost small";
    edit.onclick=async()=>{const value=prompt("Исправить текст воспоминания:",text);if(value===null)return;
     try{await api("/api/cloud-ru/memory-edit",{method:"POST",body:JSON.stringify({id,text:value})});
     await refreshMemoryControls()}catch(e){el("memory-controls-status").textContent=e.message}};
-   li.append(edit)}
+   actions.append(edit)}
+  actions.append(remove);
   return li;
  }
  prefList.replaceChildren(...report.preferences.map(x=>entry(x.key+": "+x.text,"user_preferences",x.key,false)));
@@ -311,8 +317,13 @@ async function refreshMemoryControls(){
 }
 el("memory-controls-refresh").onclick=()=>refreshMemoryControls().catch(e=>{el("memory-controls-status").textContent=e.message});
 el("memory-preference-save").onclick=async()=>{
- try{await api("/api/cloud-ru/memory-set",{method:"POST",body:JSON.stringify({
-  key:el("memory-preference-key").value.trim(),text:el("memory-preference-text").value.trim()
- })});await refreshMemoryControls()}catch(e){el("memory-controls-status").textContent=e.message}
+ const key=el("memory-preference-key").value.trim(),text=el("memory-preference-text").value.trim();
+ if(!/^[A-Za-z0-9_-]{1,64}$/.test(key)){el("memory-controls-status").textContent="Название: латинские буквы, цифры, _ или -, без пробелов.";el("memory-preference-key").focus();return}
+ if(!text){el("memory-controls-status").textContent="Введите значение предпочтения.";el("memory-preference-text").focus();return}
+ const button=el("memory-preference-save");button.disabled=true;
+ try{await api("/api/cloud-ru/memory-set",{method:"POST",body:JSON.stringify({key,text})});
+  el("memory-preference-key").value="";el("memory-preference-text").value="";
+  await refreshMemoryControls()}catch(e){el("memory-controls-status").textContent="Не удалось сохранить: "+e.message}
+ finally{button.disabled=false}
 };
 refreshMemoryControls().catch(e=>{el("memory-controls-status").textContent="Управление памятью недоступно: "+e.message});

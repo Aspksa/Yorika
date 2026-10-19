@@ -14,8 +14,11 @@
   id=newThread();try{localStorage.setItem(THREAD_KEY,id)}catch(e){}
   return id;
  }
+ // Each step remembers why it failed, so the chat can say what to fix instead of a generic line.
+ async function serverError(response){try{var v=await response.json();if(v&&typeof v.error==="string"&&v.error.length<200)return v.error}catch(e){}return "ошибка сервера ("+response.status+")"}
+ var SETTINGS_HINT="Откройте Настройки → «Языковая модель», вставьте API-ключ Cloud.ru и нажмите «Сохранить ключ и модель».";
  var responder=async function(text,history,onChunk){
-  var receivedAny=false;
+  var receivedAny=false,modelError="";
   try{
    var stream=await fetch('/api/chat/stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:text,conversation_id:threadId()}),cache:'no-store'});
    if(stream.ok&&stream.body){
@@ -34,37 +37,46 @@
     }
     if(finished&&full.trim())return full;
     if(full)throw Error('Поток оборвался до завершения ответа');
-   }
-  }catch(e){if(receivedAny)throw e;/* Fallback to non-streaming request for meaningful provider errors. */}
-
-  try{
-   var generated=await fetch("/api/chat/respond",{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({query:text,conversation_id:threadId()}),cache:"no-store"
-   });
-   if(generated.ok){
-    var completed=await generated.json();
-    if(typeof completed.answer==="string"&&completed.answer.trim())return completed.answer;
-   }
-  }catch(e){/* Local model is optional; fall back to source-labeled memory search. */}
+   }else if(!stream.ok)modelError=await serverError(stream);
+  }catch(e){if(receivedAny)throw e;modelError=e&&e.message||String(e)}
+  // A classified Cloud.ru error (no key, 401, 403, 404) would only repeat on a second paid request.
+  if(!/^Cloud\.ru: (сначала|неверный|нет доступа|проверьте)/.test(modelError)){
+   try{
+    var generated=await fetch("/api/chat/respond",{
+     method:"POST",headers:{"Content-Type":"application/json"},
+     body:JSON.stringify({query:text,conversation_id:threadId()}),cache:"no-store"
+    });
+    if(generated.ok){
+     var completed=await generated.json();
+     if(typeof completed.answer==="string"&&completed.answer.trim())return completed.answer;
+    }else modelError=await serverError(generated);
+   }catch(e){if(!modelError)modelError="нет связи с локальным сервером Yorika"}
+  }
+  var because;
+  if(/сначала сохраните|ключ не настроен/.test(modelError))because="Языковая модель ещё не подключена. "+SETTINGS_HINT;
+  else{
+   because="Языковая модель не ответила: "+(modelError||"причина неизвестна").replace(/\.$/,"")+". ";
+   if(/Python/.test(modelError))because+="После установки Python перезапустите Yorika.bat.";
+   else if(/^Cloud\.ru: (неверный|нет доступа|проверьте)/.test(modelError))because+="Проверьте ключ и ID модели в Настройках → «Языковая модель».";
+  }
 
   try{
    var response=await fetch("/api/memory/recall",{
     method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({query:text}),cache:"no-store"
    });
-   if(!response.ok)throw Error("Поиск SQLite недоступен");
+   if(!response.ok)throw Error(await serverError(response));
    var result=await response.json();
    if(Array.isArray(result.memories)&&result.memories.length){
-    return "Нашла в сохранённой памяти (это поиск, а не ответ языковой модели):\\n"+
+    return because+"\n\nНашла в сохранённой памяти (это поиск, а не ответ модели):\n"+
      result.memories.map(function(m){
       return "• "+m.text+" [источник: "+m.source+
        (m.source_id?", "+m.source_id:"")+"]";
-     }).join("\\n");
+     }).join("\n");
    }
-   return "В сохранённой памяти пока не нашла подходящих записей. Языковая модель ещё не подключена.";
+   return because+"\n\nВ сохранённой памяти подходящих записей нет.";
   }catch(e){
-   return "Поиск долговременной памяти сейчас недоступен. Языковая модель ещё не подключена.";
+   return because+"\n\nПоиск по долговременной памяти тоже недоступен: "+(e&&e.message||e)+".";
   }
  };
  function readLook(){

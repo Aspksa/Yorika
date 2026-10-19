@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
@@ -380,8 +380,8 @@ class Store:
         """Case-insensitive literal search in local JSON memories, including Cyrillic."""
         if not isinstance(namespace, str) or not namespace:
             raise ValueError("namespace must be non-empty")
-        if not isinstance(query, str) or not query.strip():
-            raise ValueError("query must be a non-empty string")
+        if not isinstance(query, str) or not query.strip() or len(query) > 4000:
+            raise ValueError("query must be non-empty and at most 4000 characters")
         if type(limit) is not int or not 1 <= limit <= 100:
             raise ValueError("limit must be between 1 and 100")
         term = query.strip().casefold()
@@ -420,8 +420,8 @@ class Store:
         """
         if not isinstance(namespace, str) or not namespace:
             raise ValueError("namespace must be non-empty")
-        if not isinstance(query, str) or not query.strip():
-            raise ValueError("query must be a non-empty string")
+        if not isinstance(query, str) or not query.strip() or len(query) > 4000:
+            raise ValueError("query must be non-empty and at most 4000 characters")
         if type(limit) is not int or not 1 <= limit <= 100:
             raise ValueError("limit must be between 1 and 100")
         import re
@@ -441,7 +441,7 @@ class Store:
             elif isinstance(obj, list):
                 for child in obj:
                     yield from flatten(child)
-        with sqlite3.connect(":memory:") as fts:
+        with closing(sqlite3.connect(":memory:")) as fts:
             try:
                 fts.execute("CREATE VIRTUAL TABLE docs USING fts5(record_id UNINDEXED, body, tokenize='unicode61')")
             except sqlite3.OperationalError as exc:

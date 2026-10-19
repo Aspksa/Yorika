@@ -50,6 +50,18 @@ class StreamFramingTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Empty Cloud.ru response"):
             collect_stream([thinking, b"data: [DONE]\n", b"\n"])
 
+    def test_usage_and_role_chunks_are_ignored(self):
+        # OpenAI-compatible servers end with a usage chunk whose choices list is empty.
+        role = b'data: {"choices":[{"index":0,"delta":{"role":"assistant"}}]}\n\n'
+        null_delta = b'data: {"choices":[{"index":0,"delta":null,"finish_reason":"stop"}]}\n\n'
+        usage = b'data: {"id":"x","choices":[],"usage":{"total_tokens":12}}\n\n'
+        response = [role, event("Привет"), null_delta, usage, b"data: [DONE]\n", b"\n"]
+        self.assertEqual(collect_stream(response), "Привет")
+
+    def test_error_event_is_reported(self):
+        with self.assertRaisesRegex(RuntimeError, "reported an error"):
+            collect_stream([b'data: {"error":{"message":"overloaded"}}\n\n'])
+
 
 if __name__ == "__main__":
     unittest.main()

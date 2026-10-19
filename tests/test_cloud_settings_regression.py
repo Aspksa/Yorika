@@ -15,7 +15,7 @@ class CloudSettingsRegression(unittest.TestCase):
     def test_server_routes_and_guardrails_are_not_corrupted(self):
         content = SERVER.read_text(encoding="utf-8-sig")
         self.assertIn(
-            "^/api/cloud-ru/(status|save|check|delete|diagnostics|", content
+            "^/api/cloud-ru/(status|models|save|check|delete|diagnostics|", content
         )
         self.assertIn("}elseif($path -eq '/api/chat/respond'){", content)
         self.assertIn("$action=$Matches[1]", content)

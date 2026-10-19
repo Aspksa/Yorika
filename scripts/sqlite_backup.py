@@ -37,7 +37,7 @@ def verify_snapshot(path: Path) -> dict:
 
 def create_verified_backup(source: Path, target: Path) -> dict:
     source, target = Path(source).resolve(), Path(target).expanduser().absolute()
-    if source == target:
+    if source == target or (target.exists() and os.path.samefile(source, target)):
         raise ValueError("Backup cannot overwrite source database")
     if not source.is_file():
         raise FileNotFoundError(source)

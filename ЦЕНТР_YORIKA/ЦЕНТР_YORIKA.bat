@@ -49,7 +49,23 @@ echo [INFO] Python is checked separately. The bundled 3.12 runtime is for Yorika
 python --version 2>nul
 if errorlevel 1 echo [WARNING] System Python is unavailable, Yorika has separate test bootstrap.
 echo [INFO] Reopen CMD before running checks after installing tools.
+call :CHECK_CI
 goto MENU
+
+:CHECK_CI
+echo.
+echo ========= RESULT =========
+where actionlint >nul 2>nul
+if errorlevel 1 (echo [MISSING] actionlint - install failed or PATH not refreshed.) else (
+ actionlint -version
+ if errorlevel 1 echo [ERROR] actionlint found but cannot run.
+)
+where zizmor >nul 2>nul
+if errorlevel 1 (echo [MISSING] zizmor - check uv tool list; reopen CMD after installation.) else (
+ zizmor --version
+ if errorlevel 1 echo [ERROR] zizmor found but cannot run.
+)
+exit /b 0
 
 :INSTALL
 where %~1 >nul 2>nul
@@ -61,7 +77,11 @@ echo [MISSING] %~1
 choice /C YN /M "Install %~1 with winget"
 if errorlevel 2 exit /b 0
 winget install --id %~2 --exact --source winget --accept-package-agreements --accept-source-agreements
-if errorlevel 1 echo [ERROR] Installation failed for %~1
+if errorlevel 1 (
+ echo [ERROR] Installation failed for %~1. Review winget output above.
+) else (
+ echo [INFO] Installer completed for %~1. Reopen CMD if command is still missing.
+)
 exit /b 0
 
 :CI

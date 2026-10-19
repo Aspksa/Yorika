@@ -123,7 +123,7 @@ try{
       $action=$Matches[1]
       try{
        if($requestHost -ne "127.0.0.1:$port"){throw 'Недопустимый Host'}
-       if($action -in @('status','diagnostics','persona-status','memory-status')){
+       if($action -in @('status','models','diagnostics','persona-status','memory-status')){
         if($method -ne 'GET'){throw 'Недопустимый метод'}
        }elseif($method -ne 'POST' -or $origin -ne "http://127.0.0.1:$port"){
         throw 'Доступ запрещён'
@@ -229,7 +229,12 @@ try{
         $stream.Write($ending,0,$ending.Length);$stream.Flush()
        }catch{
         if($proc -and -not $proc.HasExited){try{$proc.Kill()}catch{}}
-        Log 'Cloud.ru streaming request failed'
+        $reason=$_.Exception.Message
+        if($reason -match 'транспортное соединение|transport connection|forcibly closed|разорвала установленное подключение|broken pipe'){
+         Log 'Cloud.ru streaming client disconnected'
+        }else{
+         Log ('Cloud.ru streaming failed: '+$reason)
+        }
        }finally{if($proc){$proc.Dispose()}}
       }
      }elseif($path -eq '/api/chat/respond'){
@@ -381,7 +386,12 @@ try{
      }
     }finally{$client.Close()}
    }
-  }catch{Log ("HTTP: "+$_.Exception.Message)}
+  }catch{
+   $reason=$_.Exception.Message
+   if($reason -match "транспортное соединение|transport connection|forcibly closed|разорвала установленное подключение|broken pipe"){
+    Log "HTTP: browser disconnected"
+   }else{Log ("HTTP: "+$reason)}
+  }
   if($stopAfterReply){Log 'Новая версия запущена, эта копия закрывается';[Windows.Forms.Application]::ExitThread()}
  })
  $timer.Start()

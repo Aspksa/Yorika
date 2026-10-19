@@ -31,3 +31,5 @@ jobs:
         run: PYTHONPATH=. python scripts/verify-neural-exact-resume.py
       - name: Verify periodic checkpoint crash recovery
         run: PYTHONPATH=. python scripts/verify-neural-longrun.py
+      - name: Train Russian UTF-8 language brain and evaluate held-out NLL
+        run: PYTHONPATH=. python scripts/verify-language-brain.py

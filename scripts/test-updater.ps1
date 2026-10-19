@@ -26,6 +26,7 @@ try{
   [IO.File]::WriteAllText((Join-Path $source $name),'new version',[Text.Encoding]::UTF8)
  }
  SeedOld
+ Add-Type -AssemblyName System.IO.Compression
  Add-Type -AssemblyName System.IO.Compression.FileSystem
  $zipPath=Join-Path $staging ($sha+'.zip')
  $zip=[IO.Compression.ZipFile]::Open($zipPath,[IO.Compression.ZipArchiveMode]::Create)

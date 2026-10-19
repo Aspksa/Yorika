@@ -1,3 +1,4 @@
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -12,14 +13,14 @@ class BackupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             live = root / "db.sqlite3"
-            with sqlite3.connect(live) as db:
+            with closing(sqlite3.connect(live)) as db, db:
                 db.execute("PRAGMA journal_mode=WAL")
                 db.execute("CREATE TABLE memories (content TEXT)")
                 db.execute("INSERT INTO memories VALUES (?)", ("Ёрика помнит",))
             snapshot = root / "archive" / "backup.sqlite3"
             report = create_verified_backup(live, snapshot)
             self.assertEqual(report["integrity"], "ok")
-            with sqlite3.connect(snapshot) as restored:
+            with closing(sqlite3.connect(snapshot)) as restored, restored:
                 self.assertEqual(restored.execute("SELECT content FROM memories").fetchone()[0], "Ёрика помнит")
 
     def test_wont_overwrite_source_or_existing_file(self):
@@ -39,7 +40,7 @@ class BackupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             original = root / "live.sqlite3"
-            with sqlite3.connect(original) as db:
+            with closing(sqlite3.connect(original)) as db, db:
                 db.execute("CREATE TABLE example (id INTEGER)")
             protected = root / "protected.txt"
             protected.write_text("untouched")
@@ -56,7 +57,7 @@ class BackupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             live = root / "live.sqlite3"
-            with sqlite3.connect(live) as db:
+            with closing(sqlite3.connect(live)) as db, db:
                 db.execute("CREATE TABLE sample (id INTEGER PRIMARY KEY)")
                 db.execute("INSERT INTO sample VALUES (1)")
             snapshot = root / "backup.sqlite3"
@@ -69,7 +70,7 @@ class BackupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             source = root / "live.sqlite3"
-            with sqlite3.connect(source) as db:
+            with closing(sqlite3.connect(source)) as db, db:
                 db.execute("CREATE TABLE example (value TEXT)")
             target = root / "backup.sqlite3"
             real_verify = backup_module.verify_snapshot

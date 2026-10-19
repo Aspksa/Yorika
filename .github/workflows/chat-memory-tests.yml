@@ -41,6 +41,8 @@ jobs:
         run: |
           python scripts/run-acceptance.py --report yorika-acceptance.json
           cat yorika-acceptance.json
+      - name: Guard PowerShell 5.1 child UTF-8 stdin compatibility
+        run: python -m unittest discover -s tests -p 'test_powershell_stdin_compat.py' -v
       - name: Validate task checkboxes
         run: python scripts/check-plan.py
       - name: JavaScript syntax

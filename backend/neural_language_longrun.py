@@ -62,12 +62,16 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
     best_step = 0
     best_path = path.with_name(path.name + '.best.pt')
     if state:
+        if state.get("training_device", "cpu") != device:
+            raise ValueError("Checkpoint device transition requires a new experiment; exact resume denied")
         if state.get("vocab_size") != vocab:
             raise ValueError("Vocab mismatch")
         model.load_state_dict(state["weights"], strict=True)
         opt.load_state_dict(state["optimizer"])
         torch.set_rng_state(state["rng"])
-        if device == "cuda" and "cuda_rng" in state:
+        if device == "cuda":
+            if "cuda_rng" not in state:
+                raise ValueError("CUDA resume requires saved CUDA RNG; CPU checkpoint is incompatible")
             torch.cuda.set_rng_state(state["cuda_rng"], device=train_device)
         start = state["step"]
         best_nll = float(state.get('best_validation_nll', float('inf')))
@@ -125,7 +129,8 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
                        "step": i + 1, "tokenizer": tokenizer, "vocab_size": vocab,
                        "train_sha256": fingerprint, "validation_sha256": digest(validation),
                        "best_validation_nll": best_nll, "best_step": best_step,
-                       "config": [width, heads, layers, context, max_merges, seed]}
+                       "config": [width, heads, layers, context, max_merges, seed],
+                       "training_device": device}
             if device == "cuda":
                 payload["cuda_rng"] = torch.cuda.get_rng_state(train_device)
             temp = path.with_name(path.name + ".incomplete")

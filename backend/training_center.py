@@ -357,6 +357,16 @@ def control(run_id, action):
     raise ValueError("Неизвестное действие")
 
 
+def stop_all():
+    """Emergency stop: asks every running training to stop at the next chunk."""
+    stopped = []
+    for item in runs():
+        if item["state"] in ("starting", "running"):
+            _write(_run_dir(item["id"]) / "control.json", {"request": "stop", "t": _now(), "emergency": True})
+            stopped.append(item["id"])
+    return {"stopped": stopped}
+
+
 def _heartbeat(path, stop):
     while not stop.wait(5):
         try:

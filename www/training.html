@@ -16,6 +16,13 @@
   <p>Собственная нейросеть Yorika учится на вашем компьютере. Ваши данные никуда не отправляются, а новая версия становится активной только по вашему выбору.</p>
  </div>
  <p id="page-error" class="banner banner-err" role="alert" hidden></p>
+ <div class="tabs" role="tablist" aria-label="Разделы обучения">
+  <button class="tab" role="tab" id="tab-train" aria-controls="pane-train" aria-selected="true" data-tab="train"><span class="tab-num">01–05</span>Обучение</button>
+  <button class="tab" role="tab" id="tab-self" aria-controls="pane-self" aria-selected="false" data-tab="self" tabindex="-1"><span class="tab-num">1 · 2 · 6</span>Самообучение</button>
+  <button class="tab" role="tab" id="tab-grow" aria-controls="pane-grow" aria-selected="false" data-tab="grow" tabindex="-1"><span class="tab-num">07–19</span>Развитие</button>
+ </div>
+
+ <div class="pane" role="tabpanel" id="pane-train" aria-labelledby="tab-train">
 
  <section class="panel" aria-labelledby="gpu-title">
   <header class="panel-head"><span class="panel-index">01</span><h2 id="gpu-title">Видеокарта</h2></header>
@@ -115,5 +122,61 @@
   <p id="compare-status" class="token-status" role="status" aria-live="polite"></p>
   <div id="compare-result" class="compare" hidden></div>
  </section>
+ </div>
+
+ <div class="pane" role="tabpanel" id="pane-self" aria-labelledby="tab-self" hidden>
+  <div class="cycle" aria-label="Цикл самообучения">
+   <span class="cycle-step">Разговор</span><span class="cycle-arrow" aria-hidden="true">→</span><span class="cycle-step">Ваша оценка</span><span class="cycle-arrow" aria-hidden="true">→</span><span class="cycle-step">Обучение</span><span class="cycle-arrow" aria-hidden="true">→</span><span class="cycle-step">Проверка</span><span class="cycle-arrow" aria-hidden="true">→</span><span class="cycle-step cycle-you">Решаете вы</span>
+  </div>
+
+  <section class="panel" aria-labelledby="exp-title">
+   <header class="panel-head"><span class="panel-index">1</span><h2 id="exp-title">Сбор опыта</h2></header>
+   <label class="switch"><input type="checkbox" id="collect-toggle"><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Собирать примеры из чата</strong><small>Пары «ваш вопрос → ответ Yorika». Почта, пароли, ключи и ошибки отбрасываются. Без вашей оценки в обучение ничего не попадает.</small></span></label>
+   <dl class="facts facts-4">
+    <div><dt>Собрано</dt><dd id="exp-total">0</dd></div>
+    <div><dt>Без оценки</dt><dd id="exp-unrated">0</dd></div>
+    <div><dt>Одобрено 👍</dt><dd id="exp-up">0</dd></div>
+    <div><dt>Исправлено</dt><dd id="exp-fixed">0</dd></div>
+   </dl>
+   <div class="meter" aria-hidden="true"><span id="exp-meter"></span></div>
+   <p id="exp-note" class="token-status"></p>
+   <div class="button-row"><button class="primary" id="collect-now">Собрать из чата</button><button class="secondary" id="export-exp">Сохранить набор для обучения</button></div>
+   <p id="exp-result" class="token-status" role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="panel" aria-labelledby="rate-title">
+   <header class="panel-head"><span class="panel-index">2</span><h2 id="rate-title">Оценка ответов</h2></header>
+   <p class="support-text">👍 — ответ хороший, учиться на нём. 👎 — плохой: напишите, как надо было ответить, и Yorika будет учиться на вашем варианте.</p>
+   <div class="segmented filter" role="radiogroup" aria-label="Какие примеры показать">
+    <label><input type="radio" name="view" value="unrated" checked><span>Без оценки</span></label>
+    <label><input type="radio" name="view" value="up"><span>👍</span></label>
+    <label><input type="radio" name="view" value="down"><span>👎</span></label>
+    <label><input type="radio" name="view" value="all"><span>Все</span></label>
+   </div>
+   <ul id="examples" class="examples"></ul>
+   <div class="button-row"><button class="ghost" id="more" hidden>Показать ещё</button></div>
+  </section>
+
+  <section class="panel" aria-labelledby="decide-title">
+   <header class="panel-head"><span class="panel-index">6</span><h2 id="decide-title">Решение о новой версии</h2></header>
+   <div id="proposal-empty" class="empty-state">Новых версий пока нет. Когда долгое обучение закончится, здесь появится предложение, а сама версия не включится.</div>
+   <div id="proposal" class="proposal" hidden>
+    <p class="proposal-title">Есть новая версия. Включить её?</p>
+    <dl class="versions-compare">
+     <div class="version-tile"><dt>Сейчас</dt><dd><code id="prop-active">—</code><small id="prop-active-meta"></small></dd></div>
+     <div class="version-arrow" aria-hidden="true">→</div>
+     <div class="version-tile"><dt>Новая</dt><dd><code id="prop-new">—</code><small id="prop-new-meta"></small></dd></div>
+    </dl>
+    <p class="support-text">Ошибки сравнимы, только если версии учились на одних и тех же данных. Надёжнее сначала сравнить ответы.</p>
+    <div class="button-row"><button class="primary" id="prop-accept">Включить</button><button class="secondary" id="prop-compare">Сравнить ответы</button><button class="ghost" id="prop-dismiss">Отклонить</button></div>
+   </div>
+  </section>
+ </div>
+
+ <div class="pane" role="tabpanel" id="pane-grow" aria-labelledby="tab-grow" hidden>
+  <p class="support-text grow-intro">Следующие ступени развития. Статус честный: что уже работает, что в планах, а что пока исследование. Каждая ступень измеряется и включается только вами.</p>
+  <div class="legend"><span class="chip chip-ok">Работает частично</span><span class="chip">В планах</span><span class="chip chip-research">Исследование</span></div>
+  <div id="grow-cards" class="grow"></div>
+ </div>
 </main>
 </body></html>

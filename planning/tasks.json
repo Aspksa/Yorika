@@ -1083,6 +1083,148 @@
       "evidence": [],
       "completed_at": null,
       "notes": "Исследовательская гипотеза. Приёмка: заранее зарегистрированные метрики и независимые неизвестные тесты, baseline, репликация, стоимость и регрессии, журнал эксперимента, защита приватности, одобрение внедрения. Нельзя считать исследовательский результат обещанным или достигнутым."
+    },
+    {
+      "id": "HYPER-001",
+      "title": "Сверхобщение: объединённая архитектура диалога, контекста, медиа и совместного мышления",
+      "priority": "P2",
+      "depends_on": [
+        "CHAT-001",
+        "DIALOG-001",
+        "MEMORY-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance: runnable scenario and baseline; measure task success, factual accuracy, interaction latency, user control and privacy. Avoid emotion or mind-reading claims. No unsanctioned audio/video, proactive outreach or tool execution. Document regression, rollback and resource budget."
+    },
+    {
+      "id": "HYPER-002",
+      "title": "Модель диалогового состояния: темы, намерения, неопределённость, переключения и возврат",
+      "priority": "P2",
+      "depends_on": [
+        "HYPER-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance: runnable scenario and baseline; measure task success, factual accuracy, interaction latency, user control and privacy. Avoid emotion or mind-reading claims. No unsanctioned audio/video, proactive outreach or tool execution. Document regression, rollback and resource budget."
+    },
+    {
+      "id": "HYPER-003",
+      "title": "Адаптивная коммуникация: стиль, глубина, доступность, обратная связь без манипуляций",
+      "priority": "P2",
+      "depends_on": [
+        "HYPER-002",
+        "UX-002",
+        "LIFE-003"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance: runnable scenario and baseline; measure task success, factual accuracy, interaction latency, user control and privacy. Avoid emotion or mind-reading claims. No unsanctioned audio/video, proactive outreach or tool execution. Document regression, rollback and resource budget."
+    },
+    {
+      "id": "HYPER-004",
+      "title": "Синхронизированный мультимодальный диалог: текст, голос, аватар и разрешённые визуальные данные",
+      "priority": "P3",
+      "depends_on": [
+        "HYPER-002",
+        "CHAT-003",
+        "SENSE-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance: runnable scenario and baseline; measure task success, factual accuracy, interaction latency, user control and privacy. Avoid emotion or mind-reading claims. No unsanctioned audio/video, proactive outreach or tool execution. Document regression, rollback and resource budget."
+    },
+    {
+      "id": "HYPER-005",
+      "title": "Совместное мышление: постановка цели, уточнения, план, рабочее пространство, проверка решений",
+      "priority": "P2",
+      "depends_on": [
+        "HYPER-002",
+        "LIFE-001",
+        "REASON-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance: runnable scenario and baseline; measure task success, factual accuracy, interaction latency, user control and privacy. Avoid emotion or mind-reading claims. No unsanctioned audio/video, proactive outreach or tool execution. Document regression, rollback and resource budget."
+    },
+    {
+      "id": "HYPER-006",
+      "title": "Проактивный диалог с согласием: тайминг, тихие часы, отмена, объяснение причин",
+      "priority": "P2",
+      "depends_on": [
+        "HYPER-003",
+        "CHAT-002",
+        "INIT-001"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance: runnable scenario and baseline; measure task success, factual accuracy, interaction latency, user control and privacy. Avoid emotion or mind-reading claims. No unsanctioned audio/video, proactive outreach or tool execution. Document regression, rollback and resource budget."
+    },
+    {
+      "id": "HYPER-007",
+      "title": "Обучение качеству общения: добровольная обратная связь и независимые регрессионные оценки",
+      "priority": "P2",
+      "depends_on": [
+        "HYPER-003",
+        "EVAL-001",
+        "DATASET-002"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance: runnable scenario and baseline; measure task success, factual accuracy, interaction latency, user control and privacy. Avoid emotion or mind-reading claims. No unsanctioned audio/video, proactive outreach or tool execution. Document regression, rollback and resource budget."
+    },
+    {
+      "id": "HYPER-008",
+      "title": "Долгий разговор и общая память: факты с источником, противоречия, исправление и право удаления",
+      "priority": "P2",
+      "depends_on": [
+        "HYPER-002",
+        "MEMORY-005",
+        "MEMORY-007"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance: runnable scenario and baseline; measure task success, factual accuracy, interaction latency, user control and privacy. Avoid emotion or mind-reading claims. No unsanctioned audio/video, proactive outreach or tool execution. Document regression, rollback and resource budget."
+    },
+    {
+      "id": "HYPER-009",
+      "title": "Прозрачность сверхобщения: различать факт, догадку, симуляцию, эмоции и действие",
+      "priority": "P2",
+      "depends_on": [
+        "HYPER-002",
+        "DIALOG-001",
+        "SEC-002"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance: runnable scenario and baseline; measure task success, factual accuracy, interaction latency, user control and privacy. Avoid emotion or mind-reading claims. No unsanctioned audio/video, proactive outreach or tool execution. Document regression, rollback and resource budget."
+    },
+    {
+      "id": "HYPER-010",
+      "title": "Сквозная приёмка сверхобщения: реальные сценарии Windows, приватность, нагрузка и доступность",
+      "priority": "P2",
+      "depends_on": [
+        "HYPER-004",
+        "HYPER-005",
+        "HYPER-006",
+        "HYPER-007",
+        "HYPER-008",
+        "HYPER-009",
+        "QA-002"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Acceptance: runnable scenario and baseline; measure task success, factual accuracy, interaction latency, user control and privacy. Avoid emotion or mind-reading claims. No unsanctioned audio/video, proactive outreach or tool execution. Document regression, rollback and resource budget."
     }
   ]
 }

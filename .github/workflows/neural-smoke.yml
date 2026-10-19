@@ -33,6 +33,8 @@ jobs:
         run: PYTHONPATH=. python scripts/verify-neural-longrun.py
       - name: Verify deterministic Russian BPE tokenizer
         run: PYTHONPATH=. python -m unittest discover -s tests -p 'test_neural_bpe_v1.py' -v
+      - name: Verify locked final heldout test scoring and corpus lineage
+        run: PYTHONPATH=. python -m unittest discover -s tests -p 'test_final_language_test.py' -v
       - name: Run consented single-brain training experiment end-to-end
         run: PYTHONPATH=. python -m unittest discover -s tests -p 'test_language_experiment_runner.py' -v
       - name: Verify validation-selected best checkpoint survives exact resume

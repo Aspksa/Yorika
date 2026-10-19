@@ -4,6 +4,12 @@ Each environment writes a task, the code-written solution and the true answer. Y
 own correct solutions are kept (the program confirms the final answer), failures get the
 program's solution as a lesson. Exam tasks come from their own seeds and never become lessons.
 Lives, wins and the best streak are counted per environment, so growth is visible.
+
+The ladder: each environment has its own level. When she wins at least 80 % of at least ten
+lives in one, the next nights bring harder tasks there (bigger mazes, more words, more goods);
+below 20 % it steps back down, so practice stays at the edge of what she can do. The «chain»
+environment is made of two other tasks whose answers must be added: a new kind of task composed
+from the ones she already meets, still checked by code.
 """
 import random
 from collections import deque
@@ -13,6 +19,8 @@ from backend.logic import ANSWER, correct
 EXAM_PER_ENV = 8
 WORDS = ["лиса", "снег", "ветер", "луна", "сосна", "река", "звезда", "облако", "тропа", "иней", "заря", "лес"]
 FRUITS = ["яблоки", "груши", "сливы", "вишни", "персики"]
+MAX_LEVEL = 10
+CLIMB, DROP, MIN_LIVES = 0.8, 0.2, 10
 
 
 def _nim(rng, level):
@@ -31,7 +39,7 @@ def _grid(rng, level):
     """Shortest path on a small map; the program checks it with breadth-first search."""
     size = 4 + min(level, 3)
     while True:
-        walls = {(rng.randrange(size), rng.randrange(size)) for _ in range(size + level * 2)}
+        walls = {(rng.randrange(size), rng.randrange(size)) for _ in range(size + min(level, 5) * 2)}
         walls -= {(0, 0), (size - 1, size - 1)}
         dist = _bfs(size, walls)
         if dist is not None:
@@ -57,7 +65,7 @@ def _bfs(size, walls):
 
 
 def _sort(rng, level):
-    words = rng.sample(WORDS, 3 + level)
+    words = rng.sample(WORDS, min(len(WORDS), 3 + level))
     ordered = sorted(words)
     q = "Расставь по алфавиту: %s." % ", ".join(words)
     return q, ["сравниваю первые буквы, потом следующие"], ", ".join(ordered)
@@ -86,8 +94,20 @@ def _shop(rng, level):
     return q, steps, str(paid - total)
 
 
+def _chain(rng, level):
+    """Two tasks of other environments; the answer is the sum of their answers."""
+    parts = [ENVS[env][1](rng, max(1, min(2, level - 1))) for env in (rng.choice(NUMERIC), rng.choice(NUMERIC))]
+    total = int(parts[0][2]) + int(parts[1][2])
+    q = "Реши две задачи и сложи ответы. Первая: %s Вторая: %s" % (parts[0][0], parts[1][0])
+    steps = ["первая: %s" % parts[0][2], "вторая: %s" % parts[1][2], "%s + %s = %d" % (parts[0][2], parts[1][2], total)]
+    return q, steps, str(total)
+
+
+NUMERIC = ("count", "shop")
 ENVS = {"nim": ("Камни (ним)", _nim), "grid": ("Лабиринт", _grid), "sort": ("Алфавит", _sort),
-        "count": ("Счёт букв", _count), "shop": ("Лавка", _shop)}
+        "count": ("Счёт букв", _count), "shop": ("Лавка", _shop), "chain": ("Цепочка из двух задач", _chain)}
+# Exam seeds per environment; older environments keep their seeds so their exams never change.
+ORDER = ["count", "grid", "nim", "shop", "sort", "chain"]
 
 
 def task(rng, env, level=1):
@@ -97,7 +117,7 @@ def task(rng, env, level=1):
 
 
 def exam_tasks(env):
-    rng = random.Random(700_000 + sorted(ENVS).index(env))
+    rng = random.Random(700_000 + ORDER.index(env))
     out, seen = [], set()
     while len(out) < EXAM_PER_ENV:
         t = task(rng, env, 1 + len(out) % 3)
@@ -118,13 +138,14 @@ def _banned():
 
 
 def fresh(rng, count, level=1, envs=None):
-    """New tasks across environments, never an exam task."""
+    """New tasks across environments, never an exam task. level: a number, or a level per environment."""
     envs = list(envs or ENVS)
     out, seen = [], set()
     for _ in range(count * 20):
         if len(out) >= count:
             break
-        t = task(rng, rng.choice(envs), level)
+        env = rng.choice(envs)
+        t = task(rng, env, level.get(env, 1) if isinstance(level, dict) else level)
         if t["q"] in _banned() or t["q"] in seen:
             continue
         seen.add(t["q"])
@@ -172,6 +193,37 @@ def live(loaded, lives=200, tries=2, seed=None, level=1):
     return {"own": own, "hints": hints, "stats": stats}
 
 
+def ladder():
+    from backend import training_center as tc
+    saved = tc._read(tc.folder() / "ladder.json", {}) or {}
+    levels = saved.get("levels") or {}
+    return {"levels": {env: min(MAX_LEVEL, max(1, int(levels.get(env, 1)))) for env in ENVS},
+            "history": saved.get("history", [])[-30:]}
+
+
+def climb(stats):
+    """After a night of lives: up a level where she wins most, down where she loses most."""
+    from backend import training_center as tc
+    state = ladder()
+    moves = []
+    for env, s in stats.items():
+        if env not in ENVS or s["lives"] < MIN_LIVES:
+            continue
+        rate, level = s["wins"] / s["lives"], state["levels"][env]
+        if rate >= CLIMB and level < MAX_LEVEL:
+            state["levels"][env] = level + 1
+            moves.append({"env": env, "from": level, "to": level + 1, "rate": round(rate, 3)})
+        elif rate < DROP and level > 1:
+            state["levels"][env] = level - 1
+            moves.append({"env": env, "from": level, "to": level - 1, "rate": round(rate, 3)})
+    if moves:
+        from datetime import datetime, timezone
+        at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        state["history"] = (state["history"] + [dict(m, at=at) for m in moves])[-30:]
+    tc._write(tc.folder() / "ladder.json", state)
+    return moves
+
+
 def record(stats):
     """Adds one night's lives to the running totals (sim.json in the training folder)."""
     from backend import training_center as tc
@@ -191,7 +243,8 @@ def totals():
     from backend import training_center as tc
     total = tc._read(tc.folder() / "sim.json", {}) or {}
     return {"lives": total.get("lives", 0), "nights": total.get("nights", 0),
-            "envs": {env: dict(total.get("envs", {}).get(env, {"lives": 0, "wins": 0}), name=ENVS[env][0]) for env in ENVS}}
+            "envs": {env: dict(total.get("envs", {}).get(env, {"lives": 0, "wins": 0}), name=ENVS[env][0]) for env in ENVS},
+            "ladder": ladder()}
 
 
 __all__ = ["ANSWER", "ENVS", "exam", "lessons", "live", "task"]

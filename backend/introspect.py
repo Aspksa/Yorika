@@ -130,6 +130,10 @@ def advice(report):
         idle = [i + 1 for i, v in enumerate(report["experts"]) if v < 0.25 / len(report["experts"])]
         if idle:
             out.append({"kind": "experts", "text": "Эксперт %s почти не работает: роутер его не выбирает." % ", ".join(map(str, idle))})
+        k, busiest = len(report["experts"]), max(report["experts"])
+        if busiest > 1.6 / k and k < 8:
+            out.append({"kind": "experts-grow", "text": "Эксперт %d берёт %.0f%% работы при ровной доле %.0f%%: он перегружен, "
+                        "стоит разделить самых занятых (+2 эксперта)." % (report["experts"].index(busiest) + 1, busiest * 100, 100 / k)})
     if report["memory"] and report["memory"]["used"] < report["memory"]["slots"] // 4:
         out.append({"kind": "memory", "text": "Из %d ячеек памяти заметно используются %d: памяти больше, чем нужно сейчас." % (
             report["memory"]["slots"], report["memory"]["used"])})

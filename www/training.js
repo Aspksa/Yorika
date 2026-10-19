@@ -4,6 +4,10 @@ import {api} from "./api.js";
 const $=id=>document.getElementById(id);
 // ---- icons: one stroke style, filled into every [data-icon] ----
 const ICONS={
+ dna:["M7 2c0 6 10 6 10 12s-10 6-10 8","M17 2c0 6-10 6-10 12s10 6 10 8","M8 6h8M8 18h8M10 10h4M10 14h4"],
+ hex:["M12 2l8.7 5v10L12 22l-8.7-5V7z","M12 8l3.5 2v4L12 16l-3.5-2v-4z"],
+ stairs:["M3 21h5v-5h5v-5h5V6h3","M3 21V3"],
+ flask:["M9 2h6","M10 2v6L4 19a2 2 0 0 0 1.8 3h12.4a2 2 0 0 0 1.8-3L14 8V2","M7 15h10"],
  cap:["M22 10 12 5 2 10l10 5 10-5z","M6 12v5c3 2 9 2 12 0v-5","M22 10v6"],
  loop:["M21 12a9 9 0 1 1-3-6.7","M21 3v6h-6"],
  rocket:["M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1z","M12 15l-3-3a22 22 0 0 1 2-3.9A12.9 12.9 0 0 1 22 2c0 2.7-.8 7.5-6 11a22.4 22.4 0 0 1-4 2z","M9 12H4s.6-3 2-4c1.6-1.1 5 0 5 0","M12 15v5s3-.6 4-2c1.1-1.6 0-5 0-5"],
@@ -400,7 +404,7 @@ $("blind-start").onclick=e=>act(e.currentTarget,async()=>{
 $("blind-box").addEventListener("toggle",()=>{if($("blind-box").open)loadBlindResults()});
 
 // ---- tabs ----
-const TABS=["train","brain","exp","teacher","night","future"];
+const TABS=["train","brain","evo","exp","teacher","night","future"];
 function openTab(name,focus){
   if(name==="self")name="exp";if(name==="grow")name="future";
   if(!TABS.includes(name))name="train";
@@ -412,6 +416,7 @@ function openTab(name,focus){
   if(name==="teacher")refreshTeacher();
   if(name==="night")refreshNight();
   if(name==="brain")refreshBrain();
+  if(name==="evo")refreshEvo();
 }
 for(const t of TABS){
   $("tab-"+t).onclick=()=>openTab(t);
@@ -764,7 +769,7 @@ function renderMap(){
 }
 $("map-look").onclick=e=>act(e.currentTarget,async()=>{const ref=mapRef();if(!ref)return;await post("introspect",{id:ref.id});$("map-sub").textContent="Заглядываю внутрь: замер идёт в фоне, карта обновится сама.";setTimeout(async()=>{await refresh();renderMap()},15000)});
 
-const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей"};
+const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей",recipes:"Конкурс рецептов",shrink:"Сжатие после роста"};
 const PLAN_STATE={preparing:"готовится",running:"идёт",finished:"готово",failed:"ошибка",stopped:"остановлен"};
 function renderPlan(p){
   const plan=p.plan,box=$("plan-box");box.hidden=!plan;
@@ -891,6 +896,99 @@ function renderFuture(){
   const g=$("guard-cards");g.replaceChildren();
   for(const it of GUARD){const card=el("article","guard-card"),ic=el("span","card-ic");ic.append(icon(it.i));card.append(ic,el("h3",null,it.t),el("p",null,it.d));g.append(card)}
 }
+
+
+// ---- evolution: the morning report, health, the map of species, the task ladder, study recipes ----
+const DAWN_IC={train:"play",plan:"swarm",sim:"puzzle",programs:"code",tidy:"archive",health:"shield",run:"layers",archive:"hex",ladder:"stairs"};
+const GENE={experience:["разговоры","--gene-a"],logic:["логика","--gene-b"],sim:["мир задач","--gene-c"],programs:["программы","--gene-d"],tools:["инструменты","--gene-e"]};
+let evo=null;
+async function refreshEvo(){
+  try{
+    if(!status)status=await api("/api/training/status");
+    const b=await api("/api/training/brain-status");evo=b.evolution||{};
+    renderDawn(evo.report||{},evo.tonight||{},b.autopilot);renderHealth(evo.health||{},b.autopilot);
+    renderSpecies(evo.archive||{});renderLadders(evo.ladder||{},evo.envs||{});renderRecipes(evo.recipes||{});
+    const live=b.plans.plan&&["preparing","running"].includes(b.plans.plan.state);
+    for(const x of document.querySelectorAll("[data-evo-plan]"))x.disabled=!!live||!(status&&status.active);
+  }catch(e){showError(e.message)}
+}
+function renderDawn(r,t,ap){
+  $("dawn-since").textContent=r.since?`Утренний отчёт · с ${new Date(r.since).toLocaleString("ru-RU",{day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"})}`:"Утренний отчёт";
+  const ul=$("dawn-lines");ul.replaceChildren();
+  for(const x of r.lines||[]){const li=el("li");const i=el("span","dawn-ic");i.dataset.icon=DAWN_IC[x.kind]||"sparkles";li.append(i,el("span",null,x.text));ul.append(li)}
+  if(!(r.lines||[]).length)ul.append(el("li","empty-line","Ночью ещё ничего не происходило. Отчёт появится после первого часа учёбы."));
+  if((r.waiting||[]).length){const li=el("li","dawn-ask");const i=el("span","dawn-ic");i.dataset.icon="check";const a=el("a",null,`Ждут вашего решения: ${r.waiting.length} верс. → «Версии и экзамен»`);a.href="#";a.onclick=e=>{e.preventDefault();openTab("train");$("versions-title").scrollIntoView({behavior:"smooth"})};li.append(i,a);ul.append(li)}
+  const box=$("dawn-tonight");box.replaceChildren();
+  if(t&&t.activity){
+    const on=ap&&ap.parts&&ap.parts.find(p=>p.key==="auto_week");
+    box.append(el("span","dawn-moon"),el("b",null,on&&on.on?"Сегодня ночью сама выберу: ":"Если разрешите выбирать самой, сегодня я бы выбрала: "),el("span","chip chip-next",(evo&&evo.activities||{})[t.activity]||ACT_NAME[t.activity]||t.activity),el("span",null,` — ${t.why}.`));
+  }
+  fillIcons(ul);
+}
+const ACT_NAME={sleep:"Сон",distill:"Учёба у себя будущей",search:"Ветки времени",swarm:"Копии",evolution:"Эволюция",fresh:"Новая версия",rest:"Отдых",recipes:"Рецепты учёбы",grow:"Рост глубже",experts:"Рост вширь (эксперты)",shrink:"Сжатие после роста"};
+function renderHealth(h,ap){
+  $("health-dot").dataset.state=h.state||"";
+  const ul=$("health-list");ul.replaceChildren();
+  for(const x of h.items||[]){const li=el("li",x.level);li.append(el("span",null,x.text));if(x.fix)li.append(el("small",null,x.fix));ul.append(li)}
+  if(h.free_gb!=null)ul.append(el("li","ok",`Свободно на диске: ${String(h.free_gb).replace(".",",")} ГБ`));
+  const part=k=>((ap&&ap.parts)||[]).find(p=>p.key===k);
+  if(!$("pane-evo").contains(document.activeElement)){$("opt-week").checked=!!(evo.options||{}).auto_week;$("opt-tidy").checked=(evo.options||{}).tidy!==false}
+  $("opt-week").title=part("auto_week")&&!part("auto_week").on?"Работает, когда включено расписание учёбы":"";
+}
+function renderSpecies(a){
+  const box=$("species");box.replaceChildren();
+  const cells=(a.rows||[]).flatMap(r=>r.cells).filter(Boolean),fits=cells.map(c=>c.fitness);
+  const lo=Math.min(...fits),hi=Math.max(...fits),active=status&&status.active&&status.active.run;
+  const head=el("div","sp-row sp-head");head.append(el("span","sp-size",""));
+  for(const f of a.families||[])head.append(el("span","sp-fam",f));box.append(head);
+  (a.rows||[]).forEach((row,k)=>{
+    const line=el("div","sp-row");line.style.setProperty("--shift",k%2?"1":"0");line.append(el("span","sp-size",row.size));
+    row.cells.forEach((c,j)=>{
+      const cell=el("div","sp-cell"+(c?" full":"")+(c&&c.run===active?" active":"")+(c&&!c.alive?" lost":""));
+      cell.setAttribute("role","cell");
+      if(c){const t=hi>lo?(c.fitness-lo)/(hi-lo):1;cell.style.setProperty("--fit",(0.25+0.75*t).toFixed(2));
+        cell.append(el("b",null,when(c.run)),el("small",null,c.label||""),el("i",null,`сила ${c.fitness.toFixed(2)}`));
+        cell.title=`${a.families[j]}, ${row.size}: ${c.run}${c.replaced?` (сменила ${c.replaced})`:""}`;}
+      else{cell.append(el("small",null,"пусто"));cell.title=`${a.families[j]}, ${row.size}: ещё никого`}
+      line.append(cell);
+    });
+    box.append(line);
+  });
+  $("species-sub").textContent=`Занято ${a.filled||0} из ${a.total||30} клеток. Лучшая версия каждого вида: размер × устройство. Эволюция берёт родителя из любой клетки, поэтому не застревает на одном пути.`;
+  const log=$("species-log");log.replaceChildren();
+  for(const x of (a.log||[]).slice().reverse().slice(0,5)){const li=el("li",/вошла/.test(x.result||"")?"ok":"warn");li.append(el("b",null,when(x.run)),` · ${x.result||""}`);log.append(li)}
+  if(!(a.log||[]).length)log.append(el("li","empty-line","Архив пополнится после первого экзамена новой версии. Перед входом она играет турнир с предком."));
+}
+function renderLadders(l,names){
+  const box=$("ladders");box.replaceChildren();const max=10;
+  for(const [env,level] of Object.entries(l.levels||{})){
+    const row=el("div","ladder");row.append(el("span","ladder-name",names[env]||env));
+    const steps=el("div","steps");steps.setAttribute("aria-label",`${names[env]||env}: уровень ${level} из ${max}`);
+    for(let k=1;k<=max;k++){const s=el("span","step"+(k<level?" done":k===level?" here":""));s.style.setProperty("--h",(k/max).toFixed(2));steps.append(s)}
+    row.append(steps,el("b","ladder-level",`${level}`));box.append(row);
+  }
+  const moves=(l.history||[]).slice(-3).reverse();
+  if(moves.length){const p=el("p","hint");p.textContent="Недавно: "+moves.map(m=>`${names[m.env]||m.env} ${m.from}→${m.to}`).join(", ");box.append(p)}
+}
+function renderRecipes(r){
+  const g=$("genome");g.replaceChildren();const best=r.best;
+  if(best){const total=Object.values(best.mix).reduce((a,b)=>a+b,0)||1;
+    for(const [k,v] of Object.entries(best.mix)){if(!v)continue;const seg=el("span","gene");seg.style.flex=String(v);seg.style.background=`var(${GENE[k][1]})`;seg.title=`${GENE[k][0]} ${Math.round(100*v/total)}%`;seg.append(el("small",null,`${GENE[k][0]} ${Math.round(100*v/total)}%`));g.append(seg)}}
+  $("genome-line").textContent=best?`Шаг обучения ${best.lr} · время ×${best.time}${best.level?" · логика на ступень выше":""} · поколений рецептов: ${r.generations||0}${r.default?" · пока обычный рецепт":""}`:"";
+  const ol=$("recipe-board");ol.replaceChildren();const tried=r.tried||[];const top=Math.max(1e-9,...tried.map(t=>Math.abs(t.gain_per_hour)));
+  for(const t of tried.slice(0,5)){const li=el("li",t.gain_per_hour>0?"up":"down");const bar=el("span","rb-bar");bar.style.setProperty("--w",(Math.abs(t.gain_per_hour)/top).toFixed(2));
+    li.append(el("span","rb-label",t.label),bar,el("b",null,(t.gain_per_hour>0?"+":"")+t.gain_per_hour.toFixed(3)+"/ч"));ol.append(li)}
+  if(!tried.length)ol.append(el("li","empty-line","Рецепты ещё не соревновались."));
+}
+$("opt-week").onchange=e=>act(e.target,async()=>{await post("autopilot-options",{auto_week:e.target.checked});await refreshEvo()});
+$("opt-tidy").onchange=e=>act(e.target,async()=>{await post("autopilot-options",{tidy:e.target.checked});await refreshEvo()});
+$("tidy-now").onclick=e=>{if(!confirm("Удалить рабочие копии уроков, закончившихся больше суток назад? Сами версии, активная и архив не трогаются."))return;
+  act(e.currentTarget,async()=>{const r=await post("tidy");showError("");$("tidy-now").textContent=r.removed.length?`Освобождено ${r.freed_mb} МБ`:"Убирать нечего";await refreshEvo()})};
+for(const b of document.querySelectorAll("[data-evo-plan]"))b.onclick=()=>{
+  const kind=b.dataset.evoPlan,body={kind,minutes:parseFloat($("plan-minutes").value)||20,branches:3,rounds:1};
+  if(!confirm(`${PLAN_NAME[kind]}: запустить? Уроки по ${body.minutes} мин. Активная версия не изменится без вашего решения.`))return;
+  act(b,async()=>{await post("plan-start",body);await refresh();await refreshEvo()});
+};
 
 renderFuture();fillIcons();syncMode();refresh();
 let startTab="train";try{startTab=location.hash.slice(1)||localStorage.getItem("yorika.training.tab")||"train"}catch{}

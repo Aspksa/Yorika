@@ -22,7 +22,7 @@ WRITES = {"probe", "install-torch", "data-check", "folder", "open-folder", "star
           "night-settings", "series", "sl-pack-preview", "sl-pack-add", "blind-start", "blind-vote", "blind-results",
           "teacher-models", "chat-engine", "continual-settings", "continual-now", "evolve", "merge",
           "compress", "grow", "curiosity-now", "think", "plan-start", "schedule-set", "autopilot",
-          "programs-learn", "sim-now", "introspect"}
+          "programs-learn", "sim-now", "introspect", "autopilot-options", "tidy"}
 
 
 def handle(action, body):
@@ -102,12 +102,18 @@ def handle(action, body):
         return {"engine": brain.engine(), "continual": continual.status(), "wishes": curiosity.wishes(),
                 "frontier": curiosity.logic_frontier(), "curiosity": curiosity.last(), "plans": plans.status(),
                 "sim": dict(simworld.totals(), job=tc._read(tc.folder() / "sim-job.json")),
-                "skills": programs.describe(), "autopilot": autopilot.status()}
+                "skills": programs.describe(), "autopilot": autopilot.status(), "evolution": _evolution()}
     if action == "plan-start":
         from backend import plans
         return plans.start(body.get("kind"), copies=body.get("copies"), branches=body.get("branches", 3),
                            rounds=body.get("rounds", 2), minutes=body.get("minutes", 20),
-                           prompts=body.get("prompts", 120))
+                           prompts=body.get("prompts", 120), teacher=body.get("teacher"))
+    if action == "autopilot-options":
+        from backend import autopilot
+        return autopilot.set_options(body.get("auto_week"), body.get("tidy"))
+    if action == "tidy":
+        from backend import health
+        return health.tidy()
     if action == "schedule-set":
         from backend import schedule
         result = schedule.set_grid(body.get("grid"), body.get("enforce", True) is True)
@@ -154,7 +160,8 @@ def handle(action, body):
     if action == "grow":
         return tc.start("long", dataset=body.get("dataset"), device=body.get("device", "cuda"),
                         total_steps=body.get("steps", 100000), hours=body.get("hours", 8),
-                        grow={"from": body.get("id"), "layers": body.get("layers", 2)})
+                        grow={"from": body.get("id"), "experts": body.get("experts", 0)} if body.get("experts") in (2, -2)
+                        else {"from": body.get("id"), "layers": body.get("layers", 2)})
     if action == "curiosity-now":
         from backend import curiosity
         return curiosity.start()
@@ -182,6 +189,22 @@ def handle(action, body):
                                   week=body.get("week"), lives=body.get("lives", 300),
                                   programs=body.get("programs", True) is True)
     raise ValueError("Неизвестное действие")
+
+
+def _evolution():
+    """Archive, study recipes, the task ladder, health, tonight's choice and the morning report."""
+    from backend import archive, health, planner, recipes, simworld
+    parts = {}
+    for key, read in (("archive", archive.cells), ("recipes", recipes.status), ("ladder", simworld.ladder),
+                      ("health", health.check), ("report", planner.morning), ("tonight", lambda: planner.today(night.activity()))):
+        try:
+            parts[key] = read()
+        except Exception as error:  # noqa: BLE001 - one broken part never hides the page
+            parts[key] = {"error": str(error)[:160]}
+    parts["envs"] = {env: name for env, (name, _) in simworld.ENVS.items()}
+    from backend import autopilot
+    parts["options"], parts["activities"] = autopilot.settings(), night.ACTIVITIES
+    return parts
 
 
 def main(argv):

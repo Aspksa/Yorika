@@ -23,7 +23,8 @@ TIME = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]\Z")
 DEFAULTS = {"enabled": False, "time": "02:00", "hours": 4.0, "teacher_tokens": 0, "selfplay": 20, "sizes": ["s"],
             "sleep": True, "curiosity": True, "evolve": 0, "week": None, "lives": 300, "programs": True}
 ACTIVITIES = {"sleep": "Сон", "distill": "Учёба у себя будущей", "search": "Ветки времени", "swarm": "Копии",
-              "evolution": "Эволюция", "fresh": "Новая версия", "rest": "Отдых"}
+              "evolution": "Эволюция", "fresh": "Новая версия", "rest": "Отдых", "recipes": "Рецепты учёбы",
+              "grow": "Рост глубже", "experts": "Рост вширь (эксперты)", "shrink": "Сжатие после роста"}
 TASK_PREFIX = "Yorika Study"
 EVOLUTION_WEEKDAY = 5  # Saturday night: evolution; other nights: sleep that continues the active version
 
@@ -140,18 +141,57 @@ def _train(plan, name, launch, hours=None):
     """Today's activity from the week plan: sleep, copies, branches, future self, evolution..."""
     hours = hours or plan["hours"]
     what = activity(plan)
+    choice = None
+    from backend import autopilot, planner
+    if autopilot.settings()["auto_week"] and what != "rest":
+        # She picks tonight's activity from measurements; rest days of the week plan stay rest.
+        choice = planner.today(what)
+        what = choice["activity"]
+    result = _start_activity(what, choice, plan, name, launch, hours)
+    if choice:
+        planner.done(choice)
+        result = "сама выбрала «%s», потому что %s; %s" % (ACTIVITIES[what], choice["why"], result)
+    return result
+
+
+def _start_activity(what, choice, plan, name, launch, hours):
     if what == "rest":
         return "сегодня отдых по плану недели"
     current = tc.active()
-    if what in ("swarm", "search", "distill"):
+    if what in ("swarm", "search", "distill", "recipes", "shrink"):
         from backend import plans
         if not current:
             raise ValueError("нет активной версии для «%s»" % ACTIVITIES[what])
-        rounds = 2 if what != "swarm" else 1
-        lessons = {"swarm": 5, "search": 3 * rounds, "distill": rounds}[what]
-        started = plans.start(what, minutes=max(5, round(hours * 60 / lessons)), rounds=rounds, launch=launch,
-                              scheduled=True)
-        return "%s: план %s, по %d мин на урок" % (ACTIVITIES[what], started["id"], max(5, round(hours * 60 / lessons)))
+        rounds = 2 if what in ("search", "distill") else 1
+        lessons = {"swarm": 5, "search": 3 * rounds, "distill": rounds, "recipes": 3, "shrink": 1}[what]
+        minutes = max(5, min(240, round(hours * 60 / lessons)))
+        started = plans.start(what, minutes=minutes, rounds=rounds, launch=launch, scheduled=True, branches=3,
+                              teacher=(choice or {}).get("teacher"))
+        return "%s: план %s, по %d мин на урок" % (ACTIVITIES[what], started["id"], minutes)
+    if what in ("grow", "experts"):
+        from backend import planner, plans
+        if not current:
+            raise ValueError("нет активной версии, чтобы расти")
+        grow = (choice or {}).get("grow")
+        if not grow:
+            if what == "experts":
+                change = planner.expert_change(planner._active_item())
+                if not change:
+                    raise ValueError("эксперты загружены ровно или их нет: расти вширь незачем")
+                grow = {"from": current["run"], "experts": change}
+            else:
+                grow = {"from": current["run"], "layers": 2}
+        records = plans._experience()
+        if name:
+            from backend import continual
+            records = continual.sleep_set(name)[0]
+        if len(records) < 20:
+            raise ValueError("для роста нужно хотя бы 20 примеров, сейчас %d" % len(records))
+        started = tc.start("long", device=_device(current["run"]), total_steps=1000000, hours=hours, kind="grow",
+                           grow=grow, records=records, dataset=name, launch=launch, scheduled=True)
+        how = ("+%d эксперта" % grow["experts"] if grow.get("experts", 0) > 0 else "%d эксперта" % grow["experts"]) \
+            if grow.get("experts") else "+%d слоя" % grow.get("layers", 2)
+        return "рост %s (%s) из %s" % (started["id"], how, grow["from"])
     if not name:
         raise ValueError("нет файла опыта")
     if current and what == "sleep":
@@ -159,6 +199,8 @@ def _train(plan, name, launch, hours=None):
         from backend import continual
         records, mix = continual.sleep_set(name)
         config = dict(tc._read(tc._run_dir(current["run"]) / "run.json")["config"])
+        from backend import recipes
+        config["lr"] = recipes.learning_rate()
         started = tc.start("long", device=continual._device(current["run"]), total_steps=1000000,
                            hours=hours, config=config, kind="sleep", init=current["checkpoint"],
                            records=records, dataset=name, launch=launch, scheduled=True)
@@ -182,6 +224,10 @@ def _train(plan, name, launch, hours=None):
     return "запущено обучение %s на %s ч" % (started["id"], hours)
 
 
+def _device(run_id):
+    return (tc._read(tc._run_dir(run_id) / "run.json") or {}).get("device", "cuda")
+
+
 def run(launch=True, opener=None):
     """One night. Each step writes what happened; a failed step does not hide the others."""
     plan = settings()
@@ -195,6 +241,12 @@ def run(launch=True, opener=None):
     else:
         from backend import schedule
         hours = min(10.0, schedule.hours_left()) or plan["hours"]
+        try:
+            from backend import health
+            report = health.check()
+            step("health", "; ".join(i["text"] for i in report["items"])[:300])
+        except Exception as error:  # noqa: BLE001
+            step("health", str(error)[:160])
         try:
             resumed = tc.resume_scheduled()
             if resumed:
@@ -251,6 +303,16 @@ def run(launch=True, opener=None):
             step("compress", _compress_active())
         except Exception as error:  # noqa: BLE001
             step("compress", str(error)[:160])
+        try:
+            from backend import autopilot, health
+            if autopilot.settings()["tidy"]:
+                done = health.tidy()
+                step("tidy", "удалено рабочих копий %d, освобождено %.1f МБ" % (len(done["removed"]), done["freed_mb"])
+                     if done["removed"] else "убирать нечего")
+            else:
+                step("tidy", "уборка выключена")
+        except Exception as error:  # noqa: BLE001
+            step("tidy", str(error)[:160])
     entry["finished"] = _now()
     history = log() + [entry]
     tc._write(tc.folder() / "night-log.json", history[-14:])
@@ -264,11 +326,13 @@ def _sim_lives(lives):
     checkpoint = sl._scoring_checkpoint()
     if checkpoint is None:
         return "нет обученной версии: мир задач ждёт"
-    result = simworld.live(load_candidate(checkpoint), lives)
+    result = simworld.live(load_candidate(checkpoint), lives, level=simworld.ladder()["levels"])
     total = simworld.record(result["stats"])
+    moves = simworld.climb(result["stats"])
     added = curiosity._add(result["own"] + result["hints"][:max(20, lives // 5)], "sim")
     wins = sum(s["wins"] for s in result["stats"].values())
-    return "прожито %d жизней, побед %d, всего жизней %d, в опыт добавлено %d" % (lives, wins, total["lives"], added)
+    climbed = "; лестница: " + ", ".join("%s %d→%d" % (simworld.ENVS[m["env"]][0], m["from"], m["to"]) for m in moves) if moves else ""
+    return "прожито %d жизней, побед %d, всего жизней %d, в опыт добавлено %d%s" % (lives, wins, total["lives"], added, climbed)
 
 
 def _programs():

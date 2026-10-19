@@ -20,7 +20,7 @@ class StreamFramingTests(unittest.TestCase):
         self.assertEqual(chunks, ["Привет"])
 
     def test_multiline_json_data_event(self):
-        payload = b'{"choices": [{"delta":\n"content":"hello"}}]}'
+        payload = b'{"choices": [{"delta":{\n"content":"hello"}}]}'
         response = [b"data: " + payload.split(b"\n")[0] + b"\n",
                     b"data: " + payload.split(b"\n")[1] + b"\n",
                     b"\n", b"data: [DONE]\n"]

@@ -20,3 +20,5 @@ foreach ($relative in $paths) {
 }
 if ($failed) { exit 1 }
 Write-Host 'All PowerShell scripts parsed successfully.'
+
+exit 0

@@ -37,7 +37,7 @@ function Run-Step([string]$name,[scriptblock]$action) {
   Write-Host ('Запуск: '+$name) -ForegroundColor Cyan
   try {
     $global:LASTEXITCODE=0
-    & $action
+    & $action | Out-Host
     if($LASTEXITCODE -is [int] -and $LASTEXITCODE -ne 0){ throw ('Код завершения '+$LASTEXITCODE) }
     Record $name 'OK' 'Успешно'
     Write-Host ('[OK] '+$name) -ForegroundColor Green

@@ -13,12 +13,17 @@ def digest(pairs):
 
 def run(train, validation, output, *, total_steps, checkpoint_every=20,
         width=320, heads=8, layers=4, context=256, max_merges=128, seed=42,
-        max_run_seconds=None):
+        max_run_seconds=None, device='cpu'):
     import torch
     from torch.nn import functional as F
     if max_run_seconds is not None and (type(max_run_seconds) not in (int, float) or
             not 0 < max_run_seconds <= 86400):
         raise ValueError("Invalid run time budget")
+    if device not in ("cpu", "cuda"):
+        raise ValueError("Unsupported training device")
+    if device == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA required but unavailable; no CPU fallback")
+    train_device = torch.device(device)
     started_at = time.monotonic()
     if (not isinstance(train, (list, tuple)) or not train or
             not isinstance(validation, (list, tuple)) or not validation):
@@ -62,6 +67,8 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
         model.load_state_dict(state["weights"], strict=True)
         opt.load_state_dict(state["optimizer"])
         torch.set_rng_state(state["rng"])
+        if device == "cuda" and "cuda_rng" in state:
+            torch.cuda.set_rng_state(state["cuda_rng"], device=train_device)
         start = state["step"]
         best_nll = float(state.get('best_validation_nll', float('inf')))
         best_step = state.get('best_step', 0)
@@ -71,14 +78,20 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
             raise ValueError('Invalid best score')
         if type(start) is not int or start < 0 or start > total_steps:
             raise ValueError("Invalid checkpoint step")
+    model.to(train_device)
+    if device == "cuda":
+        for group in opt.state.values():
+            for key, value in group.items():
+                if isinstance(value, torch.Tensor):
+                    group[key] = value.to(train_device)
     def loss(pair):
         p, a = pair
         prefix = [1, 3] + bpe_encode(p, tokenizer) + [4]
         ids = prefix + bpe_encode(a, tokenizer) + [2]
         if len(ids) > context + 1:
             raise ValueError("Sequence exceeds configured context")
-        x = torch.tensor([ids[:-1]], dtype=torch.long)
-        y = torch.tensor([ids[1:]], dtype=torch.long)
+        x = torch.tensor([ids[:-1]], dtype=torch.long, device=train_device)
+        y = torch.tensor([ids[1:]], dtype=torch.long, device=train_device)
         y[:, :len(prefix)-1] = -100
         logits = model(x)
         return F.cross_entropy(logits.reshape(-1, vocab), y.reshape(-1), ignore_index=-100)
@@ -113,10 +126,14 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
                        "train_sha256": fingerprint, "validation_sha256": digest(validation),
                        "best_validation_nll": best_nll, "best_step": best_step,
                        "config": [width, heads, layers, context, max_merges, seed]}
+            if device == "cuda":
+                payload["cuda_rng"] = torch.cuda.get_rng_state(train_device)
             temp = path.with_name(path.name + ".incomplete")
             if temp.exists():
                 temp.unlink()
             try:
+                if device == "cuda":
+                    torch.cuda.synchronize(train_device)
                 torch.save(payload, temp)
                 if improved:
                     best_temp = best_path.with_name(best_path.name + '.incomplete')
@@ -139,4 +156,5 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
             "train_sha256": fingerprint, "tokenizer_sha256": tokenizer["sha256"],
             "checkpoint": str(path), "best_checkpoint": str(best_path),
             "best_validation_nll": best_nll, "best_step": best_step,
-            "resumed_from": start}
+            "resumed_from": start, "device": str(train_device),
+            "peak_cuda_allocated_bytes": (torch.cuda.max_memory_allocated(train_device) if device == "cuda" else None)}

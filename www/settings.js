@@ -190,6 +190,20 @@ async function cloudStatus(){
  el("cloud-ru-model").value=result.model;
  el("cloud-ru-status").textContent=result.configured?"Ключ зашифрован и сохранён на этом компьютере.":"Ключ пока не сохранён.";
 }
+el("cloud-ru-models-refresh").onclick=async()=>{
+ const button=el("cloud-ru-models-refresh");button.disabled=true;
+ el("cloud-ru-status").textContent="Загрузка моделей Cloud.ru…";
+ try{
+  const result=await api("/api/cloud-ru/models");
+  const list=el("cloud-ru-model-suggestions");
+  list.replaceChildren(...result.models.map(id=>{
+   const option=document.createElement("option");option.value=id;option.textContent=id;return option;
+  }));
+  el("cloud-ru-status").textContent="Доступно моделей: "+result.models.length+
+    ". Выберите ID из списка и нажмите «Сохранить ключ и модель».";
+ }catch(error){el("cloud-ru-status").textContent="Не удалось получить список моделей: "+error.message}
+ finally{button.disabled=false}
+};
 el("cloud-ru-form").onsubmit=async event=>{
  event.preventDefault();
  const key=el("cloud-ru-key").value,model=el("cloud-ru-model").value.trim();

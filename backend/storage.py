@@ -45,6 +45,17 @@ class Store:
             raise
 
     def _migrate(self) -> None:
+        # Serialize first-run migrations across processes: inspect schema only
+        # after obtaining a write lock, otherwise two new Store instances race.
+        self.connection.execute("BEGIN IMMEDIATE")
+        try:
+            self._migrate_locked()
+            self.connection.commit()
+        except BaseException:
+            self.connection.rollback()
+            raise
+
+    def _migrate_locked(self) -> None:
         current = int(self.connection.execute("PRAGMA user_version").fetchone()[0])
         if current > SCHEMA_VERSION:
             raise RuntimeError("Database was created by a newer Yorika; refusing downgrade")

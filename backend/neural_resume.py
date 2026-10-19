@@ -20,7 +20,7 @@ def resume_training(examples, source, output, *, additional_steps=10, trainer=tr
     except ImportError as exc:
         raise RuntimeError("Optional PyTorch required") from exc
     loaded = torch.load(source, map_location="cpu", weights_only=True)
-    config, vocab = validate_checkpoint(loaded)
+    config, vocab = validate_checkpoint({key: loaded[key] for key in ("state_dict", "vocab", "config", "steps", "examples")})
     return trainer(examples, output, steps=additional_steps, seed=config["seed"],
                    width=config["width"], heads=config["heads"], context=config["context"],
                    source_checkpoint=source)

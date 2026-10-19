@@ -32,11 +32,11 @@ jobs:
           clean: true
       - name: Check changed files
         run: |
-          & './ПРОВЕРКА_YORIKA/check-changes.ps1'
+          & './ЦЕНТР_YORIKA/check-changes.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Changed-file check failed' }
       - name: Portable Python and SQLite acceptance
         run: |
-          & './ПРОВЕРКА_YORIKA/test-yorika.ps1'
+          & './ЦЕНТР_YORIKA/test-yorika.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Acceptance failed' }
       - name: PowerShell syntax validation
         run: |
@@ -48,7 +48,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'JavaScript syntax failed' }
       - name: DPAPI and updater tests
         run: |
-          & './ПРОВЕРКА_YORIKA/python312-runtime/python.exe' -m unittest discover -s tests -p 'test_windows_dpapi.py' -v
+          & './ЦЕНТР_YORIKA/python312-runtime/python.exe' -m unittest discover -s tests -p 'test_windows_dpapi.py' -v
           if ($LASTEXITCODE -ne 0) { throw 'DPAPI tests failed' }
           & ./scripts/test-updater.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Updater tests failed' }

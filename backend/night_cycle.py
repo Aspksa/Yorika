@@ -18,7 +18,7 @@ from backend import training_center as tc
 
 TASK_NAME = "Yorika Night Training"
 TIME = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]\Z")
-DEFAULTS = {"enabled": False, "time": "02:00", "hours": 4.0, "teacher_tokens": 0, "selfplay": 20}
+DEFAULTS = {"enabled": False, "time": "02:00", "hours": 4.0, "teacher_tokens": 0, "selfplay": 20, "sizes": ["s"]}
 
 
 def _now():
@@ -52,7 +52,7 @@ def schedule_command(enabled, time):
             "/TR", '"%s"' % _launcher()]
 
 
-def set_settings(enabled, time="02:00", hours=4.0, teacher_tokens=0, selfplay=20, apply=True):
+def set_settings(enabled, time="02:00", hours=4.0, teacher_tokens=0, selfplay=20, apply=True, sizes=None):
     if not isinstance(enabled, bool):
         raise ValueError("Неверное значение")
     if not isinstance(time, str) or not TIME.match(time):
@@ -64,6 +64,11 @@ def set_settings(enabled, time="02:00", hours=4.0, teacher_tokens=0, selfplay=20
         raise ValueError("Токенов за ночь от 0 до лимита на один запуск (%d)" % limits["per_run_tokens"])
     if type(selfplay) is not int or not 5 <= selfplay <= 500:
         raise ValueError("Примеров самоигры от 5 до 500")
+    sizes = ["s"] if sizes is None else sizes
+    # Two or three sizes make the night a sandbox: the hours are shared between them.
+    if (not isinstance(sizes, list) or not 1 <= len(sizes) <= 3 or len(set(sizes)) != len(sizes) or
+            any(size not in tc.SIZES for size in sizes)):
+        raise ValueError("Выберите от одного до трёх размеров модели")
     if apply:
         if os.name != "nt":
             raise ValueError("Ночной цикл ставится в планировщик Windows")
@@ -72,7 +77,7 @@ def set_settings(enabled, time="02:00", hours=4.0, teacher_tokens=0, selfplay=20
         if result.returncode and enabled:
             raise ValueError("Планировщик Windows не принял задачу")
     value = {"enabled": enabled, "time": time, "hours": float(hours), "teacher_tokens": teacher_tokens,
-             "selfplay": selfplay, "changed": _now()}
+             "selfplay": selfplay, "sizes": sizes, "changed": _now()}
     tc._write(tc.folder() / "night.json", value)
     return settings()
 
@@ -124,9 +129,16 @@ def run(launch=True, opener=None):
             blocker = tc.long_gate(tc._load_records(name))
             if blocker:
                 raise ValueError(blocker)
-            started = tc.start("long", dataset=name, device="cuda", total_steps=1000000, hours=plan["hours"],
-                               launch=launch)
-            step("train", "запущено обучение %s на %s ч" % (started["id"], plan["hours"]))
+            sizes = plan["sizes"] if isinstance(plan["sizes"], list) and plan["sizes"] else ["s"]
+            if len(sizes) > 1:
+                each = round(plan["hours"] / len(sizes), 2)
+                started = tc.start_series(name, sizes, device="cuda", total_steps=1000000, hours_each=each,
+                                          launch=launch)
+                step("train", "песочница %s: размеры %s, по %s ч" % (started["series"], "/".join(sizes).upper(), each))
+            else:
+                started = tc.start("long", dataset=name, device="cuda", total_steps=1000000, hours=plan["hours"],
+                                   launch=launch, size=sizes[0])
+                step("train", "запущено обучение %s на %s ч" % (started["id"], plan["hours"]))
         except Exception as error:  # noqa: BLE001
             step("train", str(error)[:160])
     entry["finished"] = _now()

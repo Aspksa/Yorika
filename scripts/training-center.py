@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from backend import blind
 from backend import night_cycle as night
 from backend import self_learning as sl
 from backend import teacher
@@ -18,7 +19,8 @@ WRITES = {"probe", "install-torch", "data-check", "folder", "open-folder", "star
           "activate", "rollback", "compare", "stop-all", "sl-collect-setting", "sl-collect",
           "sl-list", "sl-rate", "sl-delete", "sl-export", "sl-dismiss", "text-approve",
           "teacher-limits", "teacher-estimate", "teacher-start", "teacher-stop", "teacher-accept",
-          "night-settings"}
+          "night-settings", "series", "sl-pack-preview", "sl-pack-add", "blind-start", "blind-vote", "blind-results",
+          "teacher-models"}
 
 
 def handle(action, body):
@@ -37,7 +39,11 @@ def handle(action, body):
     if action == "start":
         hours = body.get("hours", 8)
         return tc.start(body.get("mode"), dataset=body.get("dataset"), device=body.get("device", "cuda"),
-                        total_steps=body.get("steps", 100000), hours=hours, base=body.get("base"))
+                        total_steps=body.get("steps", 100000), hours=hours, base=body.get("base"),
+                        size=body.get("size", "s"))
+    if action == "series":
+        return tc.start_series(body.get("dataset"), body.get("sizes"), device=body.get("device", "cuda"),
+                               total_steps=body.get("steps", 100000), hours_each=body.get("hours", 2.0))
     if action == "control":
         return tc.control(body.get("id"), body.get("action"))
     if action == "activate":
@@ -64,6 +70,10 @@ def handle(action, body):
         return sl.export()
     if action == "sl-dismiss":
         return sl.dismiss(body.get("id"))
+    if action == "sl-pack-preview":
+        return sl.pack_preview(body.get("name"))
+    if action == "sl-pack-add":
+        return sl.add_pack(body.get("name"), body.get("confirm") is True)
     if action == "text-approve":
         return tc.approve_text(body.get("name"), body.get("license"), body.get("approved", True) is True)
     if action == "teacher-status":
@@ -75,6 +85,14 @@ def handle(action, body):
     if action == "teacher-start":
         return teacher.start(body.get("kind"), body.get("count"), confirm=body.get("confirm") is True,
                              topics=body.get("topics"))
+    if action == "teacher-models":
+        return teacher.set_models(body.get("models"))
+    if action == "blind-start":
+        return blind.start(body.get("ids"), body.get("count", 5))
+    if action == "blind-vote":
+        return blind.vote(body.get("round"), body.get("index"), body.get("choice"))
+    if action == "blind-results":
+        return {"results": blind.results()}
     if action == "teacher-stop":
         return teacher.stop()
     if action == "teacher-accept":
@@ -83,7 +101,8 @@ def handle(action, body):
         return night.status()
     if action == "night-settings":
         return night.set_settings(body.get("enabled"), body.get("time", "02:00"), body.get("hours", 4.0),
-                                  body.get("teacher_tokens", 0), body.get("selfplay", 20))
+                                  body.get("teacher_tokens", 0), body.get("selfplay", 20),
+                                  sizes=body.get("sizes"))
     raise ValueError("Неизвестное действие")
 
 

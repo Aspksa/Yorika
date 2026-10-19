@@ -18,7 +18,9 @@ NOT_AN_ANSWER = re.compile(r"^(?:Cloud\.ru:|Python 3 не найден|Ошиб�
 MAX_TEXT = 2000
 MAX_ITEMS = 100000
 RATINGS = (None, "up", "down")
-SOURCES = {"yorika-chat": "user-consent", "teacher": "synthetic", "selfplay": "synthetic"}
+SOURCES = {"yorika-chat": "user-consent", "teacher": "synthetic", "selfplay": "synthetic",
+           "honesty": "synthetic", "tools": "synthetic", "selfcheck": "synthetic", "memory": "user-consent"}
+PACKS = ("honesty", "tools")
 MAX_SCORED = 400
 
 
@@ -116,7 +118,9 @@ def counts(store=None):
     return {"total": len(items), "up": up, "fixed": fixed, "down": down,
             "unrated": sum(1 for i in items if i["rating"] is None), "ready": up + fixed,
             "needed": tc.MIN_LONG_RECORDS,
-            "teacher": sum(1 for i in items if i.get("source") in ("teacher", "selfplay")),
+            "teacher": sum(1 for i in items if i.get("source") in ("teacher", "selfplay", "selfcheck", "memory", "honesty")
+                           and not i.get("pack_approved")),
+            "packs": sorted({i["source"] for i in items if i.get("source") in PACKS}),
             "verdicts": sum(1 for i in items if i["rating"] is None and i.get("teacher"))}
 
 
@@ -250,10 +254,46 @@ def proposal():
             active_run = None
             if current:
                 active_run = next((r for r in tc.runs() if r["id"] == current["run"]), None)
-            pick = ("id", "created", "steps", "best_nll", "best_step", "dataset", "device", "gpu_name")
-            return {"candidate": {k: item[k] for k in pick},
-                    "active": {k: active_run[k] for k in pick} if active_run else None}
+            pick = ("id", "created", "steps", "best_nll", "best_step", "dataset", "device", "gpu_name",
+                    "exam_nll", "exam_per_char", "honesty", "size")
+            # Forgetting: worse than an earlier version on that version's own exam (per character).
+            forgets = [o for o in item.get("old_exams", []) if o["mine"] > o["theirs"] * 1.05]
+            return {"candidate": {k: item.get(k) for k in pick},
+                    "active": {k: active_run.get(k) for k in pick} if active_run else None,
+                    "forgets": forgets, "old_exams": item.get("old_exams", [])}
     return None
+
+
+def _pack(name):
+    if name == "honesty":
+        from backend import honesty
+        return honesty.lessons()
+    if name == "tools":
+        from backend import tools
+        return tools.lessons()
+    raise ValueError("Неизвестный урок")
+
+
+def pack_preview(name):
+    pairs = _pack(name)
+    return {"name": name, "count": len(pairs), "sample": [{"prompt": p, "answer": a} for p, a in pairs[:4]]}
+
+
+def add_pack(name, confirm=False):
+    """Built-in lessons written by code. The owner reads the sample and approves the whole pack."""
+    if confirm is not True:
+        raise ValueError("Подтвердите урок целиком")
+    store = _load()
+    known = {i["prompt"].casefold() for i in store["items"]}
+    added = 0
+    for prompt, answer in _pack(name):
+        if prompt.casefold() in known:
+            continue
+        store["items"].append({"id": _id(prompt, name), "prompt": prompt, "answer": answer, "ts": None,
+                               "rating": "up", "correction": None, "source": name, "pack_approved": True})
+        added += 1
+    _save(store)
+    return {"added": added, "counts": counts(store)}
 
 
 def dismiss(run_id):

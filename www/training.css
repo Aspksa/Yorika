@@ -1,0 +1,51 @@
+/* «Обучение» page. Layout pieces (page-top, panel, segmented, state-pill) come from updates.css. */
+.training-page .panel+.panel{margin-top:20px}
+.banner{margin:0 0 18px;padding:12px 15px;border-radius:calc(12px*var(--r));font-size:13px;line-height:1.5}
+.banner-err{background:var(--tint-err);border:1px solid color-mix(in srgb,var(--err) 40%,transparent);color:var(--err)}
+.warn-text{color:var(--warn)!important}
+.support-text code,.token-status code{font-family:var(--mono);font-size:11px;color:var(--brand-hi);background:var(--bg);padding:1px 5px;border-radius:calc(5px*var(--r));overflow-wrap:anywhere}
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 14px}
+.facts div{padding:13px 15px;border:1px solid var(--line);border-radius:calc(14px*var(--r));background:var(--surface);min-width:0}
+.facts dt{font-size:10px;font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted)}
+.facts dd{margin:6px 0 0;font-size:14px;font-weight:600;color:var(--text);overflow-wrap:anywhere}
+.field{display:block;width:100%;min-height:42px;padding:10px 11px;margin-bottom:14px;border:1px solid var(--line-strong);border-radius:calc(11px*var(--r));background:var(--surface);color:var(--text);font-size:13px}
+.field:focus-visible{outline:3px solid var(--brand-hi);outline-offset:2px}
+textarea.field{resize:vertical;line-height:1.5;font-family:inherit}
+.log{margin:0 0 14px;padding:12px;border-radius:calc(11px*var(--r));background:var(--bg);border:1px solid var(--line);font-family:var(--mono);font-size:11px;line-height:1.55;color:var(--text-soft);white-space:pre-wrap;overflow-wrap:anywhere;max-height:200px;overflow:auto}
+.format{margin-top:16px}
+.format summary{cursor:pointer;font-size:12px;font-weight:650;color:var(--brand)}
+.format summary:focus-visible{outline:3px solid var(--brand-hi);outline-offset:3px}
+.format[open] summary{margin-bottom:10px}
+.train-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.train-form .choice-group{margin-bottom:12px}
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.job{--accent:var(--brand);margin-top:22px;padding:20px;border:1px solid var(--line);border-radius:calc(18px*var(--r));background:linear-gradient(135deg,var(--surface) 0%,var(--brand-tint) 140%)}
+.job[data-state=running],.job[data-state=finished]{--accent:var(--ok)}
+.job[data-state=paused],.job[data-state=interrupted],.job[data-state=stopped]{--accent:var(--warn)}
+.job[data-state=failed]{--accent:var(--err)}
+.job[data-state=running] .state-pill::before,.job[data-state=starting] .state-pill::before{animation:pulse 1s ease-in-out infinite}
+.job-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.job-title{font-size:13px;color:var(--text-soft)}
+.stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+.chart{margin:0 0 14px}
+.chart svg{display:block;width:100%;height:auto;background:var(--bg);border:1px solid var(--line);border-radius:calc(12px*var(--r))}
+.chart figcaption{margin-top:7px;font-size:11px;color:var(--text-muted)}
+.chart-grid{stroke:var(--line);stroke-width:1}
+.chart-label,.chart-empty{fill:var(--text-muted);font-size:9px;font-family:inherit}
+.chart-line{fill:none;stroke:var(--brand);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.chart-dot{fill:var(--brand-hi)}
+.versions-list{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:8px}
+.versions-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border:1px solid var(--line);border-radius:calc(14px*var(--r));background:var(--surface)}
+.versions-list li.empty{color:var(--text-muted);font-size:13px}
+.version-info{min-width:0}
+.version-info strong{display:block;font-size:13px;color:var(--text)}
+.version-info small{display:block;margin-top:4px;font-size:11px;color:var(--text-muted);overflow-wrap:anywhere}
+.badge{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;border:1px solid var(--line-strong);font-size:10px;font-weight:700;color:var(--text-soft);vertical-align:1px}
+.badge-ok{border-color:color-mix(in srgb,var(--ok) 50%,transparent);color:var(--ok);background:var(--tint-ok)}
+.compare{margin-top:14px;overflow-x:auto}
+.compare table{width:100%;border-collapse:collapse;font-size:13px}
+.compare th,.compare td{padding:10px 12px;border:1px solid var(--line);text-align:left;vertical-align:top}
+.compare th{font-size:11px;font-weight:700;color:var(--brand);background:var(--surface)}
+.compare td{color:var(--text-soft);white-space:pre-wrap;overflow-wrap:anywhere}
+.compare td:first-child{color:var(--text);font-weight:600}
+@media(max-width:760px){.facts,.stats,.train-form,.pair{grid-template-columns:1fr}.versions-list li{flex-direction:column;align-items:stretch}}

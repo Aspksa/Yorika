@@ -27,8 +27,8 @@ class PowerShellStdinCompatibility(unittest.TestCase):
         source = (Path(__file__).resolve().parents[1] / "scripts" / "yorika-tray.ps1").read_text(encoding="utf-8-sig")
         # The Microsoft Store python.exe stub must not be mistaken for a real interpreter.
         self.assertNotIn("Get-Command python.exe -ErrorAction SilentlyContinue", source)
-        self.assertEqual(source.count("$python=Get-YorikaPython"), 5)
-        self.assertEqual(source.count("$psi.Arguments=($python.Prefix+"), 5)
+        self.assertEqual(source.count("$python=Get-YorikaPython"), 6)
+        self.assertEqual(source.count("$psi.Arguments=($python.Prefix+"), 6)
         self.assertIn("$version -match '^Python 3\\.'", source)
 
     def test_python_choice_is_pinned_and_store_key_is_synced(self):

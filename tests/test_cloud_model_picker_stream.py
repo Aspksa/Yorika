@@ -1,5 +1,6 @@
 """Cloud.ru UI and stream errors must remain actionable and secret-safe."""
 import subprocess
+import shutil
 import sys
 import unittest
 from pathlib import Path
@@ -20,10 +21,10 @@ class CloudStreamUiTests(unittest.TestCase):
         source = (ROOT / "www/avatar.js").read_text(encoding="utf-8")
         self.assertIn("evt.message||'Cloud.ru не завершил поток'", source)
         self.assertIn("Fallback to non-streaming", source)
-        process = subprocess.run(["node", "--check", str(ROOT / "www/avatar.js")],
-                                 capture_output=True, text=True)
-        if process.returncode and "not found" not in process.stderr.lower():
-            self.fail(process.stderr)
+        if shutil.which("node"):
+            process = subprocess.run(["node", "--check", str(ROOT / "www/avatar.js")],
+                                     capture_output=True, text=True)
+            self.assertEqual(process.returncode, 0, process.stderr)
 
     def test_error_classifier_never_echoes_arbitrary_exception(self):
         source = (ROOT / "scripts/cloud-ru-stream.py").read_text(encoding="utf-8")

@@ -14,8 +14,15 @@ class CloudStreamUiTests(unittest.TestCase):
         self.assertIn('list="cloud-ru-model-suggestions"', html)
         self.assertIn('id="cloud-ru-model-suggestions"', html)
         self.assertIn("введите ID", html)
+        self.assertIn('id="cloud-ru-models-refresh"', html)
         js = (ROOT / "www/settings.js").read_text(encoding="utf-8")
         self.assertIn('el("cloud-ru-model").value=result.model', js)
+        self.assertIn('api("/api/cloud-ru/models")', js)
+        gateway = (ROOT / "scripts/yorika-tray.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn("(status|models|save|check|delete|diagnostics", gateway)
+        server = (ROOT / "scripts/cloud-ru-settings.py").read_text(encoding="utf-8")
+        self.assertIn("if action == \"models\"", server)
+        self.assertIn("foundation-models.api.cloud.ru/v1/models", server)
 
     def test_errors_are_not_hidden_in_chat(self):
         source = (ROOT / "www/avatar.js").read_text(encoding="utf-8")

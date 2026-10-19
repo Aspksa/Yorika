@@ -37,6 +37,15 @@ def run_long_training(examples, directory, *, total_steps, interval=10, max_seco
             raise ValueError("Untrusted or damaged checkpoint")
     else:
         completed, source = 0, None
+    # A crash after writing checkpoint but before committing the manifest can leave an
+    # orphan. Never trust it for recovery: remove only the exact next uncommitted file.
+    next_step = min(completed + interval, total_steps)
+    orphan = root / f"step-{next_step:06d}.pt"
+    if orphan.exists():
+        orphan.unlink()
+    stale_temp = root / "training-progress.json.tmp"
+    if stale_temp.exists():
+        stale_temp.unlink()
     started = clock()
     while completed < total_steps:
         if clock() - started >= max_seconds:

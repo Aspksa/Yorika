@@ -17,5 +17,5 @@ __pycache__/
 .env.*
 
 # Downloaded standalone Python for portable tests
-tools/portable-tests/runtime/
-tools/portable-tests/python-*-embed-amd64.zip
+/ПРОВЕРКА_YORIKA/python312-runtime/
+/ПРОВЕРКА_YORIKA/python-*-embed-amd64.zip

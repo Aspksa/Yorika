@@ -19,7 +19,7 @@ class LocalModelTests(unittest.TestCase):
         result = module.answer("Привет", checkpoint="trusted.pt", generator=fake)
         self.assertEqual(result["answer"], "Локальный тест")
         self.assertEqual(calls[0][0], "trusted.pt")
-        self.assertEqual(calls[0][2]["enabled"], True)
+        self.assertEqual(result["provider"], "experimental-local-transformer")
 
     def test_missing_checkpoint_is_explicit_error(self):
         with patch.dict(module.os.environ, {"YORIKA_NEURAL_CHECKPOINT": ""}):

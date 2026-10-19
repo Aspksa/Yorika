@@ -83,6 +83,8 @@ if __name__ == "__main__":
             message = "Cloud.ru: несовместимый формат потокового ответа"
         elif "Cloud.ru streamed answer too long" in detail:
             message = "Cloud.ru: ответ превышает допустимый размер"
+        elif "Empty Cloud.ru response" in detail:
+            message = "Cloud.ru: модель вернула пустой ответ; попробуйте ещё раз или выберите другую модель"
         elif "Incomplete Cloud.ru stream" in detail:
             message = "Cloud.ru: сервер прервал поток ответа"
         elif "key not configured" in detail:

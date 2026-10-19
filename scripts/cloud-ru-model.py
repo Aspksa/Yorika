@@ -115,7 +115,8 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
             *recent_messages,
             {"role": "user", "content": query},
         ],
-        "stream": bool(stream), "max_completion_tokens": 450,
+        # Reasoning models (DeepSeek, Qwen thinking) spend part of this budget before the answer.
+        "stream": bool(stream), "max_completion_tokens": 2048,
     }, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
         ENDPOINT, data=payload, method="POST",
@@ -123,7 +124,7 @@ def answer(query: str, directory=None, *, model=None, api_key=None, opener=None,
     )
     call = opener or urllib.request.urlopen
     try:
-        with call(request, timeout=20) as response:
+        with call(request, timeout=60) as response:
             if stream:
                 output = collect_stream(response, on_delta)
             else:

@@ -11,7 +11,9 @@ class PowerShellStdinCompatibility(unittest.TestCase):
         self.assertNotIn("$proc.StandardInput.Write(", source)
         self.assertIn("[Text.Encoding]::UTF8.GetBytes($value)", source)
         self.assertIn("$process.StandardInput.BaseStream.Write($data,0,$data.Length)", source)
-        self.assertEqual(source.count("Write-ChildUtf8 $proc"), 5)
+        self.assertEqual(source.count("Write-ChildUtf8 $proc"), 3)
+        # The background chat worker cannot see script functions and writes UTF-8 bytes itself.
+        self.assertIn("$proc.StandardInput.BaseStream.Write($payload,0,$payload.Length)", source)
 
     def test_cloud_processes_use_the_compatibility_path(self):
         source = (Path(__file__).resolve().parents[1] / "scripts" / "yorika-tray.ps1").read_text(encoding="utf-8-sig")

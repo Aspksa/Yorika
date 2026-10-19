@@ -26,7 +26,7 @@ class CloudSettingsRegression(unittest.TestCase):
     def test_models_read_only_route_and_client_disconnect_logging(self):
         content = SERVER.read_text(encoding="utf-8-sig")
         self.assertIn("@('status','models','diagnostics','persona-status','memory-status')", content)
-        self.assertIn("Log 'Cloud.ru streaming client disconnected'", content)
+        self.assertIn("Note 'Cloud.ru streaming client disconnected'", content)
         self.assertIn('Log "HTTP: browser disconnected"', content)
 
     def test_cloud_subprocess_timeout_precedes_blocking_stdout_read(self):
@@ -34,10 +34,9 @@ class CloudSettingsRegression(unittest.TestCase):
         settings = content.split("}elseif($path -match '^/api/cloud-ru/", 1)[1].split(
             "}elseif($path -eq '/api/chat/respond')", 1
         )[0]
-        chat = content.split("}elseif($path -eq '/api/chat/respond')", 1)[1].split(
-            "}elseif($path -eq '/api/memory/recall')", 1
-        )[0]
-        for block, timeout in ((settings, "28000"), (chat, "25000")):
+        # Chat replies run in the background worker; its JSON branch follows the same order.
+        chat = "$stderrTask=" + content.split("$chatWorker=@'", 1)[1].split("\n'@", 1)[0].split("$stderrTask=", 1)[1]
+        for block, timeout in ((settings, "28000"), (chat, "90000")):
             with self.subTest(timeout=timeout):
                 self.assertNotIn("StandardOutput.ReadToEnd()", block)
                 self.assertNotIn("StandardError.ReadToEnd()", block)
@@ -46,15 +45,27 @@ class CloudSettingsRegression(unittest.TestCase):
                     block.index("$stdoutTask.GetAwaiter().GetResult()"),
                 )
 
+    def test_chat_replies_do_not_block_the_tray(self):
+        content = SERVER.read_text(encoding="utf-8-sig")
+        chat = content.split("}elseif($path -eq '/api/chat/stream')", 1)[1].split(
+            "}elseif($path -eq '/api/memory/recall')", 1
+        )[0]
+        # Waiting for Cloud.ru on the UI timer froze every page until the answer finished.
+        self.assertNotIn("WaitForExit(", chat)
+        self.assertNotIn("ReadLineAsync()", chat)
+        self.assertEqual(chat.count("Start-ChatWorker $client $psi"), 2)
+        self.assertEqual(chat.count("$handedOff=$true"), 2)
+        self.assertIn("}finally{if(-not $handedOff){$client.Close()}}", content)
+        self.assertIn("Clear-ChatWorkers", content)
+
     def test_both_cloud_subprocess_pipes_are_drained_asynchronously(self):
         content = SERVER.read_text(encoding="utf-8-sig")
         settings = content.split("}elseif($path -match '^/api/cloud-ru/", 1)[1].split(
             "}elseif($path -eq '/api/chat/respond')", 1
         )[0]
-        chat = content.split("}elseif($path -eq '/api/chat/respond')", 1)[1].split(
-            "}elseif($path -eq '/api/memory/recall')", 1
-        )[0]
-        for block, timeout in ((settings, "28000"), (chat, "25000")):
+        # Chat replies run in the background worker; its JSON branch follows the same order.
+        chat = "$stderrTask=" + content.split("$chatWorker=@'", 1)[1].split("\n'@", 1)[0].split("$stderrTask=", 1)[1]
+        for block, timeout in ((settings, "28000"), (chat, "90000")):
             with self.subTest(timeout=timeout):
                 self.assertLess(block.index("StandardOutput.ReadToEndAsync()"),
                                 block.index("WaitForExit(" + timeout + ")"))

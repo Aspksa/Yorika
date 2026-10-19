@@ -3,7 +3,8 @@ import json
 
 MAX_EVENT_BYTES = 64 * 1024
 MAX_OUTPUT = 8000
-MAX_STREAM_BYTES = 512 * 1024
+# Reasoning models stream long reasoning_content before the answer; it is read and dropped.
+MAX_STREAM_BYTES = 4 * 1024 * 1024
 
 
 def collect_stream(response, on_delta=None):
@@ -82,6 +83,8 @@ def collect_stream(response, on_delta=None):
 
     if pending:
         raise RuntimeError("Incomplete Cloud.ru stream")
-    if not ended or not "".join(output).strip():
+    if not ended:
         raise RuntimeError("Incomplete Cloud.ru stream")
+    if not "".join(output).strip():
+        raise RuntimeError("Empty Cloud.ru response")
     return "".join(output)

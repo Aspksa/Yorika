@@ -9,208 +9,266 @@
 <div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>
 <header class="page-top">
  <a class="back-link" href="./index.html"><span aria-hidden="true">←</span> Yorika</a>
+ <button class="danger stop-all" id="stop-all" type="button" title="Остановить любое обучение и учителя"><span data-icon="stop" aria-hidden="true"></span>Стоп всё</button>
 </header>
 <main class="page" aria-labelledby="page-title">
- <div class="hero">
-  <span class="hero-badge" data-icon="cap" aria-hidden="true"></span>
-  <div class="page-intro">
-   <h1 id="page-title">Обучение</h1>
-   <p>Собственная нейросеть Yorika учится на вашем компьютере. Ваши данные никуда не отправляются, а новая версия становится активной только по вашему выбору.</p>
-  </div>
- </div>
- <p id="page-error" class="banner banner-err" role="alert" hidden></p>
- <nav class="summary" aria-label="Коротко о состоянии">
-  <a class="sum" href="#train" data-go="train"><span class="sum-ic" data-icon="gpu" aria-hidden="true"></span><span><small>Видеокарта</small><strong id="sum-gpu">не проверялась</strong></span></a>
-  <a class="sum" href="#train" data-go="train"><span class="sum-ic" data-icon="zap" aria-hidden="true"></span><span><small>Обучение</small><strong id="sum-job">не идёт</strong></span></a>
-  <a class="sum" href="#train" data-go="train"><span class="sum-ic" data-icon="layers" aria-hidden="true"></span><span><small>Активная версия</small><strong id="sum-active">Cloud.ru</strong></span></a>
-  <a class="sum" href="#self" data-go="self"><span class="sum-ic" data-icon="loop" aria-hidden="true"></span><span><small>Опыт для обучения</small><strong id="sum-exp">0 из 10 000</strong></span></a>
- </nav>
- <div class="tabs" role="tablist" aria-label="Разделы обучения">
-  <button class="tab" role="tab" id="tab-train" aria-controls="pane-train" aria-selected="true" data-tab="train"><span class="tab-ic" data-icon="cap" aria-hidden="true"></span><span class="tab-text">Обучение<span class="tab-num">01–05</span></span></button>
-  <button class="tab" role="tab" id="tab-self" aria-controls="pane-self" aria-selected="false" data-tab="self" tabindex="-1"><span class="tab-ic" data-icon="loop" aria-hidden="true"></span><span class="tab-text">Самообучение<span class="tab-num">1 · 2 · 6</span></span></button>
-  <button class="tab" role="tab" id="tab-grow" aria-controls="pane-grow" aria-selected="false" data-tab="grow" tabindex="-1"><span class="tab-ic" data-icon="rocket" aria-hidden="true"></span><span class="tab-text">Развитие<span class="tab-num">сила · 07–19</span></span></button>
-  <button class="tab" role="tab" id="tab-future" aria-controls="pane-future" aria-selected="false" data-tab="future" tabindex="-1"><span class="tab-ic" data-icon="sparkles" aria-hidden="true"></span><span class="tab-text">Будущее<span class="tab-num">5 · 15 · 50 лет</span></span></button>
- </div>
-
- <div class="pane" role="tabpanel" id="pane-train" aria-labelledby="tab-train">
-
- <section class="panel" aria-labelledby="gpu-title">
-  <header class="panel-head"><span class="panel-index">01</span><h2 id="gpu-title">Видеокарта</h2><span class="head-ic" data-icon="gpu" aria-hidden="true"></span></header>
-  <dl class="facts">
-   <div><dt>PyTorch</dt><dd id="torch-state">—</dd></div>
-   <div><dt>Видеокарта</dt><dd id="gpu-name">не проверялась</dd></div>
-   <div><dt>Память</dt><dd id="gpu-memory">—</dd></div>
-  </dl>
-  <p id="gpu-note" class="support-text" role="status" aria-live="polite"></p>
-  <pre id="install-log" class="log" hidden></pre>
-  <div class="button-row"><button class="primary" id="probe">Проверить</button><button class="secondary" id="install-torch" hidden>Установить PyTorch</button></div>
- </section>
-
- <section class="panel" aria-labelledby="data-title">
-  <header class="panel-head"><span class="panel-index">02</span><h2 id="data-title">Данные</h2><span class="head-ic" data-icon="database" aria-hidden="true"></span></header>
-  <p class="support-text">Положите JSON-файл с диалогами в папку данных: <code id="data-folder">—</code></p>
-  <label class="token-label" for="data-file">Файл</label>
-  <select id="data-file" class="field"><option value="">Файлов пока нет</option></select>
-  <p id="data-result" class="token-status" role="status" aria-live="polite">Выберите файл и нажмите «Проверить».</p>
-  <div class="button-row"><button class="primary" id="check-data" disabled>Проверить</button><button class="secondary" id="open-data">Открыть папку</button><button class="ghost" id="refresh">Обновить список</button></div>
-  <details class="format">
-   <summary>Какой должен быть файл</summary>
-   <p class="support-text">Массив записей в UTF-8. Каждая запись — вопрос и ответ с указанием, откуда текст и есть ли согласие. Для долгого обучения нужно не меньше <span id="min-records">10 000</span> записей, и у каждой — отметки проверки прав и качества.</p>
-<pre class="log">[{"prompt": "Привет! Как дела?",
-  "answer": "Привет! Всё хорошо, рада тебя видеть.",
-  "source": "мои диалоги", "license": "user-consent", "consent": true,
-  "rights_reviewed_by": "Имя проверявшего", "quality_reviewed": true}]</pre>
-  </details>
- </section>
-
- <section class="panel" aria-labelledby="train-title">
-  <header class="panel-head"><span class="panel-index">03</span><h2 id="train-title">Обучение</h2><span class="head-ic" data-icon="zap" aria-hidden="true"></span></header>
-  <div class="train-form">
-   <fieldset class="choice-group"><legend>Режим</legend>
-    <div class="segmented">
-     <label><input type="radio" name="mode" value="pilot" checked><span>Пробный · 5 минут</span></label>
-     <label><input type="radio" name="mode" value="long"><span>Долгий</span></label>
-    </div>
-   </fieldset>
-   <fieldset class="choice-group"><legend>Где считать</legend>
-    <div class="segmented">
-     <label><input type="radio" name="device" value="cuda" checked><span>Видеокарта</span></label>
-     <label><input type="radio" name="device" value="cpu"><span>Процессор</span></label>
-    </div>
-   </fieldset>
-  </div>
-  <p id="mode-note" class="support-text">Пробный режим учится на встроенных тестовых примерах: проверяет скорость, память и сохранение. Умнее от него Yorika не станет.</p>
-  <div id="long-fields" class="long-fields" hidden>
-   <label class="token-label" for="long-file">Файл данных</label>
-   <select id="long-file" class="field"></select>
-   <div class="pair">
-    <div><label class="token-label" for="steps">Шагов</label><input id="steps" class="field" type="number" min="100" max="1000000" step="100" value="100000"></div>
-    <div><label class="token-label" for="hours">Не дольше, часов</label><input id="hours" class="field" type="number" min="0.1" max="72" step="0.5" value="8"></div>
+ <section class="hero">
+  <div class="hero-text">
+   <span class="hero-badge" data-icon="cap" aria-hidden="true"></span>
+   <div>
+    <h1 id="page-title">Обучение</h1>
+    <p>Собственная нейросеть Yorika учится на вашем компьютере. Ваши данные никуда не отправляются, а новая версия становится активной только по вашему выбору.</p>
    </div>
   </div>
-  <label class="token-label" for="results-folder">Папка для результатов</label>
-  <div class="token-field"><input id="results-folder" spellcheck="false" autocomplete="off"><button class="reveal" id="save-folder" type="button">Сохранить</button></div>
-  <p id="folder-note" class="token-status"></p>
-  <div class="button-row"><button class="primary" id="start">Старт</button></div>
-
-  <div id="job" class="job" data-state="idle" hidden>
-   <div class="job-head"><span class="state-pill" id="job-pill">—</span><span id="job-title" class="job-title"></span></div>
-   <dl class="facts stats">
-    <div><dt>Шаг</dt><dd id="job-steps">—</dd></div>
-    <div><dt>Прошло</dt><dd id="job-time">—</dd></div>
-    <div><dt>Осталось</dt><dd id="job-left">—</dd></div>
-    <div><dt>Скорость</dt><dd id="job-speed">—</dd></div>
-    <div><dt>Память видеокарты</dt><dd id="job-vram">—</dd></div>
-    <div><dt>Лучшая ошибка</dt><dd id="job-nll">—</dd></div>
-   </dl>
-   <figure class="chart"><svg id="chart" viewBox="0 0 600 170" role="img" aria-label="График ошибки на проверочных данных"></svg>
-    <figcaption>Ошибка на проверочных данных: чем ниже, тем лучше модель угадывает ответы.</figcaption></figure>
-   <p id="job-error" class="banner banner-err" hidden></p>
-   <div class="button-row"><button class="secondary" id="pause" hidden>Пауза</button><button class="ghost" id="stop" hidden>Стоп</button><button class="primary" id="resume" hidden>Продолжить</button></div>
-  </div>
+  <nav class="flow" id="flow" aria-label="Путь обучения">
+   <a class="flow-node" href="#exp" data-go="exp" data-node="exp"><span class="flow-ic" data-icon="thumb" aria-hidden="true"></span><b>Опыт</b><small id="flow-exp">—</small></a>
+   <a class="flow-node" href="#teacher" data-go="teacher" data-node="teacher"><span class="flow-ic" data-icon="teacher" aria-hidden="true"></span><b>Учитель</b><small id="flow-teacher">—</small></a>
+   <a class="flow-node" href="#train" data-go="train" data-node="train"><span class="flow-ic" data-icon="zap" aria-hidden="true"></span><b>Обучение</b><small id="flow-train">—</small></a>
+   <a class="flow-node" href="#train" data-go="train" data-node="exam"><span class="flow-ic" data-icon="exam" aria-hidden="true"></span><b>Экзамен</b><small id="flow-exam">—</small></a>
+   <a class="flow-node flow-you" href="#exp" data-go="exp" data-node="you"><span class="flow-ic" data-icon="check" aria-hidden="true"></span><b>Ваш выбор</b><small id="flow-you">—</small></a>
+  </nav>
  </section>
+ <p id="page-error" class="banner banner-err" role="alert" hidden></p>
 
- <section class="panel" aria-labelledby="versions-title">
-  <header class="panel-head"><span class="panel-index">04</span><h2 id="versions-title">Версии модели</h2><span class="head-ic" data-icon="layers" aria-hidden="true"></span></header>
-  <p id="active-line" class="support-text">Активной версии нет: в чате отвечает Cloud.ru.</p>
-  <ul id="versions" class="versions-list"><li class="empty">Обучений ещё не было.</li></ul>
-  <div class="button-row"><button class="ghost" id="rollback" hidden>Вернуть прошлую версию</button></div>
- </section>
-
- <section class="panel" aria-labelledby="quality-title">
-  <header class="panel-head"><span class="panel-index">05</span><h2 id="quality-title">Проверка качества</h2><span class="head-ic" data-icon="scale" aria-hidden="true"></span></header>
-  <p class="support-text">Задайте одинаковые вопросы двум версиям и сравните ответы сами.</p>
-  <div class="pair">
-   <div><label class="token-label" for="cmp-a">Версия 1</label><select id="cmp-a" class="field"></select></div>
-   <div><label class="token-label" for="cmp-b">Версия 2</label><select id="cmp-b" class="field"></select></div>
-  </div>
-  <label class="token-label" for="questions">Вопросы, по одному в строке (до 5)</label>
-  <textarea id="questions" class="field" rows="4">Привет! Как тебя зовут?
-Сколько будет 3 плюс 4?
-Что ты умеешь?</textarea>
-  <div class="button-row"><button class="primary" id="compare">Сравнить</button></div>
-  <p id="compare-status" class="token-status" role="status" aria-live="polite"></p>
-  <div id="compare-result" class="compare" hidden></div>
- </section>
+ <div class="tabs" role="tablist" aria-label="Разделы обучения">
+  <button class="tab" role="tab" id="tab-train" aria-controls="pane-train" aria-selected="true" data-tab="train"><span class="tab-ic" data-icon="zap" aria-hidden="true"></span>Обучение</button>
+  <button class="tab" role="tab" id="tab-exp" aria-controls="pane-exp" aria-selected="false" data-tab="exp" tabindex="-1"><span class="tab-ic" data-icon="thumb" aria-hidden="true"></span>Опыт<span class="tab-badge" id="tab-exp-badge" hidden></span></button>
+  <button class="tab" role="tab" id="tab-teacher" aria-controls="pane-teacher" aria-selected="false" data-tab="teacher" tabindex="-1"><span class="tab-ic" data-icon="teacher" aria-hidden="true"></span>Учитель</button>
+  <button class="tab" role="tab" id="tab-night" aria-controls="pane-night" aria-selected="false" data-tab="night" tabindex="-1"><span class="tab-ic" data-icon="moon" aria-hidden="true"></span>Ночь</button>
+  <button class="tab" role="tab" id="tab-future" aria-controls="pane-future" aria-selected="false" data-tab="future" tabindex="-1"><span class="tab-ic" data-icon="sparkles" aria-hidden="true"></span>Будущее</button>
  </div>
 
- <div class="pane" role="tabpanel" id="pane-self" aria-labelledby="tab-self" hidden>
-  <div class="cycle" aria-label="Цикл самообучения">
-   <span class="cycle-step">Разговор</span><span class="cycle-arrow" aria-hidden="true">→</span><span class="cycle-step">Ваша оценка</span><span class="cycle-arrow" aria-hidden="true">→</span><span class="cycle-step">Обучение</span><span class="cycle-arrow" aria-hidden="true">→</span><span class="cycle-step">Проверка</span><span class="cycle-arrow" aria-hidden="true">→</span><span class="cycle-step cycle-you">Решаете вы</span>
-  </div>
-
-  <section class="panel" aria-labelledby="exp-title">
-   <header class="panel-head"><span class="panel-index">1</span><h2 id="exp-title">Сбор опыта</h2><span class="head-ic" data-icon="chat" aria-hidden="true"></span></header>
-   <label class="switch"><input type="checkbox" id="collect-toggle"><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Собирать примеры из чата</strong><small>Пары «ваш вопрос → ответ Yorika». Почта, пароли, ключи и ошибки отбрасываются. Без вашей оценки в обучение ничего не попадает.</small></span></label>
-   <dl class="facts facts-4">
-    <div><dt>Собрано</dt><dd id="exp-total">0</dd></div>
-    <div><dt>Без оценки</dt><dd id="exp-unrated">0</dd></div>
-    <div><dt>Одобрено 👍</dt><dd id="exp-up">0</dd></div>
-    <div><dt>Исправлено</dt><dd id="exp-fixed">0</dd></div>
-   </dl>
-   <div class="meter" aria-hidden="true"><span id="exp-meter"></span></div>
-   <p id="exp-note" class="token-status"></p>
-   <div class="button-row"><button class="primary" id="collect-now">Собрать из чата</button><button class="secondary" id="export-exp">Сохранить набор для обучения</button></div>
-   <p id="exp-result" class="token-status" role="status" aria-live="polite"></p>
+ <!-- ============ Обучение ============ -->
+ <div class="pane" role="tabpanel" id="pane-train" aria-labelledby="tab-train">
+  <section class="card" aria-labelledby="ready-title">
+   <header class="card-head"><span class="card-ic" data-icon="gpu" aria-hidden="true"></span><div><h2 id="ready-title">Готовность ноутбука</h2><p>Три шага, после которых можно учить по-настоящему.</p></div></header>
+   <ol class="ready">
+    <li class="ready-step" id="ready-torch"><span class="ready-dot" aria-hidden="true"></span><div><b>PyTorch</b><small id="torch-state">—</small></div><button class="secondary small" id="install-torch" hidden>Установить</button></li>
+    <li class="ready-step" id="ready-gpu"><span class="ready-dot" aria-hidden="true"></span><div><b>Видеокарта</b><small id="gpu-name">не проверялась</small></div><button class="secondary small" id="probe">Проверить</button></li>
+    <li class="ready-step" id="ready-pilot"><span class="ready-dot" aria-hidden="true"></span><div><b>Пробный запуск</b><small id="pilot-state">не было</small></div><button class="secondary small" id="pilot-now">5 минут</button></li>
+   </ol>
+   <p id="gpu-note" class="hint" role="status" aria-live="polite"></p>
+   <pre id="install-log" class="log" hidden></pre>
   </section>
 
-  <section class="panel" aria-labelledby="rate-title">
-   <header class="panel-head"><span class="panel-index">2</span><h2 id="rate-title">Оценка ответов</h2><span class="head-ic" data-icon="thumb" aria-hidden="true"></span></header>
-   <p class="support-text">👍 — ответ хороший, учиться на нём. 👎 — плохой: напишите, как надо было ответить, и Yorika будет учиться на вашем варианте.</p>
-   <div class="segmented filter" role="radiogroup" aria-label="Какие примеры показать">
+  <section class="card" aria-labelledby="start-title">
+   <header class="card-head"><span class="card-ic" data-icon="play" aria-hidden="true"></span><div><h2 id="start-title">Новое обучение</h2><p id="mode-note">Учится на ваших оценённых диалогах и сохраняет прогресс.</p></div></header>
+   <div class="segmented modes" role="radiogroup" aria-label="Режим">
+    <label><input type="radio" name="mode" value="long" checked><span><b>Диалоги</b><small>на ваших данных</small></span></label>
+    <label><input type="radio" name="mode" value="pretrain"><span><b>Предобучение</b><small>на открытых текстах</small></span></label>
+    <label><input type="radio" name="mode" value="pilot"><span><b>Проба</b><small>5 минут</small></span></label>
+   </div>
+   <div class="form-grid">
+    <div data-for="long"><label class="token-label" for="long-file">Файл диалогов</label><select id="long-file" class="field"></select></div>
+    <div data-for="long"><label class="token-label" for="base-run">Основа</label><select id="base-run" class="field"><option value="">С нуля</option></select></div>
+    <div data-for="long pretrain"><label class="token-label" for="steps">Шагов</label><input id="steps" class="field" type="number" min="100" max="1000000" step="100" value="100000"></div>
+    <div data-for="long pretrain"><label class="token-label" for="hours">Не дольше, часов</label><input id="hours" class="field" type="number" min="0.1" max="72" step="0.5" value="8"></div>
+    <div><span class="token-label">Где считать</span><div class="segmented"><label><input type="radio" name="device" value="cuda" checked><span>Видеокарта</span></label><label><input type="radio" name="device" value="cpu"><span>Процессор</span></label></div></div>
+   </div>
+   <p class="hint speed-hint"><span data-icon="zap" aria-hidden="true"></span>Ускорение включено: 16 примеров за шаг и половинная точность на видеокарте. На процессоре это дало в 9 раз больше примеров в секунду.</p>
+   <div class="button-row"><button class="primary big" id="start">Начать обучение</button></div>
+
+   <div id="job" class="job" data-state="idle" hidden>
+    <div class="job-head"><span class="state-pill" id="job-pill">—</span><span id="job-title" class="job-title"></span></div>
+    <div class="job-progress" aria-hidden="true"><span id="job-bar"></span></div>
+    <dl class="stats">
+     <div><dt>Шаг</dt><dd id="job-steps">—</dd></div>
+     <div><dt>Прошло</dt><dd id="job-time">—</dd></div>
+     <div><dt>Осталось</dt><dd id="job-left">—</dd></div>
+     <div><dt>Примеров в секунду</dt><dd id="job-speed">—</dd></div>
+     <div><dt>Память видеокарты</dt><dd id="job-vram">—</dd></div>
+     <div><dt>Лучшая ошибка</dt><dd id="job-nll">—</dd></div>
+    </dl>
+    <figure class="chart"><svg id="chart" viewBox="0 0 600 170" role="img" aria-label="График ошибки на проверочных данных"></svg>
+     <figcaption>Ошибка на проверочных данных: чем ниже, тем лучше.</figcaption></figure>
+    <p id="job-error" class="banner banner-err" hidden></p>
+    <div class="button-row"><button class="secondary" id="pause" hidden>Пауза</button><button class="ghost" id="stop" hidden>Стоп</button><button class="primary" id="resume" hidden>Продолжить</button></div>
+   </div>
+  </section>
+
+  <section class="card" aria-labelledby="data-title">
+   <header class="card-head"><span class="card-ic" data-icon="database" aria-hidden="true"></span><div><h2 id="data-title">Данные</h2><p>Файлы лежат в папке на вашем компьютере.</p></div><button class="ghost small head-btn" id="refresh">Обновить</button></header>
+   <div class="data-grid">
+    <div class="data-box">
+     <h3>Диалоги <small>.json</small></h3>
+     <select id="data-file" class="field" aria-label="Файл диалогов"><option value="">Файлов пока нет</option></select>
+     <p id="data-result" class="hint" role="status" aria-live="polite">Выберите файл и проверьте его.</p>
+     <div class="button-row"><button class="secondary small" id="check-data" disabled>Проверить</button><button class="ghost small" id="open-data">Открыть папку</button></div>
+    </div>
+    <div class="data-box">
+     <h3>Тексты для предобучения <small>.txt</small></h3>
+     <ul id="texts" class="texts"></ul>
+     <p class="hint">Только тексты, которые можно использовать: общественное достояние или ваши собственные.</p>
+    </div>
+   </div>
+   <details class="more">
+    <summary>Формат файла и папка результатов</summary>
+    <p class="hint">Массив записей в UTF-8. Для долгого обучения нужно не меньше <span id="min-records">10 000</span> записей с отметками проверки. Папка данных: <code id="data-folder">—</code></p>
+<pre class="log">[{"prompt": "Привет! Как дела?", "answer": "Привет! Всё хорошо.",
+  "source": "мои диалоги", "license": "user-consent", "consent": true,
+  "rights_reviewed_by": "Имя", "quality_reviewed": true}]</pre>
+    <label class="token-label" for="results-folder">Папка для результатов</label>
+    <div class="token-field"><input id="results-folder" spellcheck="false" autocomplete="off"><button class="reveal" id="save-folder" type="button">Сохранить</button></div>
+    <p id="folder-note" class="hint"></p>
+   </details>
+  </section>
+
+  <section class="card" aria-labelledby="versions-title">
+   <header class="card-head"><span class="card-ic" data-icon="layers" aria-hidden="true"></span><div><h2 id="versions-title">Версии и экзамен</h2><p id="active-line">Своя модель ещё не выбрана: в чате отвечает Cloud.ru.</p></div><button class="ghost small head-btn" id="rollback" hidden>Вернуть прошлую</button></header>
+   <ul id="versions" class="versions-list"><li class="empty">Обучений ещё не было.</li></ul>
+   <p class="hint">Экзамен — ошибка на задачах, которые модель ни разу не видела при обучении. Чем ниже, тем лучше.</p>
+   <details class="more" id="compare-box">
+    <summary>Сравнить ответы двух версий</summary>
+    <div class="form-grid two">
+     <div><label class="token-label" for="cmp-a">Версия 1</label><select id="cmp-a" class="field"></select></div>
+     <div><label class="token-label" for="cmp-b">Версия 2</label><select id="cmp-b" class="field"></select></div>
+    </div>
+    <label class="token-label" for="questions">Вопросы, по одному в строке (до 5)</label>
+    <textarea id="questions" class="field" rows="3">Привет! Как тебя зовут?
+Что ты умеешь?</textarea>
+    <div class="button-row"><button class="secondary" id="compare">Сравнить</button></div>
+    <p id="compare-status" class="hint" role="status" aria-live="polite"></p>
+    <div id="compare-result" class="compare" hidden></div>
+   </details>
+  </section>
+ </div>
+
+ <!-- ============ Опыт ============ -->
+ <div class="pane" role="tabpanel" id="pane-exp" aria-labelledby="tab-exp" hidden>
+  <section class="card proposal" id="proposal" hidden aria-labelledby="prop-title">
+   <header class="card-head"><span class="card-ic" data-icon="sparkles" aria-hidden="true"></span><div><h2 id="prop-title">Есть версия лучше? Решаете вы</h2><p>Новая версия не включится сама.</p></div></header>
+   <div class="versions-compare">
+    <div class="version-tile"><span>Сейчас</span><strong id="prop-active">—</strong><small id="prop-active-meta"></small></div>
+    <div class="version-arrow" aria-hidden="true">→</div>
+    <div class="version-tile new"><span>Новая</span><strong id="prop-new">—</strong><small id="prop-new-meta"></small></div>
+   </div>
+   <div class="button-row"><button class="primary" id="prop-accept">Включить</button><button class="secondary" id="prop-compare">Сравнить ответы</button><button class="ghost" id="prop-dismiss">Отклонить</button></div>
+  </section>
+
+  <section class="card" aria-labelledby="exp-title">
+   <header class="card-head"><span class="card-ic" data-icon="chat" aria-hidden="true"></span><div><h2 id="exp-title">Опыт из чата</h2><p>В обучение попадает только то, что вы одобрили или исправили.</p></div></header>
+   <label class="switch"><input type="checkbox" id="collect-toggle"><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Собирать пары «вопрос → ответ»</strong><small>Почта, пароли, ключи и ошибки отбрасываются.</small></span></label>
+   <div class="goal">
+    <div class="goal-ring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="goal-bg" cx="60" cy="60" r="50"/><circle class="goal-fg" id="goal-fg" cx="60" cy="60" r="50"/></svg><div><strong id="exp-ready">0</strong><small>из <span id="exp-needed">10 000</span></small></div></div>
+    <dl class="goal-facts">
+     <div><dt>Собрано</dt><dd id="exp-total">0</dd></div>
+     <div><dt>Без оценки</dt><dd id="exp-unrated">0</dd></div>
+     <div><dt>👍 одобрено</dt><dd id="exp-up">0</dd></div>
+     <div><dt>✎ исправлено</dt><dd id="exp-fixed">0</dd></div>
+     <div><dt>От учителя</dt><dd id="exp-teacher">0</dd></div>
+    </dl>
+   </div>
+   <div class="button-row"><button class="secondary" id="collect-now">Собрать из чата</button><button class="primary" id="export-exp">Сохранить набор для обучения</button></div>
+   <p id="exp-result" class="hint" role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="card" aria-labelledby="rate-title">
+   <header class="card-head"><span class="card-ic" data-icon="target" aria-hidden="true"></span><div><h2 id="rate-title">Оценка ответов</h2><p>👍 — учиться на нём. 👎 — напишите, как надо.</p></div></header>
+   <div class="chips-filter" role="radiogroup" aria-label="Какие примеры показать">
+    <label><input type="radio" name="view" value="uncertain"><span>Сначала сомнительные</span></label>
     <label><input type="radio" name="view" value="unrated" checked><span>Без оценки</span></label>
+    <label><input type="radio" name="view" value="teacher"><span>Проверены учителем</span></label>
     <label><input type="radio" name="view" value="up"><span>👍</span></label>
     <label><input type="radio" name="view" value="down"><span>👎</span></label>
     <label><input type="radio" name="view" value="all"><span>Все</span></label>
    </div>
+   <div id="verdict-bar" class="verdict-bar" hidden><span id="verdict-text"></span><button class="primary small" id="accept-verdicts">Согласиться с учителем</button></div>
    <ul id="examples" class="examples"></ul>
    <div class="button-row"><button class="ghost" id="more" hidden>Показать ещё</button></div>
   </section>
-
-  <section class="panel" aria-labelledby="decide-title">
-   <header class="panel-head"><span class="panel-index">6</span><h2 id="decide-title">Решение о новой версии</h2><span class="head-ic" data-icon="check" aria-hidden="true"></span></header>
-   <div id="proposal-empty" class="empty-state">Новых версий пока нет. Когда долгое обучение закончится, здесь появится предложение, а сама версия не включится.</div>
-   <div id="proposal" class="proposal" hidden>
-    <p class="proposal-title">Есть новая версия. Включить её?</p>
-    <dl class="versions-compare">
-     <div class="version-tile"><dt>Сейчас</dt><dd><code id="prop-active">—</code><small id="prop-active-meta"></small></dd></div>
-     <div class="version-arrow" aria-hidden="true">→</div>
-     <div class="version-tile"><dt>Новая</dt><dd><code id="prop-new">—</code><small id="prop-new-meta"></small></dd></div>
-    </dl>
-    <p class="support-text">Ошибки сравнимы, только если версии учились на одних и тех же данных. Надёжнее сначала сравнить ответы.</p>
-    <div class="button-row"><button class="primary" id="prop-accept">Включить</button><button class="secondary" id="prop-compare">Сравнить ответы</button><button class="ghost" id="prop-dismiss">Отклонить</button></div>
-   </div>
-  </section>
  </div>
 
- <div class="pane" role="tabpanel" id="pane-grow" aria-labelledby="tab-grow" hidden>
-  <section class="power" aria-labelledby="power-title">
-   <div class="power-intro">
-    <div>
-     <span class="eyebrow">Следующий большой шаг</span>
-     <h2 id="power-title">Мощное самообучение</h2>
-     <p class="support-text">Семь шагов, которые превращают Yorika в модель, которая учится каждую ночь. Учитель — большая модель на Cloud.ru, ученик — своя маленькая нейросеть Yorika. Решение о новой версии всегда за вами.</p>
-     <ol class="order"><li><b>3</b> ускорение</li><li><b>1</b> учитель</li><li><b>7</b> ночной цикл</li></ol>
+ <!-- ============ Учитель ============ -->
+ <div class="pane" role="tabpanel" id="pane-teacher" aria-labelledby="tab-teacher" hidden>
+  <section class="card teacher-top" aria-labelledby="teacher-title">
+   <header class="card-head"><span class="card-ic" data-icon="cloud" aria-hidden="true"></span><div><h2 id="teacher-title">Учитель на Cloud.ru</h2><p>Большая модель помогает маленькой: пишет примеры и проверяет ответы. Каждый запуск — только после вашего подтверждения.</p></div></header>
+   <div class="budget">
+    <div class="budget-head"><span>Потрачено в этом месяце</span><strong id="budget-used">0</strong></div>
+    <div class="budget-bar" aria-hidden="true"><span id="budget-bar"></span></div>
+    <p class="hint" id="budget-note">—</p>
+   </div>
+   <details class="more">
+    <summary>Лимиты токенов</summary>
+    <div class="form-grid two">
+     <div><label class="token-label" for="limit-run">На один запуск</label><input id="limit-run" class="field" type="number" min="1000" step="1000"></div>
+     <div><label class="token-label" for="limit-month">В месяц</label><input id="limit-month" class="field" type="number" min="1000" step="1000"></div>
     </div>
-    <figure class="cycle-figure"><svg id="night-cycle" viewBox="0 0 320 320" role="img" aria-label="Ночной цикл: опыт, учитель, дообучение, экзамен, ваше решение"></svg></figure>
-   </div>
-   <div id="power-cards" class="power-grid"></div>
+    <div class="button-row"><button class="secondary small" id="save-limits">Сохранить лимиты</button></div>
+    <p class="hint">Лимит считает Yorika у себя. Это не ограничение счёта на стороне Cloud.ru.</p>
+   </details>
   </section>
-  <h2 class="section-title">Ступени развития <span>07–19</span></h2>
-  <p class="support-text grow-intro">Следующие ступени развития. Статус честный: что уже работает, что в планах, а что пока исследование. Каждая ступень измеряется и включается только вами.</p>
-  <div class="legend"><span class="chip chip-ok">Работает частично</span><span class="chip">В планах</span><span class="chip chip-research">Исследование</span></div>
-  <div id="grow-cards" class="grow"></div>
+
+  <section class="card" id="teacher-job" hidden aria-labelledby="tjob-title">
+   <header class="card-head"><span class="card-ic" data-icon="teacher" aria-hidden="true"></span><div><h2 id="tjob-title">Учитель работает</h2><p id="tjob-line">—</p></div><button class="ghost small head-btn" id="teacher-stop" hidden>Стоп</button></header>
+   <div class="job-progress" aria-hidden="true"><span id="tjob-bar"></span></div>
+   <p id="tjob-error" class="banner banner-err" hidden></p>
+  </section>
+  <div class="task-grid">
+   <article class="task" data-kind="generate">
+    <span class="task-ic" data-icon="book" aria-hidden="true"></span>
+    <h3>Написать примеры</h3>
+    <p>Учитель пишет вопросы и ответы в стиле Yorika. Они попадут в «Опыт» без оценки.</p>
+    <label class="token-label" for="gen-count">Сколько примеров</label><input id="gen-count" class="field" type="number" min="5" max="2000" step="5" value="50">
+    <label class="token-label" for="gen-topics">Темы, по одной в строке (можно пусто)</label><textarea id="gen-topics" class="field" rows="2" placeholder="погода&#10;помощь с учёбой"></textarea>
+    <button class="primary" data-run="generate">Запустить</button>
+   </article>
+   <article class="task" data-kind="review">
+    <span class="task-ic" data-icon="clipboard" aria-hidden="true"></span>
+    <h3>Проверить ответы</h3>
+    <p>Учитель ставит оценку 1–5 и предлагает лучший ответ. Решение всё равно за вами.</p>
+    <label class="token-label" for="rev-count">Сколько ответов</label><input id="rev-count" class="field" type="number" min="1" max="2000" value="50">
+    <button class="primary" data-run="review">Запустить</button>
+   </article>
+   <article class="task" data-kind="selfplay">
+    <span class="task-ic" data-icon="loop" aria-hidden="true"></span>
+    <h3>Самоигра</h3>
+    <p>Новые вопросы там, где Yorika ошиблась. Слабых мест сейчас: <b id="weak-count">0</b>.</p>
+    <label class="token-label" for="play-count">Сколько примеров</label><input id="play-count" class="field" type="number" min="5" max="2000" step="5" value="30">
+    <button class="primary" data-run="selfplay">Запустить</button>
+   </article>
+  </div>
+
  </div>
 
+ <!-- ============ Ночь ============ -->
+ <div class="pane" role="tabpanel" id="pane-night" aria-labelledby="tab-night" hidden>
+  <section class="card night" aria-labelledby="night-title">
+   <header class="card-head"><span class="card-ic" data-icon="moon" aria-hidden="true"></span><div><h2 id="night-title">Ночной цикл</h2><p>Пока вы спите, Yorika собирает опыт, учится и сдаёт экзамен. Утром решаете вы.</p></div></header>
+   <ol class="night-line" id="night-line" aria-label="Что происходит ночью">
+    <li><span data-icon="chat" aria-hidden="true"></span><b>Сбор опыта</b><small>из чата, если включён</small></li>
+    <li><span data-icon="teacher" aria-hidden="true"></span><b>Учитель</b><small id="nl-teacher">выключен</small></li>
+    <li><span data-icon="zap" aria-hidden="true"></span><b>Обучение</b><small id="nl-hours">4 ч</small></li>
+    <li><span data-icon="exam" aria-hidden="true"></span><b>Экзамен</b><small>на невиданном</small></li>
+    <li class="you"><span data-icon="check" aria-hidden="true"></span><b>Утро</b><small>включить или нет</small></li>
+   </ol>
+   <label class="switch"><input type="checkbox" id="night-on"><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Учиться каждую ночь</strong><small id="night-note">Ноутбук должен быть включён и на зарядке.</small></span></label>
+   <div class="form-grid">
+    <div><label class="token-label" for="night-time">Начало</label><input id="night-time" class="field" type="time" value="02:00"></div>
+    <div><label class="token-label" for="night-hours">Обучение, часов</label><input id="night-hours" class="field" type="number" min="0.5" max="10" step="0.5" value="4"></div>
+    <div><label class="token-label" for="night-tokens">Учителю за ночь, токенов</label><input id="night-tokens" class="field" type="number" min="0" step="1000" value="0"></div>
+    <div><label class="token-label" for="night-play">Примеров самоигры</label><input id="night-play" class="field" type="number" min="5" max="500" step="5" value="20"></div>
+   </div>
+   <p class="hint">0 токенов — учитель ночью не работает и ничего не тратит. Больше нуля — это ваше заранее данное согласие тратить не больше этого за ночь.</p>
+   <div class="button-row"><button class="primary" id="night-save">Сохранить</button></div>
+  </section>
+  <section class="card" aria-labelledby="nlog-title">
+   <header class="card-head"><span class="card-ic" data-icon="list" aria-hidden="true"></span><div><h2 id="nlog-title">Прошлые ночи</h2></div></header>
+   <ul id="night-log" class="night-log"></ul>
+  </section>
+ </div>
+
+ <!-- ============ Будущее ============ -->
  <div class="pane" role="tabpanel" id="pane-future" aria-labelledby="tab-future" hidden>
   <section class="future" aria-labelledby="future-title">
-   <span class="eyebrow">Горизонт на 50 лет</span>
-   <h2 id="future-title">Куда может вырасти Yorika</h2>
-   <p class="support-text grow-intro">Это не план на неделю, а направление. Чем дальше по шкале, тем больше там открытых научных вопросов, которые сегодня никто в мире не умеет решать. Но путь к ним начинается с того, что уже есть на вкладках слева.</p>
+   <h2 id="future-title" class="section-title">Куда может вырасти Yorika</h2>
    <div class="legend"><span class="chip chip-ok">Уже есть</span><span class="chip">В планах</span><span class="chip chip-research">Исследование</span><span class="chip chip-dream">Открытый вопрос науки</span></div>
    <ol id="timeline" class="timeline"></ol>
   </section>
-  <section class="guard" aria-labelledby="guard-title">
+  <section aria-labelledby="steps-title">
+   <h2 id="steps-title" class="section-title">Следующие ступени <span>07–19</span></h2>
+   <div id="grow-cards" class="grow"></div>
+  </section>
+  <section aria-labelledby="guard-title">
    <h2 id="guard-title" class="section-title"><span class="title-ic" data-icon="shield" aria-hidden="true"></span>Что держит всё это безопасным</h2>
    <div id="guard-cards" class="guard-grid"></div>
   </section>

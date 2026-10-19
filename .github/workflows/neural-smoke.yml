@@ -23,3 +23,5 @@ jobs:
         run: python -m backend.neural_smoke --steps 2
       - name: Compare two actual candidates on held-out synthetic data
         run: PYTHONPATH=. python scripts/compare-neural-candidates.py
+      - name: Train and preserve two different architecture checkpoints in isolated CPU lab
+        run: PYTHONPATH=. python scripts/verify-neural-lab.py

@@ -18,7 +18,8 @@ function Get-Token {
 }
 function Request($uri,[switch]$Binary,[string]$CandidateToken='', [switch]$StrictCandidate){
  $headers=@{'User-Agent'='Yorika-Updater';'Accept'='application/vnd.github+json';'X-GitHub-Api-Version'='2022-11-28'}
- $t=if($StrictCandidate){$CandidateToken}else{Get-Token}
+ # Public repository reads must not depend on a previously saved (possibly expired) token.
+ $t=if($StrictCandidate){$CandidateToken}else{''}
  if($t){$headers.Authorization="Bearer $t"}
  if($Binary){return $headers}
  try {

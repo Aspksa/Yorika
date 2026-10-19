@@ -33,6 +33,8 @@ jobs:
         run: PYTHONPATH=. python scripts/verify-neural-longrun.py
       - name: Verify deterministic Russian BPE tokenizer
         run: PYTHONPATH=. python -m unittest discover -s tests -p 'test_neural_bpe_v1.py' -v
+      - name: Check scaled Transformer and resumable training
+        run: PYTHONPATH=. python -m unittest discover -s tests -p 'test_neural_scale_v1.py' -v
       - name: Test language BPE v2 using actual CPU PyTorch
         run: PYTHONPATH=. python -m unittest discover -s tests -p 'test_neural_language_bpe_v2.py' -v
       - name: Train Russian UTF-8 language brain and evaluate held-out NLL

@@ -1,0 +1,64 @@
+name: Yorika trusted Windows self-hosted acceptance
+
+# This workflow intentionally never runs on PRs or pushes. Only start it
+# manually from main after reviewing the code. A self-hosted runner executes
+# arbitrary repository code with the privileges of its Windows account.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: yorika-selfhosted-acceptance
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main' && github.repository == 'Aspksa/Yorika'
+    runs-on: [self-hosted, Windows, X64, yorika-ci]
+    timeout-minutes: 30
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONNOUSERSITE: '1'
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout reviewed main without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          clean: true
+      - name: Verify local toolchain
+        run: |
+          python --version
+          if ($LASTEXITCODE -ne 0) { throw 'Python is required on the runner' }
+          node --version
+          if ($LASTEXITCODE -ne 0) { throw 'Node.js is required on the runner' }
+      - name: Python and SQLite acceptance
+        run: |
+          python scripts/run-acceptance.py --report yorika-acceptance.json
+          if ($LASTEXITCODE -ne 0) { throw 'Python and SQLite acceptance failed' }
+      - name: PowerShell syntax validation
+        run: |
+          & ./scripts/check-powershell.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'PowerShell parse failed' }
+      - name: JavaScript syntax validation
+        run: |
+          node --check www/avatar.js
+          if ($LASTEXITCODE -ne 0) { throw 'JavaScript syntax failed' }
+      - name: DPAPI and updater tests
+        run: |
+          python -m unittest discover -s tests -p 'test_windows_dpapi.py' -v
+          if ($LASTEXITCODE -ne 0) { throw 'DPAPI tests failed' }
+          & ./scripts/test-updater.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Updater tests failed' }
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yorika-selfhosted-acceptance
+          path: yorika-acceptance.json
+          if-no-files-found: ignore
+          retention-days: 7

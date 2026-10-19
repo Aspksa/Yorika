@@ -160,3 +160,9 @@ powershell -ExecutionPolicy Bypass -File scripts/validate-windows.ps1
 - [ ] QA-005 — Запуск полного Python suite, SQLite-конкуренции и безопасного восстановления через `python scripts/run-acceptance.py --report yorika-acceptance.json`. Добавлен `workflow_dispatch` и выгрузка отчёта в Actions. Вся приёмка остаётся открытой до фактического запуска и результатов на Linux/Windows.
 
 После прогона сохранить `yorika-acceptance.json`, проверить ошибки и только затем закрывать MEMORY-004, DATA-006, QA-004. Ошибка GitHub Actions до назначения runner сама по себе не свидетельствует о проблемах приложения.
+
+## Ручная Windows self-hosted приёмка (2026-10-19)
+
+Добавлен отдельный `.github/workflows/selfhosted-windows-acceptance.yml`: запуск только вручную из защищённой ветки `main`, с меткой `yorika-ci`, без токенов в checkout и с минимальными GitHub permissions. Подробности: `docs/SELF_HOSTED_WINDOWS_CI.md`.
+
+Проверки QA-003, QA-004, QA-005, MEMORY-004 и DATA-006 **не считать завершёнными** до появления фактических результатов самих тестов и Windows-приёмки. Старые push/PR workflow остались на GitHub-hosted runner из соображений безопасности.

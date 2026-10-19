@@ -1225,6 +1225,88 @@
       "evidence": [],
       "completed_at": null,
       "notes": "Acceptance: runnable scenario and baseline; measure task success, factual accuracy, interaction latency, user control and privacy. Avoid emotion or mind-reading claims. No unsanctioned audio/video, proactive outreach or tool execution. Document regression, rollback and resource budget."
+    },
+    {
+      "id": "NEURAL-001",
+      "title": "Экспериментальный Transformer trainer и локальный checkpoint",
+      "priority": "P2",
+      "depends_on": [],
+      "status": "done",
+      "evidence": [
+        "backend/training_engine.py",
+        "tests/test_training_engine.py",
+        "https://github.com/Aspksa/Yorika/pull/132"
+      ],
+      "completed_at": "2026-10-19",
+      "notes": "Узкий проверяемый инженерный этап. Не означает готовность диалоговой модели или достижение требуемого качества."
+    },
+    {
+      "id": "NEURAL-002",
+      "title": "Безопасная загрузка доверенного checkpoint и ограниченная генерация",
+      "priority": "P2",
+      "depends_on": [],
+      "status": "done",
+      "evidence": [
+        "backend/neural_inference.py",
+        "tests/test_neural_inference.py",
+        "https://github.com/Aspksa/Yorika/pull/133"
+      ],
+      "completed_at": "2026-10-19",
+      "notes": "Узкий проверяемый инженерный этап. Не означает готовность диалоговой модели или достижение требуемого качества."
+    },
+    {
+      "id": "NEURAL-003",
+      "title": "Изолированный smoke обучения и генерации",
+      "priority": "P2",
+      "depends_on": [],
+      "status": "done",
+      "evidence": [
+        "backend/neural_smoke.py",
+        "tests/test_neural_smoke.py",
+        "https://github.com/Aspksa/Yorika/pull/134"
+      ],
+      "completed_at": "2026-10-19",
+      "notes": "Узкий проверяемый инженерный этап. Не означает готовность диалоговой модели или достижение требуемого качества."
+    },
+    {
+      "id": "NEURAL-004",
+      "title": "Реальный PyTorch CPU smoke в GitHub Actions",
+      "priority": "P2",
+      "depends_on": [],
+      "status": "done",
+      "evidence": [
+        ".github/workflows/neural-smoke.yml",
+        "https://github.com/Aspksa/Yorika/pull/135"
+      ],
+      "completed_at": "2026-10-19",
+      "notes": "Узкий проверяемый инженерный этап. Не означает готовность диалоговой модели или достижение требуемого качества."
+    },
+    {
+      "id": "NEURAL-005",
+      "title": "Детерминированная оценка на отложенных данных и диагностика устройств",
+      "priority": "P2",
+      "depends_on": [],
+      "status": "done",
+      "evidence": [
+        "backend/neural_evaluation.py",
+        "tests/test_neural_evaluation.py",
+        "backend/neural_hardware.py",
+        "tests/test_neural_hardware.py"
+      ],
+      "completed_at": "2026-10-19",
+      "notes": "Узкий проверяемый инженерный этап. Не означает готовность диалоговой модели или достижение требуемого качества."
+    },
+    {
+      "id": "NEURAL-006",
+      "title": "Реальный GPU-бенчмарк RTX 3050 4 ГБ, независимое качество генерации и безопасная интеграция в чат",
+      "priority": "P2",
+      "depends_on": [
+        "NEURAL-005"
+      ],
+      "status": "todo",
+      "evidence": [],
+      "completed_at": null,
+      "notes": "Требуются реальные результаты на устройстве и отдельно подтверждённые метрики, CI на CPU недостаточно."
     }
   ]
 }

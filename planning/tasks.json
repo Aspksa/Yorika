@@ -1307,6 +1307,23 @@
       "evidence": [],
       "completed_at": null,
       "notes": "Требуются реальные результаты на устройстве и отдельно подтверждённые метрики, CI на CPU недостаточно."
+    },
+    {
+      "id": "NEURAL-007",
+      "title": "Экспериментальный адаптер с явным согласием, fallback и CPU benchmark",
+      "priority": "P2",
+      "depends_on": [
+        "NEURAL-005"
+      ],
+      "status": "done",
+      "evidence": [
+        "backend/neural_router.py",
+        "backend/neural_benchmark.py",
+        "tests/test_neural_router.py",
+        "tests/test_neural_benchmark.py"
+      ],
+      "completed_at": "2026-10-19",
+      "notes": "Standalone adapter; не встроен в основной сервер или GUI. Отдельный GPU benchmark пока не реализован."
     }
   ]
 }

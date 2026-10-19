@@ -15,14 +15,8 @@ if errorlevel 1 (
 )
 where zizmor >nul 2>nul
 if errorlevel 1 (
- where uv >nul 2>nul
- if errorlevel 1 (
-  echo [NOT RUN] zizmor and uv are missing.
-  set "failed=1"
- ) else (
-  uv tool run --offline zizmor .github/workflows
-  if errorlevel 1 (echo [FAIL] zizmor & set "failed=1") else (echo [PASS] zizmor)
- )
+ echo [NOT RUN] zizmor is not in PATH. Reopen CMD after installation.
+ set "failed=1"
 ) else (
  zizmor .github/workflows
  if errorlevel 1 (echo [FAIL] zizmor & set "failed=1") else (echo [PASS] zizmor)

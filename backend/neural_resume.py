@@ -1,8 +1,7 @@
-"""Continue training Yorika's one native Transformer from a trusted checkpoint.
+"""Continue from saved weights into a new checkpoint, without changing active brain.
 
-Produces a *new* immutable checkpoint. The active brain is never switched.
+This is weight continuation, not exact optimizer-state resume: AdamW moments reset.
 """
-import hashlib
 from pathlib import Path
 from backend.neural_inference import validate_checkpoint
 from backend.training_engine import train
@@ -15,13 +14,13 @@ def resume_training(examples, source, output, *, additional_steps=10, trainer=tr
     if not source.is_file() or not 0 < source.stat().st_size <= 100 * 1024 * 1024:
         raise ValueError("Trusted checkpoint missing or oversized")
     if output.exists() or source.resolve() == output.resolve():
-        raise FileExistsError("Resume never overwrites source or existing checkpoints")
+        raise FileExistsError("Never overwrite weights on continuation")
     try:
         import torch
     except ImportError as exc:
         raise RuntimeError("Optional PyTorch required") from exc
-    data = torch.load(source, map_location="cpu", weights_only=True)
-    config, vocab = validate_checkpoint(data)
-    # Current trainer starts from random weights; it cannot resume safely.
-    # Refuse rather than misrepresent a fresh run as continuation.
-    raise NotImplementedError("Exact model and optimizer state restoration required for genuine resume")
+    loaded = torch.load(source, map_location="cpu", weights_only=True)
+    config, vocab = validate_checkpoint(loaded)
+    return trainer(examples, output, steps=additional_steps, seed=config["seed"],
+                   width=config["width"], heads=config["heads"], context=config["context"],
+                   source_checkpoint=source)

@@ -1,3 +1,4 @@
+from contextlib import closing
 """Cross-connection SQLite chat CAS and non-destructive restore regression tests.
 
 These tests use temporary local files, never real Yorika profile data.
@@ -57,7 +58,7 @@ class ChatRestoreStressTests(unittest.TestCase):
             result = restore_copy(root / "source.sqlite3", destination, report["sha256"])
             self.assertEqual(result["sha256"], report["sha256"])
             self.assertEqual((root / "source.sqlite3").read_bytes(), source_before)
-            with sqlite3.connect(destination) as recovered:
+            with closing(sqlite3.connect(destination)) as recovered, recovered:
                 payload = recovered.execute(
                     "SELECT payload FROM records WHERE namespace=? AND record_id=?",
                     ("memories", "unicode"),

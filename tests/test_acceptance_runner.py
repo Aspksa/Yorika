@@ -43,5 +43,18 @@ class AcceptanceRunnerTests(unittest.TestCase):
         self.assertTrue(all(x["status"] == "error" for x in result["results"]))
 
 
+    def test_compact_log_preserves_both_failure_boundaries(self):
+        original = "BEGIN: error context\\n" + ("x" * 30000) + "\\nEND: final traceback"
+        rendered = runner_module.compact_log(original, limit=2000)
+        self.assertIn("BEGIN: error context", rendered)
+        self.assertIn("END: final traceback", rendered)
+        self.assertIn("middle of output omitted", rendered)
+        self.assertLess(len(rendered), len(original))
+
+    def test_compact_log_does_not_modify_short_output(self):
+        report = "OK\\nТест памяти прошёл\\n"
+        self.assertEqual(runner_module.compact_log(report, limit=2000), report)
+
+
 if __name__ == "__main__":
     unittest.main()

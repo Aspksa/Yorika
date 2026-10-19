@@ -566,6 +566,60 @@ class Store:
                 "eligible": len(pending), "applied": applied,
                 "bytes": total_bytes}
 
+
+    def consolidate_memories(self, *, dry_run: bool = True, limit: int = 1000) -> dict:
+        """Identify exact duplicate explicit memories without discarding provenance.
+
+        A dry run is the default. Automatic changes only remove exact text/source/
+        source_id duplicates, never conflicting claims or non-memory namespaces.
+        """
+        if type(dry_run) is not bool:
+            raise ValueError("dry_run must be boolean")
+        if type(limit) is not int or not 1 <= limit <= 10000:
+            raise ValueError("limit must be between 1 and 10000")
+        db = self.connection
+        if db.in_transaction:
+            raise RuntimeError("Finish current transaction before consolidation")
+        db.execute("BEGIN IMMEDIATE")
+        try:
+            rows = db.execute(
+                "SELECT record_id,payload FROM records WHERE namespace='memories' "
+                "ORDER BY record_id LIMIT ?", (limit + 1,)
+            ).fetchall()
+            if len(rows) > limit:
+                raise ValueError("Too many memories; narrow consolidation batch")
+            seen, duplicate_ids = {}, []
+            for record_id, payload in rows:
+                try:
+                    value = json.loads(payload)
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(value, dict):
+                    continue
+                fields = (value.get("text"), value.get("source"), value.get("source_id"))
+                if not all(isinstance(x, str) for x in fields[:2]):
+                    continue
+                if not isinstance(fields[2], str):
+                    continue
+                key = fields
+                if key in seen:
+                    duplicate_ids.append(record_id)
+                else:
+                    seen[key] = record_id
+            if not dry_run:
+                for record_id in duplicate_ids:
+                    db.execute("DELETE FROM records WHERE namespace='memories' "
+                               "AND record_id=?", (record_id,))
+                db.commit()
+            else:
+                db.rollback()
+            return {"scanned": len(rows), "duplicates": len(duplicate_ids),
+                    "removed": 0 if dry_run else len(duplicate_ids),
+                    "dry_run": dry_run, "duplicate_ids": duplicate_ids}
+        except BaseException:
+            db.rollback()
+            raise
+
     def append_event(self, event_type: str, value: dict) -> int:
         if not event_type or not isinstance(value, dict):
             raise ValueError("event_type must be non-empty and value must be an object")

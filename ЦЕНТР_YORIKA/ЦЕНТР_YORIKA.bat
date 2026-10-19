@@ -20,9 +20,13 @@ goto END
 :POLICY_BLOCKED
 echo.
 echo [YORIKA] Windows has blocked PowerShell script execution (Restricted).
-echo [YORIKA] Open PowerShell and inspect:
+echo [YORIKA] All five policy scopes can show Undefined, while effective policy remains Restricted.
+echo [YORIKA] Inspect both effective policy and configured scopes:
+echo             Get-ExecutionPolicy
 echo             Get-ExecutionPolicy -List
-echo [YORIKA] On managed PCs ask IT to authorize signed scripts.
+echo             pwsh -NoProfile -Command "Get-ExecutionPolicy"
+echo [YORIKA] On managed PCs ask IT to authorize vetted, signed scripts.
+echo [YORIKA] On personal PCs verify the Kaspersky alert before any policy changes.
 echo [YORIKA] Do not disable security tools or use ExecutionPolicy Bypass.
 set "rc=10"
 

@@ -63,6 +63,23 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (ValueError, RuntimeError, OSError, TypeError, KeyError, AttributeError):
-        emit({"type": "error", "message": "Cloud.ru streaming unavailable"})
+    except (ValueError, RuntimeError, OSError, TypeError, KeyError, AttributeError) as exc:
+        detail = str(exc)
+        # Only display our own bounded, classified error messages. Never include
+        # provider payloads, credentials or arbitrary exception details.
+        if "HTTP 401" in detail:
+            message = "Cloud.ru: неверный API-ключ (401)"
+        elif "HTTP 403" in detail:
+            message = "Cloud.ru: нет доступа к выбранной модели (403)"
+        elif "HTTP 404" in detail:
+            message = "Cloud.ru: проверьте ID выбранной модели (404)"
+        elif "HTTP 429" in detail:
+            message = "Cloud.ru: превышен лимит запросов (429)"
+        elif "Incomplete Cloud.ru stream" in detail:
+            message = "Cloud.ru: сервер прервал поток ответа"
+        elif "key not configured" in detail:
+            message = "Cloud.ru: сначала сохраните API-ключ в настройках"
+        else:
+            message = "Cloud.ru: поток недоступен; проверьте подключение и ID модели"
+        emit({"type": "error", "message": message})
         sys.exit(1)

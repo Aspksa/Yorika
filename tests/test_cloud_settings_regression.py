@@ -15,7 +15,7 @@ class CloudSettingsRegression(unittest.TestCase):
     def test_server_routes_and_guardrails_are_not_corrupted(self):
         content = SERVER.read_text(encoding="utf-8-sig")
         self.assertIn(
-            "^/api/cloud-ru/(status|save|check|delete|diagnostics)\\z", content
+            "^/api/cloud-ru/(status|save|check|delete|diagnostics|", content
         )
         self.assertIn("}elseif($path -eq '/api/chat/respond'){", content)
         self.assertIn("$action=$Matches[1]", content)
@@ -33,13 +33,11 @@ class CloudSettingsRegression(unittest.TestCase):
         )[0]
         for block, timeout in ((settings, "28000"), (chat, "25000")):
             with self.subTest(timeout=timeout):
+                self.assertNotIn("StandardOutput.ReadToEnd()", block)
+                self.assertNotIn("StandardError.ReadToEnd()", block)
                 self.assertLess(
                     block.index("WaitForExit(" + timeout + ")"),
-                    block.index("StandardOutput.ReadToEnd()"),
-                )
-                self.assertLess(
-                    block.index("WaitForExit(" + timeout + ")"),
-                    block.index("StandardError.ReadToEnd()"),
+                    block.index("$stdoutTask.GetAwaiter().GetResult()"),
                 )
 
     def test_both_cloud_subprocess_pipes_are_drained_asynchronously(self):

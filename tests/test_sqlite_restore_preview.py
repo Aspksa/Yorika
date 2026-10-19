@@ -1,3 +1,4 @@
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -49,7 +50,7 @@ class RestorePreviewTests(unittest.TestCase):
     def test_reject_malformed_yorika_tables(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "bad-schema.sqlite3"
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 db.execute("CREATE TABLE records (namespace TEXT, record_id TEXT, payload TEXT, updated_at TEXT)")
                 db.execute("CREATE TABLE events (event_id INTEGER PRIMARY KEY, event_type TEXT NOT NULL, payload TEXT NOT NULL, recorded_at TEXT NOT NULL)")
                 db.execute("PRAGMA user_version=1")
@@ -59,7 +60,7 @@ class RestorePreviewTests(unittest.TestCase):
     def test_reject_arbitrary_sqlite_database(self):
         with tempfile.TemporaryDirectory() as folder:
             file = Path(folder) / "other.db"
-            with sqlite3.connect(file) as db:
+            with closing(sqlite3.connect(file)) as db, db:
                 db.execute("PRAGMA user_version=1")
                 db.execute("CREATE TABLE unrelated (x TEXT)")
             with self.assertRaisesRegex(ValueError, "tables"):

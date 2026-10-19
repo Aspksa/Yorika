@@ -13,7 +13,7 @@ from backend.neural_language_longrun import run
 
 
 def execute(records_path, output_dir, *, steps=100, checkpoint_every=20,
-            width=320, heads=8, layers=4, context=256, max_merges=128, seed=42, max_run_seconds=None):
+            width=320, heads=8, layers=4, context=256, max_merges=128, seed=42, max_run_seconds=None, device='cpu'):
     source = Path(records_path)
     if not source.is_file() or not 0 < source.stat().st_size <= 30_000_000:
         raise ValueError("Missing or oversized consent dataset JSON")
@@ -30,7 +30,7 @@ def execute(records_path, output_dir, *, steps=100, checkpoint_every=20,
     result = run(dataset["train"], dataset["validation"], checkpoint,
                  total_steps=steps, checkpoint_every=checkpoint_every,
                  width=width, heads=heads, layers=layers, context=context,
-                 max_merges=max_merges, seed=seed, max_run_seconds=max_run_seconds)
+                 max_merges=max_merges, seed=seed, max_run_seconds=max_run_seconds, device=device)
     report = {"schema": "yorika-experiment-v1",
               "data": dataset["manifest"], "training": result,
               "test_reserved": True, "test_evaluated": False,
@@ -54,12 +54,13 @@ def main(argv=None):
     parser.add_argument("--max-merges", type=int, default=128)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-run-seconds", type=float, default=None)
+    parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     args = parser.parse_args(argv)
     report = execute(args.records, args.output, steps=args.steps,
                      checkpoint_every=args.checkpoint_every,
                      width=args.width, heads=args.heads, layers=args.layers,
                      context=args.context, max_merges=args.max_merges, seed=args.seed,
-                     max_run_seconds=args.max_run_seconds)
+                     max_run_seconds=args.max_run_seconds, device=args.device)
     print(json.dumps({"training": report["training"], "test_evaluated": False}, ensure_ascii=False))
 
 

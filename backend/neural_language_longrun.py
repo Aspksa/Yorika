@@ -82,7 +82,7 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
     if device == "cuda":
         for group in opt.state.values():
             for key, value in group.items():
-                if isinstance(value, torch.Tensor):
+                if isinstance(value, torch.Tensor) and key != "step":
                     group[key] = value.to(train_device)
     def loss(pair):
         p, a = pair

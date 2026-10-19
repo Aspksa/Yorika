@@ -297,29 +297,47 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
             "peak_cuda_allocated_bytes": (torch.cuda.max_memory_allocated(train_device) if device == "cuda" else None)}
 
 
-def score_checkpoint(checkpoint, examples, *, objective="dialogue", limit=2000):
-    """Mean per-example loss of a saved checkpoint on examples it never trained on (the exam)."""
+def score_checkpoint(checkpoint, examples, *, objective="dialogue", limit=2000, loaded=None):
+    """Loss of a saved checkpoint on examples it never trained on (the exam).
+
+    Returns the mean per-example loss and loss per character of target text. Per-character
+    loss does not depend on the tokenizer, so versions with different vocabularies compare.
+    """
     import torch
     from torch.nn import functional as F
     from backend.neural_language_benchmark import load_candidate
-    model, state = load_candidate(checkpoint)
+    model, state = loaded or load_candidate(checkpoint)
     tokenizer, context = state["tokenizer"], state["config"][3]
-    scores = []
+    scores, nats, chars = [], 0.0, 0
     with torch.inference_mode():
         for example in list(examples)[:limit]:
             if objective == "lm":
-                ids, masked = [1] + bpe_encode(example, tokenizer)[:context] + [2], 0
+                target = example
+                full = [1] + bpe_encode(example, tokenizer) + [2]
+                windows = [(full[b:b + context + 1], 0) for b in range(0, max(1, len(full) - 1), context)]
             else:
+                target = example[1]
                 prefix = [1, 3] + bpe_encode(example[0], tokenizer) + [4]
-                ids, masked = prefix + bpe_encode(example[1], tokenizer) + [2], len(prefix) - 1
-            ids = ids[:context + 1]
-            if len(ids) - 1 <= masked:
+                ids = prefix + bpe_encode(example[1], tokenizer) + [2]
+                if len(ids) > context + 1:
+                    # Exams never cut answers: a truncated target would make the score look better.
+                    continue
+                windows = [(ids, len(prefix) - 1)]
+            total, counted = 0.0, 0
+            for ids, masked in windows:
+                if len(ids) < 2:
+                    continue
+                y = torch.tensor([ids[1:]])
+                y[:, :masked] = -100
+                logits = model(torch.tensor([ids[:-1]]))
+                total += float(F.cross_entropy(logits.reshape(-1, logits.shape[-1]), y.reshape(-1),
+                                               ignore_index=-100, reduction="sum"))
+                counted += int((y != -100).sum())
+            if not counted:
                 continue
-            y = torch.tensor([ids[1:]])
-            y[:, :masked] = -100
-            logits = model(torch.tensor([ids[:-1]]))
-            scores.append(float(F.cross_entropy(logits.reshape(-1, logits.shape[-1]), y.reshape(-1),
-                                                ignore_index=-100)))
+            scores.append(total / counted)
+            nats += total
+            chars += len(target) + 1
     if not scores:
         raise ValueError("No exam examples fit the model context")
-    return sum(scores) / len(scores), len(scores)
+    return {"nll": sum(scores) / len(scores), "count": len(scores), "per_char": nats / chars}

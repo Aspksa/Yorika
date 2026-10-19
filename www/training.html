@@ -53,16 +53,34 @@
 
   <section class="card" aria-labelledby="start-title">
    <header class="card-head"><span class="card-ic" data-icon="play" aria-hidden="true"></span><div><h2 id="start-title">Новое обучение</h2><p id="mode-note">Учится на ваших оценённых диалогах и сохраняет прогресс.</p></div></header>
-   <div class="segmented modes" role="radiogroup" aria-label="Режим">
+   <div class="segmented modes four" role="radiogroup" aria-label="Режим">
     <label><input type="radio" name="mode" value="long" checked><span><b>Диалоги</b><small>на ваших данных</small></span></label>
     <label><input type="radio" name="mode" value="pretrain"><span><b>Предобучение</b><small>на открытых текстах</small></span></label>
+    <label><input type="radio" name="mode" value="sandbox"><span><b>Песочница</b><small>2–3 размера</small></span></label>
     <label><input type="radio" name="mode" value="pilot"><span><b>Проба</b><small>5 минут</small></span></label>
    </div>
+   <div class="sizes" data-for="long pretrain">
+    <span class="token-label">Размер модели</span>
+    <div class="size-grid" role="radiogroup" aria-label="Размер модели">
+     <label class="size-card"><input type="radio" name="size" value="s" checked><span><b>S</b><strong>≈5 млн</strong><small>быстро, хватит 4 ГБ</small></span></label>
+     <label class="size-card"><input type="radio" name="size" value="m"><span><b>M</b><strong>≈25 млн</strong><small>в 4–5 раз медленнее</small></span></label>
+     <label class="size-card"><input type="radio" name="size" value="l"><span><b>L</b><strong>≈50 млн</strong><small>около 2 ГБ видеопамяти (оценка)</small></span></label>
+    </div>
+   </div>
+   <div class="sizes" data-for="sandbox">
+    <span class="token-label">Какие размеры сравнить</span>
+    <div class="size-grid">
+     <label class="size-card"><input type="checkbox" name="series-size" value="s" checked><span><b>S</b><strong>≈5 млн</strong><small>быстро</small></span></label>
+     <label class="size-card"><input type="checkbox" name="series-size" value="m" checked><span><b>M</b><strong>≈25 млн</strong><small>средняя</small></span></label>
+     <label class="size-card"><input type="checkbox" name="series-size" value="l"><span><b>L</b><strong>≈50 млн</strong><small>большая</small></span></label>
+    </div>
+    <p class="hint">Все версии учатся на одних данных по очереди и сдают один экзамен. Включаете лучшую вы.</p>
+   </div>
    <div class="form-grid">
-    <div data-for="long"><label class="token-label" for="long-file">Файл диалогов</label><select id="long-file" class="field"></select></div>
+    <div data-for="long sandbox"><label class="token-label" for="long-file">Файл диалогов</label><select id="long-file" class="field"></select></div>
     <div data-for="long"><label class="token-label" for="base-run">Основа</label><select id="base-run" class="field"><option value="">С нуля</option></select></div>
-    <div data-for="long pretrain"><label class="token-label" for="steps">Шагов</label><input id="steps" class="field" type="number" min="100" max="1000000" step="100" value="100000"></div>
-    <div data-for="long pretrain"><label class="token-label" for="hours">Не дольше, часов</label><input id="hours" class="field" type="number" min="0.1" max="72" step="0.5" value="8"></div>
+    <div data-for="long pretrain sandbox"><label class="token-label" for="steps">Шагов</label><input id="steps" class="field" type="number" min="100" max="1000000" step="100" value="100000"></div>
+    <div data-for="long pretrain sandbox"><label class="token-label" for="hours" id="hours-label">Не дольше, часов</label><input id="hours" class="field" type="number" min="0.1" max="72" step="0.5" value="8"></div>
     <div><span class="token-label">Где считать</span><div class="segmented"><label><input type="radio" name="device" value="cuda" checked><span>Видеокарта</span></label><label><input type="radio" name="device" value="cpu"><span>Процессор</span></label></div></div>
    </div>
    <p class="hint speed-hint"><span data-icon="zap" aria-hidden="true"></span>Ускорение включено: 16 примеров за шаг и половинная точность на видеокарте. На процессоре это дало в 9 раз больше примеров в секунду.</p>
@@ -115,8 +133,25 @@
 
   <section class="card" aria-labelledby="versions-title">
    <header class="card-head"><span class="card-ic" data-icon="layers" aria-hidden="true"></span><div><h2 id="versions-title">Версии и экзамен</h2><p id="active-line">Своя модель ещё не выбрана: в чате отвечает Cloud.ru.</p></div><button class="ghost small head-btn" id="rollback" hidden>Вернуть прошлую</button></header>
+   <div id="series" class="series" hidden>
+    <h3><span data-icon="flask" aria-hidden="true"></span>Песочница <small id="series-when"></small></h3>
+    <div class="series-table" id="series-table"></div>
+    <p class="hint" id="series-note"></p>
+   </div>
    <ul id="versions" class="versions-list"><li class="empty">Обучений ещё не было.</li></ul>
-   <p class="hint">Экзамен — ошибка на задачах, которые модель ни разу не видела при обучении. Чем ниже, тем лучше.</p>
+   <p class="hint">Экзамен — ошибка на задачах, которые модель ни разу не видела при обучении. Чем ниже, тем лучше. Каждая новая версия пересдаёт и экзамены прошлых версий: если стала хуже на старом, рядом будет «забывает». «Честность» — сколько раз из 16 она сказала «не знаю» там, где ответа знать нельзя.</p>
+   <details class="more" id="blind-box">
+    <summary>Слепая проверка: какая версия лучше на ваш вкус</summary>
+    <p class="hint">Две версии отвечают на одни и те же вопросы. Вы видите только «A» и «B» и выбираете лучший ответ. Имена откроются в конце.</p>
+    <div class="form-grid three">
+     <div><label class="token-label" for="blind-a">Версия 1</label><select id="blind-a" class="field"></select></div>
+     <div><label class="token-label" for="blind-b">Версия 2</label><select id="blind-b" class="field"></select></div>
+     <div><label class="token-label" for="blind-count">Вопросов</label><input id="blind-count" class="field" type="number" min="1" max="10" value="5"></div>
+    </div>
+    <div class="button-row"><button class="secondary" id="blind-start">Начать</button></div>
+    <div id="blind-round" class="blind" hidden></div>
+    <ul id="blind-results" class="blind-results"></ul>
+   </details>
    <details class="more" id="compare-box">
     <summary>Сравнить ответы двух версий</summary>
     <div class="form-grid two">
@@ -142,6 +177,7 @@
     <div class="version-arrow" aria-hidden="true">→</div>
     <div class="version-tile new"><span>Новая</span><strong id="prop-new">—</strong><small id="prop-new-meta"></small></div>
    </div>
+   <p id="prop-warn" class="banner banner-warn" hidden></p>
    <div class="button-row"><button class="primary" id="prop-accept">Включить</button><button class="secondary" id="prop-compare">Сравнить ответы</button><button class="ghost" id="prop-dismiss">Отклонить</button></div>
   </section>
 
@@ -160,6 +196,15 @@
    </div>
    <div class="button-row"><button class="secondary" id="collect-now">Собрать из чата</button><button class="primary" id="export-exp">Сохранить набор для обучения</button></div>
    <p id="exp-result" class="hint" role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="card" aria-labelledby="packs-title">
+   <header class="card-head"><span class="card-ic" data-icon="gift" aria-hidden="true"></span><div><h2 id="packs-title">Готовые уроки</h2><p>Примеры, написанные кодом, без учителя и бесплатно. Сначала посмотрите, потом одобрите урок целиком.</p></div></header>
+   <div class="packs">
+    <article class="pack" data-pack="honesty"><span class="task-ic" data-icon="help" aria-hidden="true"></span><div><h3>«Не знаю» вместо выдумки</h3><p>16 вопросов, на которые нельзя знать ответ. Экзамен честности использует другие 16, так что выучить его наизусть не выйдет.</p></div><button class="secondary small" data-pack-open>Посмотреть</button></article>
+    <article class="pack" data-pack="tools"><span class="task-ic" data-icon="calc" aria-hidden="true"></span><div><h3>Инструменты</h3><p>120 примеров, где Yorika пишет [[calc:…]], [[time:]] или [[memory:…]]. Результат считает программа, а не нейросеть.</p></div><button class="secondary small" data-pack-open>Посмотреть</button></article>
+   </div>
+   <div id="pack-preview" class="pack-preview" hidden></div>
   </section>
 
   <section class="card" aria-labelledby="rate-title">
@@ -196,6 +241,13 @@
     <div class="button-row"><button class="secondary small" id="save-limits">Сохранить лимиты</button></div>
     <p class="hint">Лимит считает Yorika у себя. Это не ограничение счёта на стороне Cloud.ru.</p>
    </details>
+   <details class="more" id="models-box">
+    <summary>Несколько учителей</summary>
+    <p class="hint">Впишите до 4 моделей Cloud.ru, по одной в строке. Пока у каждой меньше 8 оценённых вами примеров, они работают по очереди. Потом в каждой теме зовётся та, чьи примеры вы одобряете чаще.</p>
+    <textarea id="models" class="field" rows="3" spellcheck="false" placeholder="ai-sage/GigaChat3-10B-A1.8B&#10;Qwen/Qwen3-235B-A22B-Instruct-2507"></textarea>
+    <div class="button-row"><button class="secondary small" id="save-models">Сохранить учителей</button></div>
+    <ul id="board" class="board"></ul>
+   </details>
   </section>
 
   <section class="card" id="teacher-job" hidden aria-labelledby="tjob-title">
@@ -209,6 +261,7 @@
     <h3>Написать примеры</h3>
     <p>Учитель пишет вопросы и ответы в стиле Yorika. Они попадут в «Опыт» без оценки.</p>
     <label class="token-label" for="gen-count">Сколько примеров</label><input id="gen-count" class="field" type="number" min="5" max="2000" step="5" value="50">
+    <button class="ghost small fill-goal" id="fill-goal" type="button">Дописать до 10 000</button>
     <label class="token-label" for="gen-topics">Темы, по одной в строке (можно пусто)</label><textarea id="gen-topics" class="field" rows="2" placeholder="погода&#10;помощь с учёбой"></textarea>
     <button class="primary" data-run="generate">Запустить</button>
    </article>
@@ -225,6 +278,27 @@
     <p>Новые вопросы там, где Yorika ошиблась. Слабых мест сейчас: <b id="weak-count">0</b>.</p>
     <label class="token-label" for="play-count">Сколько примеров</label><input id="play-count" class="field" type="number" min="5" max="2000" step="5" value="30">
     <button class="primary" data-run="selfplay">Запустить</button>
+   </article>
+   <article class="task" data-kind="honesty">
+    <span class="task-ic" data-icon="help" aria-hidden="true"></span>
+    <h3>Уроки «не знаю»</h3>
+    <p>Учитель пишет вопросы, на которые нельзя знать ответ, и честные ответы без выдумки.</p>
+    <label class="token-label" for="hon-count">Сколько примеров</label><input id="hon-count" class="field" type="number" min="5" max="2000" step="5" value="30">
+    <button class="primary" data-run="honesty">Запустить</button>
+   </article>
+   <article class="task" data-kind="selfcheck">
+    <span class="task-ic" data-icon="check" aria-hidden="true"></span>
+    <h3>Самопроверка</h3>
+    <p>Yorika отвечает сама, учитель проверяет черновик, а ошибки с исправлением попадают в «Опыт».</p>
+    <label class="token-label" for="chk-count">Сколько вопросов</label><input id="chk-count" class="field" type="number" min="1" max="2000" value="30">
+    <button class="primary" data-run="selfcheck">Запустить</button>
+   </article>
+   <article class="task" data-kind="memory">
+    <span class="task-ic" data-icon="brain" aria-hidden="true"></span>
+    <h3>Память в навыки</h3>
+    <p>Из фактов памяти учитель делает примеры. <b>Текст памяти уходит в Cloud.ru.</b> Фактов в памяти: <b id="mem-count">0</b>.</p>
+    <label class="token-label" for="mem-n">Сколько фактов</label><input id="mem-n" class="field" type="number" min="1" max="2000" value="20">
+    <button class="primary" data-run="memory">Запустить</button>
    </article>
   </div>
 
@@ -247,7 +321,9 @@
     <div><label class="token-label" for="night-hours">Обучение, часов</label><input id="night-hours" class="field" type="number" min="0.5" max="10" step="0.5" value="4"></div>
     <div><label class="token-label" for="night-tokens">Учителю за ночь, токенов</label><input id="night-tokens" class="field" type="number" min="0" step="1000" value="0"></div>
     <div><label class="token-label" for="night-play">Примеров самоигры</label><input id="night-play" class="field" type="number" min="5" max="500" step="5" value="20"></div>
+    <div><span class="token-label">Размеры</span><div class="segmented night-sizes"><label><input type="checkbox" name="night-size" value="s"><span>S</span></label><label><input type="checkbox" name="night-size" value="m"><span>M</span></label><label><input type="checkbox" name="night-size" value="l"><span>L</span></label></div></div>
    </div>
+   <p class="hint">Два-три размера — ночная песочница: часы делятся между ними поровну.</p>
    <p class="hint">0 токенов — учитель ночью не работает и ничего не тратит. Больше нуля — это ваше заранее данное согласие тратить не больше этого за ночь.</p>
    <div class="button-row"><button class="primary" id="night-save">Сохранить</button></div>
   </section>

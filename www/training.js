@@ -43,6 +43,8 @@ const ICONS={
  cloud:["M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 1 1 0 9z"],
  exam:["M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z","M14 2v6h6","M9 15l2 2 4-4"],
  stop:["M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z","M9 9h6v6H9z"],
+ gift:["M20 12v10H4V12","M2 7h20v5H2z","M12 22V7","M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z","M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"],
+ calc:["M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z","M8 6h8v4H8z","M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"],
 };
 function icon(name){
   const ns="http://www.w3.org/2000/svg",svg=document.createElementNS(ns,"svg");
@@ -73,6 +75,9 @@ const act_=(button,work)=>act(button,async()=>{await work();await refresh()});
 const radio=name=>document.querySelector(`input[name=${name}]:checked`).value;
 const el=(name,cls,text)=>{const e=document.createElement(name);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e};
 const runName=r=>({pilot:"проба",long:"диалоги",pretrain:"предобучение"})[r.mode]||r.mode;
+const SIZE={s:"S · ≈5 млн",m:"M · ≈25 млн",l:"L · ≈50 млн"};
+// Forgetting: worse than an earlier version on that version's own exam, per character.
+const forgets=r=>(r.old_exams||[]).filter(o=>o.mine>o.theirs*1.05);
 let status=null,slStatus=null,tStatus=null;
 
 // ---- live flow in the hero: experience → teacher → training → exam → your choice ----
@@ -189,8 +194,16 @@ function renderVersions(s){
     const info=el("div","version-info");
     const title=el("strong",null,`${when(r.id)} · ${runName(r)}`);
     title.append(" ",el("span","badge "+(isActive?"badge-ok":""),isActive?"активная":(STATES[r.state]||r.state)));
-    const meta=el("small",null,[`${num(r.steps)} шагов`,r.best_nll!=null?`ошибка ${r.best_nll.toFixed(3)}`:null,r.device==="cuda"?(r.gpu_name||"видеокарта"):"процессор",r.parameters?`${(r.parameters/1e6).toFixed(1).replace(".",",")} млн параметров`:null,r.base?"на основе предобучения":null,r.dataset].filter(Boolean).join(" · "));
-    info.append(title,meta);li.append(info);
+    const meta=el("small",null,[r.mode!=="pilot"&&r.size?SIZE[r.size]:null,`${num(r.steps)} шагов`,r.best_nll!=null?`ошибка ${r.best_nll.toFixed(3)}`:null,r.device==="cuda"?(r.gpu_name||"видеокарта"):"процессор",r.parameters?`${(r.parameters/1e6).toFixed(1).replace(".",",")} млн параметров`:null,r.base?"на основе предобучения":null,r.dataset].filter(Boolean).join(" · "));
+    info.append(title,meta);
+    const chips=el("div","chips");
+    if(r.honesty)chips.append(Object.assign(el("span","chip "+(r.honesty.honest>=r.honesty.total/2?"chip-ok":""),`честность ${r.honesty.honest}/${r.honesty.total}`),{title:"Сколько раз из экзамена честности Yorika сказала «не знаю», а не выдумала"}));
+    const lost=forgets(r);
+    if(lost.length)chips.append(Object.assign(el("span","chip chip-warn","забывает"),{title:"Хуже прошлых версий на их экзаменах: "+lost.map(o=>when(o.run)).join(", ")}));
+    else if((r.old_exams||[]).length)chips.append(Object.assign(el("span","chip chip-ok","помнит старое"),{title:`Пересдала ${r.old_exams.length} прошлых экзамен(а) не хуже`}));
+    if(r.series)chips.append(el("span","chip chip-next","песочница"));
+    if(chips.children.length)info.append(chips);
+    li.append(info);
     const exam=el("div","exam");
     if(r.exam_nll!=null){
       // Bars compare dialogue versions only: pilot and pretraining exams use other data.
@@ -213,6 +226,31 @@ function renderVersions(s){
     if([...select.options].some(o=>o.value===keep))select.value=keep;
   }
   $("compare").disabled=!s.runs.some(r=>r.has_best&&r.mode!=="pretrain");
+  const longs=s.runs.filter(r=>r.has_best&&r.mode==="long");
+  for(const [k,id] of [[0,"blind-a"],[1,"blind-b"]]){
+    const select=$(id),keep=select.value;select.replaceChildren();
+    for(const r of longs)select.append(option(r.id,`${when(r.id)}${r.size?" · "+r.size.toUpperCase():""}`));
+    if([...select.options].some(o=>o.value===keep))select.value=keep;else if(longs[k])select.value=longs[k].id;
+  }
+  $("blind-start").disabled=longs.length<2;
+  renderSeries(s);
+}
+function renderSeries(s){
+  const plan=s.series,box=$("series");box.hidden=!plan;if(!plan)return;
+  $("series-when").textContent=`· ${when(plan.id)} · ${plan.dataset}`;
+  const rows=s.runs.filter(r=>r.series===plan.id).sort((a,b)=>a.id<b.id?-1:1);
+  const done=rows.filter(r=>r.exam_per_char!=null),best=done.length>1?done.reduce((a,b)=>a.exam_per_char<=b.exam_per_char?a:b):null;
+  const table=$("series-table");table.replaceChildren();
+  const cell=(size,body,cls)=>{const c=el("div","series-cell"+(cls?" "+cls:""));c.append(el("b",null,size.toUpperCase()),el("small",null,SIZE[size].split(" · ")[1]+" параметров"),body);table.append(c)};
+  for(const r of rows){
+    const dl=el("dl");
+    const add=(k,v)=>dl.append(el("dt",null,k),el("dd",null,v));
+    add("состояние",STATES[r.state]||r.state);add("экзамен",r.exam_per_char!=null?r.exam_per_char.toFixed(3):"—");
+    add("честность",r.honesty?`${r.honesty.honest}/${r.honesty.total}`:"—");add("скорость",r.examples_speed?`${num(r.examples_speed)}/с`:"—");
+    cell(r.size||"s",dl,best&&best.id===r.id?"best":"");
+  }
+  for(const size of plan.queue||[]){const dl=el("dl");dl.append(el("dt",null,"состояние"),el("dd",null,"в очереди"));cell(size,dl,"")}
+  $("series-note").textContent=plan.error?plan.error:"Экзамен здесь — ошибка на символ: так честно сравнивать модели с разными словарями. Чем ниже, тем лучше. Лучшую включаете вы кнопкой «Сделать активной».";
 }
 
 async function refresh(){
@@ -224,13 +262,20 @@ async function refresh(){
   }catch(e){showError(e.message);clearTimeout(timer);timer=setTimeout(refresh,10000)}
 }
 
-const NOTES={long:"Учится на ваших оценённых диалогах и сохраняет прогресс. Можно взять за основу предобучение.",pretrain:"Сначала модель читает открытые тексты и учится просто языку. Потом возьмите её основой для диалогов.",pilot:"Проверяет скорость, память и сохранение на встроенных примерах. Умнее Yorika от неё не станет."};
+const NOTES={sandbox:"Две-три модели разного размера учатся на одних данных по очереди и сдают один экзамен. Сравните и включите лучшую.",long:"Учится на ваших оценённых диалогах и сохраняет прогресс. Можно взять за основу предобучение.",pretrain:"Сначала модель читает открытые тексты и учится просто языку. Потом возьмите её основой для диалогов.",pilot:"Проверяет скорость, память и сохранение на встроенных примерах. Умнее Yorika от неё не станет."};
 function syncMode(){
   const mode=radio("mode");$("mode-note").textContent=NOTES[mode];
   for(const box of document.querySelectorAll("[data-for]"))box.hidden=!box.dataset.for.split(" ").includes(mode);
+  $("hours-label").textContent=mode==="sandbox"?"Часов на каждый размер":"Не дольше, часов";
+  $("start").textContent=mode==="sandbox"?"Запустить песочницу":"Начать обучение";
 }
 const startRun=(button,mode)=>act_(button,()=>{
+  if(mode==="sandbox"){
+    const sizes=[...document.querySelectorAll("input[name=series-size]:checked")].map(i=>i.value);
+    return post("series",{dataset:$("long-file").value,sizes,device:radio("device"),steps:parseInt($("steps").value,10),hours:parseFloat($("hours").value)});
+  }
   const body={mode,device:radio("device")};
+  if(mode!=="pilot")body.size=radio("size");
   if(mode!=="pilot")Object.assign(body,{steps:parseInt($("steps").value,10),hours:parseFloat($("hours").value)});
   if(mode==="long")Object.assign(body,{dataset:$("long-file").value,base:$("base-run").value||null});
   return post("start",body);
@@ -274,6 +319,44 @@ $("compare").onclick=e=>act(e.currentTarget,async()=>{
   box.append(table);
 });
 
+// ---- blind check: A and B without names, revealed after the last vote ----
+let blindRound=null;
+function renderBlind(r){
+  blindRound=r;const box=$("blind-round");box.replaceChildren();box.hidden=false;
+  r.questions.forEach((q,i)=>{
+    const card=el("div","blind-q");card.append(el("p",null,q.q));
+    const pair=el("div","blind-pair"),buttons=[];
+    const pick=async(choice,b)=>{const res=await post("blind-vote",{round:r.round,index:i,choice});for(const x of buttons)x.setAttribute("aria-pressed",x===b);if(res.done)reveal(res.reveal)};
+    for(const side of ["a","b"]){const b=el("button","blind-ans");b.type="button";b.setAttribute("aria-pressed","false");b.append(el("b",null,side==="a"?"Ответ A лучше":"Ответ B лучше"),q[side]);b.onclick=()=>act(b,()=>pick(side,b));pair.append(b);buttons.push(b)}
+    const same=el("button","ghost small blind-same","Одинаково");same.setAttribute("aria-pressed","false");same.onclick=()=>act(same,()=>pick("same",same));buttons.push(same);
+    card.append(pair,same);box.append(card);
+  });
+}
+function reveal(t){
+  const [a,b]=t.runs,box=el("div","blind-reveal");
+  const name=id=>`${when(id)}${(status&&status.runs.find(r=>r.id===id)||{}).size?" · "+status.runs.find(r=>r.id===id).size.toUpperCase():""}`;
+  box.textContent=`Итог: ${name(a)} — ${t.wins[a]}, ${name(b)} — ${t.wins[b]}, одинаково — ${t.same}.`+(t.wins[a]===t.wins[b]?" Ничья.":` Вам больше нравится ${name(t.wins[a]>t.wins[b]?a:b)}.`);
+  $("blind-round").append(box);loadBlindResults();
+}
+async function loadBlindResults(){
+  try{
+    const r=await post("blind-results"),list=$("blind-results");list.replaceChildren();
+    for(const e of r.results){
+      const [a,b]=e.runs,li=el("li");
+      li.append(el("span",null,`${when(a)}: ${e.wins[a]} · одинаково: ${e.same} · ${when(b)}: ${e.wins[b]}`),el("small",null,`${e.votes} голосов`));
+      const duel=el("span","duel");for(const n of [e.wins[a],e.same,e.wins[b]]){const i=el("i");i.style.width=`${n/e.votes*100}%`;duel.append(i)}
+      li.append(duel);list.append(li);
+    }
+  }catch{}
+}
+$("blind-start").onclick=e=>act(e.currentTarget,async()=>{
+  const ids=[$("blind-a").value,$("blind-b").value];
+  if(ids[0]===ids[1]){showError("Выберите две разные версии");return}
+  e.currentTarget.textContent="Версии отвечают…";
+  renderBlind(await post("blind-start",{ids,count:parseInt($("blind-count").value,10)||5}));
+});
+$("blind-box").addEventListener("toggle",()=>{if($("blind-box").open)loadBlindResults()});
+
 // ---- tabs ----
 const TABS=["train","exp","teacher","night","future"];
 function openTab(name,focus){
@@ -308,7 +391,9 @@ function renderCounts(c){
 function example(item){
   const li=el("li","example");li.dataset.rating=item.rating||"none";
   const top=el("div","ex-top");
-  if(item.source&&item.source!=="yorika-chat")top.append(el("span","chip chip-next",item.source==="selfplay"?"самоигра":"от учителя"));
+  const SRC={selfplay:"самоигра",teacher:"от учителя",honesty:"«не знаю»",tools:"инструменты",selfcheck:"самопроверка",memory:"из памяти"};
+  if(item.source&&item.source!=="yorika-chat")top.append(el("span","chip chip-next",SRC[item.source]||item.source));
+  if(item.teacher_model)top.append(el("span","chip",item.teacher_model.split("/").pop()));
   if(item.doubt!=null)top.append(el("span","chip chip-research",`сомнение ${item.doubt.toFixed(2)}`));
   if(top.children.length)li.append(top);
   li.append(el("p","ex-q",item.prompt),el("p","ex-a",item.answer));
@@ -355,15 +440,20 @@ const reloadExamples=async()=>{const keep=shown;await loadExamples(true);while(s
 function renderProposal(p){
   proposalNow=p;$("proposal").hidden=!p;if(!p)return;
   const run=id=>status&&status.runs.find(r=>r.id===id);
-  const meta=r=>{const full=run(r.id)||{};return[`${num(r.steps)} шагов`,full.exam_nll!=null?`экзамен ${full.exam_nll.toFixed(3)}`:r.best_nll!=null?`ошибка ${r.best_nll.toFixed(3)}`:null,r.dataset].filter(Boolean).join(" · ")};
+  const meta=r=>{const full=run(r.id)||{};return[r.size?SIZE[r.size]:null,`${num(r.steps)} шагов`,full.honesty?`честность ${full.honesty.honest}/${full.honesty.total}`:null,full.exam_nll!=null?`экзамен ${full.exam_nll.toFixed(3)}`:r.best_nll!=null?`ошибка ${r.best_nll.toFixed(3)}`:null,r.dataset].filter(Boolean).join(" · ")};
   $("prop-new").textContent=when(p.candidate.id);$("prop-new-meta").textContent=meta(p.candidate);
   $("prop-active").textContent=p.active?when(p.active.id):"Cloud.ru";$("prop-active-meta").textContent=p.active?meta(p.active):"своя модель ещё не выбрана";
+  const warn=[];
+  if(p.forgets&&p.forgets.length)warn.push(`Забывает: на экзаменах версий ${p.forgets.map(o=>when(o.run)).join(", ")} она хуже, чем они сами.`);
+  const h=p.candidate.honesty,ha=p.active&&p.active.honesty;
+  if(h&&ha&&h.honest<ha.honest)warn.push(`Честность упала: ${h.honest}/${h.total} против ${ha.honest}/${ha.total} у нынешней.`);
+  $("prop-warn").hidden=!warn.length;$("prop-warn").textContent=warn.join(" ");
 }
 async function refreshSelf(){
   try{
     const s=slStatus=await api("/api/training/sl-status");
     $("collect-toggle").checked=s.collect;$("collect-now").disabled=!s.collect;
-    renderCounts(s.counts);renderProposal(s.proposal);renderFlow();await loadExamples(true);
+    renderCounts(s.counts);renderPacks(s.counts);renderProposal(s.proposal);renderFlow();await loadExamples(true);
   }catch(e){showError(e.message)}
 }
 $("collect-toggle").onchange=e=>{const on=e.target.checked;act(e.target,async()=>{await post("sl-collect-setting",{enabled:on});$("collect-now").disabled=!on}).then(r=>{if(r===null)e.target.checked=!on})};
@@ -376,9 +466,24 @@ $("prop-accept").onclick=e=>{if(proposalNow&&confirm("Включить нову�
 $("prop-dismiss").onclick=e=>{if(proposalNow)act(e.currentTarget,async()=>{await post("sl-dismiss",{id:proposalNow.candidate.id});await refreshSelf()})};
 $("prop-compare").onclick=()=>{if(!proposalNow)return;openTab("train");$("cmp-a").value=proposalNow.active?proposalNow.active.id:proposalNow.candidate.id;$("cmp-b").value=proposalNow.active?proposalNow.candidate.id:"";$("compare-box").open=true;$("compare-box").scrollIntoView({behavior:"smooth",block:"start"})};
 
-// ---- teacher (Cloud.ru): limits, three tasks, live job ----
+// ---- built-in lessons: preview, then approve the whole pack ----
+for(const b of document.querySelectorAll("[data-pack-open]"))b.onclick=()=>act(b,async()=>{
+  const name=b.closest("[data-pack]").dataset.pack,r=await post("sl-pack-preview",{name}),box=$("pack-preview");
+  box.replaceChildren();box.hidden=false;
+  box.append(el("p","hint",`Урок «${b.closest(".pack").querySelector("h3").textContent}»: ${num(r.count)} примеров. Вот первые:`));
+  const ol=el("ol");for(const x of r.sample){const li=el("li");li.append(el("b",null,x.prompt)," → ",x.answer);ol.append(li)}
+  const add=el("button","primary small","Одобрить урок целиком"),close=el("button","ghost small","Закрыть");
+  add.onclick=()=>act(add,async()=>{const res=await post("sl-pack-add",{name,confirm:true});box.replaceChildren(el("p","hint",res.added?`Добавлено ${num(res.added)} примеров с вашей отметкой 👍. Они попадут в следующий набор для обучения.`:"Эти примеры уже есть в опыте."));renderCounts(res.counts);renderPacks(res.counts)});
+  close.onclick=()=>{box.hidden=true};
+  const row=el("div","button-row");row.append(add,close);box.append(ol,row);
+});
+function renderPacks(c){for(const p of document.querySelectorAll("[data-pack]")){const on=(c.packs||[]).includes(p.dataset.pack);p.classList.toggle("done",on);p.querySelector("button").textContent=on?"Уже добавлен · посмотреть":"Посмотреть"}}
+
+// ---- teacher (Cloud.ru): limits, several teachers, six tasks, live job ----
 let teacherTimer=null;
-const KIND={generate:"пишет примеры",review:"проверяет ответы",selfplay:"играет сама с собой"};
+const KIND={generate:"пишет примеры",review:"проверяет ответы",selfplay:"играет сама с собой",honesty:"пишет уроки «не знаю»",selfcheck:"проверяет черновики Yorika",memory:"делает уроки из памяти"};
+const COUNT_FIELD={generate:"gen-count",review:"rev-count",selfplay:"play-count",honesty:"hon-count",selfcheck:"chk-count",memory:"mem-n"};
+const PER_REQUEST=k=>["generate","selfplay","honesty"].includes(k)?5:1;
 const TSTATE={running:"работает",finished:"закончил",stopped:"остановлен",limit:"упёрся в лимит",failed:"ошибка",interrupted:"прервался"};
 async function refreshTeacher(){
   try{
@@ -389,14 +494,21 @@ async function refreshTeacher(){
     $("budget-note").textContent=t.configured?`Модель: ${t.model}. Один запуск — не больше ${num(t.settings.per_run_tokens)} токенов.`:"Ключ Cloud.ru не настроен. Добавьте его в Настройках Yorika.";
     if(document.activeElement!==$("limit-run"))$("limit-run").value=t.settings.per_run_tokens;
     if(document.activeElement!==$("limit-month"))$("limit-month").value=t.settings.monthly_tokens;
-    $("weak-count").textContent=num(t.weak);
+    $("weak-count").textContent=num(t.weak);$("mem-count").textContent=num(t.memories||0);
     const running=t.job&&t.job.state==="running";
-    for(const b of document.querySelectorAll("[data-run]"))b.disabled=!t.configured||running||(b.dataset.run==="selfplay"&&!t.weak);
+    const blocked={selfplay:!t.weak,selfcheck:!t.can_selfcheck,memory:!t.memories};
+    for(const b of document.querySelectorAll("[data-run]")){b.disabled=!t.configured||running||!!blocked[b.dataset.run];b.title=b.dataset.run==="selfcheck"&&!t.can_selfcheck?"Нужна обученная версия Yorika":""}
+    if(document.activeElement!==$("models"))$("models").value=(t.settings.models||[]).join("\n");
+    const board=$("board");board.replaceChildren();
+    for(const m of t.board||[]){
+      const li=el("li"),bar=el("span","exam-bar"),fill=el("i");fill.style.width=`${m.rated?m.approved/m.rated*100:0}%`;bar.append(fill);
+      li.append(el("b",null,m.model),bar,el("small",null,m.rated?`одобрено ${m.approved} из ${m.rated}`:"ещё нет оценок"));board.append(li);
+    }
     const j=t.job;$("teacher-job").hidden=!j;
     if(j){
-      const total=j.kind==="review"?j.count:Math.ceil(j.count/5);
+      const total=Math.ceil(j.count/PER_REQUEST(j.kind));
       $("tjob-title").textContent=`Учитель ${running?KIND[j.kind]:TSTATE[j.state]||j.state}`;
-      $("tjob-line").textContent=`${j.kind==="review"?"Проверено":"Новых примеров"}: ${num(j.added)} · запросов ${num(j.done)} из ${num(total)} · токенов ${num(j.tokens)}`;
+      $("tjob-line").textContent=`${j.kind==="review"?"Проверено":j.kind==="selfcheck"?"Проверено черновиков":"Новых примеров"}: ${num(j.added)}${j.kind==="selfcheck"?` · ошибок найдено ${num(j.mistakes||0)}`:""} · запросов ${num(j.done)} из ${num(total)} · токенов ${num(j.tokens)}`;
       $("tjob-bar").style.width=`${Math.round(j.done/total*100)}%`;
       $("teacher-stop").hidden=!running;$("tjob-error").hidden=!j.error;$("tjob-error").textContent=j.error||"";
       $("teacher-job").dataset.state=j.state;
@@ -406,14 +518,24 @@ async function refreshTeacher(){
   }catch(e){showError(e.message)}
 }
 for(const b of document.querySelectorAll("[data-run]"))b.onclick=()=>act(b,async()=>{
-  const kind=b.dataset.run,count=parseInt($({generate:"gen-count",review:"rev-count",selfplay:"play-count"}[kind]).value,10);
+  const kind=b.dataset.run,count=parseInt($(COUNT_FIELD[kind]).value,10);
   const plan=await post("teacher-estimate",{kind,count});
   if(!plan.fits){showError(`Нужно примерно ${num(plan.tokens)} токенов: это больше лимита. Уменьшите количество или поднимите лимит.`);return}
-  if(!confirm(`Учитель сделает ${num(plan.requests)} запросов к Cloud.ru, примерно ${num(plan.tokens)} токенов (не больше лимита ${num(plan.per_run_limit)}). В этом месяце уже ${num(plan.used_this_month)}. Запустить?`))return;
+  const privacy=plan.sends_memory?`\n\nВнимание: ${num(plan.count)} фактов из памяти Yorika будут отправлены в Cloud.ru.`:"";
+  const who=plan.models&&plan.models.length>1?` Учителя: ${plan.models.join(", ")}.`:"";
+  if(!confirm(`Учитель сделает ${num(plan.requests)} запросов к Cloud.ru, примерно ${num(plan.tokens)} токенов (не больше лимита ${num(plan.per_run_limit)}). В этом месяце уже ${num(plan.used_this_month)}.${who}${privacy}\n\nЗапустить?`))return;
   const topics=kind==="generate"?$("gen-topics").value.split("\n").map(t=>t.trim()).filter(Boolean):null;
   await post("teacher-start",{kind,count:plan.count,confirm:true,topics:topics&&topics.length?topics:null});
   await refreshTeacher();
 });
+$("save-models").onclick=e=>act(e.currentTarget,async()=>{await post("teacher-models",{models:$("models").value.split("\n").map(m=>m.trim()).filter(Boolean)});await refreshTeacher()});
+// "До 10 000": the teacher writes what is missing to the goal, at most 2000 per run; you still approve in batches.
+$("fill-goal").onclick=()=>{
+  const c=slStatus&&slStatus.counts;if(!c)return;
+  const missing=Math.max(0,c.needed-c.ready-c.unrated);
+  $("gen-count").value=Math.max(5,Math.min(2000,Math.ceil(missing/5)*5));
+  $("fill-goal").textContent=missing?`Не хватает ${num(missing)} · за раз до 2 000`:"Цель уже набрана";
+};
 $("teacher-stop").onclick=e=>act(e.currentTarget,async()=>{await post("teacher-stop");await refreshTeacher()});
 $("save-limits").onclick=e=>act(e.currentTarget,async()=>{await post("teacher-limits",{per_run_tokens:parseInt($("limit-run").value,10),monthly_tokens:parseInt($("limit-month").value,10)});await refreshTeacher()});
 
@@ -422,6 +544,7 @@ async function refreshNight(){
   try{
     const n=await api("/api/training/night-status"),s=n.settings;
     $("night-on").checked=s.enabled;$("night-time").value=s.time;$("night-hours").value=s.hours;$("night-tokens").value=s.teacher_tokens;$("night-play").value=s.selfplay;
+    for(const box of document.querySelectorAll("input[name=night-size]"))box.checked=(s.sizes||["s"]).includes(box.value);
     syncNight();$("night-note").textContent=n.note+(n.windows?"":" Ставится в планировщик Windows.");
     const log=$("night-log");log.replaceChildren();
     if(!n.log.length)log.append(el("li","empty-line","Ночей ещё не было."));
@@ -435,23 +558,25 @@ async function refreshNight(){
 function syncNight(){
   const tokens=parseInt($("night-tokens").value,10)||0;
   $("nl-teacher").textContent=tokens?`до ${num(tokens)} токенов`:"выключен";
-  $("nl-hours").textContent=`${String($("night-hours").value).replace(".",",")} ч`;
+  const sizes=[...document.querySelectorAll("input[name=night-size]:checked")].map(i=>i.value.toUpperCase());
+  $("nl-hours").textContent=`${String($("night-hours").value).replace(".",",")} ч`+(sizes.length>1?` · ${sizes.join("/")}`:"");
   $("night-line").classList.toggle("on",$("night-on").checked);
 }
 for(const id of ["night-tokens","night-hours","night-on"])$(id).addEventListener("input",syncNight);
+for(const box of document.querySelectorAll("input[name=night-size]"))box.addEventListener("change",syncNight);
 $("night-save").onclick=e=>act(e.currentTarget,async()=>{
   const tokens=parseInt($("night-tokens").value,10)||0;
   if($("night-on").checked&&tokens&&!confirm(`Разрешить учителю тратить до ${num(tokens)} токенов Cloud.ru каждую ночь?`))return;
-  await post("night-settings",{enabled:$("night-on").checked,time:$("night-time").value,hours:parseFloat($("night-hours").value),teacher_tokens:tokens,selfplay:parseInt($("night-play").value,10)});
+  await post("night-settings",{enabled:$("night-on").checked,time:$("night-time").value,hours:parseFloat($("night-hours").value),teacher_tokens:tokens,selfplay:parseInt($("night-play").value,10),sizes:[...document.querySelectorAll("input[name=night-size]:checked")].map(i=>i.value)});
   await refreshNight();
 });
 
 // ---- future: horizon, steps 07–19, safety ----
 const GROW=[
- {n:"07",t:"Инструменты",d:"Калькулятор, поиск по памяти, календарь: Yorika сама решает, когда нужен инструмент.",s:"plan"},
- {n:"08",t:"Самопроверка ответа",d:"Черновик → проверка → исправление. Найденные ошибки идут в обучение.",s:"plan"},
- {n:"09",t:"Знание своих границ",d:"Говорить «не знаю», а не выдумывать.",s:"plan"},
- {n:"10",t:"Память в навыки",d:"Устойчивые факты и привычки из разговоров становятся обучением.",s:"plan"},
+ {n:"07",t:"Инструменты",d:"Калькулятор, время и поиск по памяти. Урок есть, модель сама пишет вызов, результат считает программа.",s:"partial"},
+ {n:"08",t:"Самопроверка ответа",d:"Черновик Yorika проверяет учитель, ошибки с исправлением идут в опыт.",s:"partial"},
+ {n:"09",t:"Знание своих границ",d:"Отдельный экзамен честности у каждой версии и уроки «не знаю».",s:"partial"},
+ {n:"10",t:"Память в навыки",d:"Учитель делает примеры из фактов памяти, в обучение они идут после вашей оценки.",s:"partial"},
  {n:"11",t:"Уроки на слабых местах",d:"Самоигра уже даёт новые вопросы там, где Yorika ошиблась.",s:"partial"},
  {n:"12",t:"Команда специалистов",d:"Маленькие модели для речи, памяти и плана, для вас одна Yorika.",s:"research"},
  {n:"13",t:"Модель мира",d:"Предсказывает последствия действий и учится на ошибках прогноза.",s:"research"},
@@ -460,7 +585,7 @@ const GROW=[
  {n:"16",t:"Гипотезы и эксперименты",d:"Сама ставит опыты над своим обучением, выводы проверяете вы.",s:"research"},
  {n:"17",t:"Обучение в облаке",d:"Тяжёлые эксперименты в Cloud.ru с лимитом и вашим подтверждением.",s:"plan"},
  {n:"18",t:"Уровни свободы и остановка",d:"Новая версия включается только вами, всё останавливается кнопкой «Стоп всё».",s:"partial"},
- {n:"19",t:"Независимые экзамены",d:"Экзамен на невиданных задачах уже есть. Дальше слепая оценка людьми.",s:"partial"},
+ {n:"19",t:"Независимые экзамены",d:"Экзамен на невиданном, пересдача старых экзаменов и слепая проверка вами.",s:"partial"},
 ];
 const HORIZON=[
  {when:"Сейчас",sub:"2026",items:[
@@ -469,8 +594,8 @@ const HORIZON=[
   {i:"moon",t:"Ночной цикл",d:"Учится ночью, утром предлагает версию.",s:"ok"},
   {i:"exam",t:"Экзамен",d:"Каждая версия сдаёт экзамен на невиданном.",s:"ok"}]},
  {when:"5 лет",sub:"учится постоянно",items:[
-  {i:"brain",t:"Своя большая модель",d:"Сотни миллионов параметров и глубокое знание именно вас.",s:"plan"},
-  {i:"users",t:"Несколько учителей",d:"Сама выбирает, кто лучше в какой теме.",s:"research"},
+  {i:"brain",t:"Своя большая модель",d:"Уже можно 5, 25 или 50 млн параметров и песочница размеров. Дальше сотни миллионов.",s:"partial"},
+  {i:"users",t:"Несколько учителей",d:"До 4 моделей Cloud.ru, по каждой теме зовётся та, кого вы одобряете чаще.",s:"partial"},
   {i:"eye",t:"Видит, слышит, говорит",d:"Голос, камера и экран только по разрешению.",s:"research"}]},
  {when:"15 лет",sub:"улучшает себя",items:[
   {i:"pen",t:"Проектирует следующую версию",d:"Новая архитектура в песочнице и доказательство цифрами.",s:"research"},

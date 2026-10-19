@@ -13,8 +13,8 @@ def make_model(torch, *, vocab_size, width=64, heads=4, context=128, layers=2):
         raise ValueError("Invalid BPE vocabulary size")
     from torch import nn
     if (any(type(x) is not int for x in (width, heads, context)) or
-            not 16 <= width <= 512 or not 1 <= heads <= 8 or width % heads or
-            type(layers) is not int or not 1 <= layers <= 8 or
+            not 16 <= width <= 1024 or not 1 <= heads <= 16 or width % heads or
+            type(layers) is not int or not 1 <= layers <= 16 or
             not 32 <= context <= 512):
         raise ValueError("Invalid model configuration")
     class LanguageBrain(nn.Module):

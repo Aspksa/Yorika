@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from backend.neural_router import experimental_answer
 from backend.active_brain import active_brain
+from backend.tools import run_tools
 
 MAX_QUERY = 2000
 
@@ -22,6 +23,13 @@ def answer(query: str, *, checkpoint=None, generator=None) -> dict:
     if generator is not None:
         kwargs["generator"] = generator
     result = experimental_answer(query, **kwargs)
+    # Tool calls the model wrote ([[calc:…]], [[time:]], [[memory:…]]) are computed here, not guessed.
+    try:
+        text, calls = run_tools(result["answer"])
+    except Exception:  # noqa: BLE001 - a broken tool must not hide the model's own answer
+        text, calls = result["answer"], []
+    if calls:
+        result["answer"], result["tools"] = text, calls
     if not result["answer"].strip():
         raise RuntimeError("Yorika experimental model generated an empty response")
     return result

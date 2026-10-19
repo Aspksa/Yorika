@@ -32,6 +32,11 @@ DEFAULT_CONFIG = {"width": 320, "heads": 8, "layers": 4, "context": 256,
                   "max_merges": 128, "seed": 42, "checkpoint_every": 100,
                   # 16 examples per step and half precision on the GPU: same model, many times more examples per hour.
                   "batch_size": 16, "accumulate": 1, "precision": "auto"}
+# Model sizes the owner can pick. "l" needs about 2 GB of video memory (estimate), so it takes
+# half the batch per step and accumulates two of them: the same 16 examples per update.
+SIZES = {"s": {"width": 320, "heads": 8, "layers": 4},
+         "m": {"width": 512, "heads": 8, "layers": 8},
+         "l": {"width": 640, "heads": 10, "layers": 10, "batch_size": 8, "accumulate": 2}}
 RUN_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-(pilot|long|pretrain)\Z")
 TEXT_NAME = re.compile(r"^[^\\/:*?\"<>|]{1,120}\.txt\Z")
 TEXT_LICENSES = ("public-domain", "user-consent")
@@ -374,6 +379,10 @@ def _summary(path):
             "exam_count": progress.get("exam_count"), "base": run.get("base"),
             "batch_size": (run.get("config") or {}).get("batch_size", 1),
             "precision": (run.get("config") or {}).get("precision", "fp32"),
+            "size": (run.get("config") or {}).get("size", "s"), "series": run.get("series"),
+            "exam_per_char": progress.get("exam_per_char"), "old_exams": progress.get("old_exams", []),
+            # The page needs the score; the answers stay in progress.json for whoever wants to read them.
+            "honesty": {k: v for k, v in (progress.get("honesty") or {}).items() if k != "answers"} or None,
             "history": progress.get("history", []), "has_best": best.is_file(),
             "resumable": progress.get("state") in ("paused", "interrupted") and run.get("mode") in ("long", "pretrain")}
 
@@ -394,9 +403,18 @@ def _active_job():
     return None
 
 
-def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, config=None, launch=True, base=None):
+def config_for(size):
+    if size not in SIZES:
+        raise ValueError("Размер модели: s, m или l")
+    return dict(DEFAULT_CONFIG, **SIZES[size], size=size)
+
+
+def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, config=None, launch=True, base=None,
+          size="s", series=None):
     if mode not in ("pilot", "long", "pretrain"):
         raise ValueError("Неизвестный режим")
+    config = dict(config) if config else config_for(size)
+    config.setdefault("size", size)
     if device not in ("cpu", "cuda"):
         raise ValueError("Выберите видеокарту или процессор")
     if _active_job():
@@ -410,6 +428,8 @@ def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, c
         base_item = _summary(_run_dir(base))
         if base_item["mode"] != "pretrain" or not base_item["has_best"]:
             raise ValueError("Основой может быть только предобучение с сохранённой лучшей точкой")
+        if base_item["size"] != config.get("size", "s"):
+            raise ValueError("Основа другого размера: выберите тот же размер модели, что у предобучения")
     if mode == "pilot":
         records, dataset, total_steps, limit = pilot_records(), None, 1000000, PILOT_SECONDS
     elif mode == "pretrain":
@@ -431,8 +451,8 @@ def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, c
     path.mkdir(parents=True)
     _write(path / "run.json", {"schema": "yorika-training-run-v1", "id": run_id, "mode": mode,
                                "dataset": dataset, "manifest": data["manifest"], "device": device,
-                               "config": dict(config or DEFAULT_CONFIG), "total_steps": total_steps,
-                               "time_limit": limit, "created": _now(), "base": base})
+                               "config": config, "total_steps": total_steps,
+                               "time_limit": limit, "created": _now(), "base": base, "series": series})
     _write(path / "progress.json", {"state": "starting", "t": time.time(), "steps": 0, "history": []})
     if launch:
         _spawn([sys.executable, str(CLI), "worker", run_id], path / "worker.log")
@@ -461,8 +481,49 @@ def control(run_id, action):
     raise ValueError("Неизвестное действие")
 
 
+def start_series(dataset, sizes, *, device="cuda", total_steps=100000, hours_each=2.0, launch=True):
+    """Sandbox: the same data, several model sizes one after another, compared on the same exam."""
+    if (not isinstance(sizes, list) or not 2 <= len(sizes) <= 3 or len(set(sizes)) != len(sizes) or
+            any(size not in SIZES for size in sizes)):
+        raise ValueError("Выберите от двух до трёх разных размеров")
+    series_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    first = start("long", dataset=dataset, device=device, total_steps=total_steps, hours=hours_each,
+                  size=sizes[0], series=series_id, launch=launch)
+    _write(folder() / "series.json", {"id": series_id, "dataset": dataset, "device": device,
+                                       "total_steps": total_steps, "hours_each": hours_each,
+                                       "queue": sizes[1:], "runs": [first["id"]], "created": _now(),
+                                       "launch": launch})
+    return {"series": series_id, "first": first["id"], "queue": sizes[1:]}
+
+
+def series():
+    return _read(folder() / "series.json")
+
+
+def _continue_series(run_id):
+    """Called when a series run finishes: starts the next size, if any is left."""
+    plan = series()
+    if not plan or run_id not in plan.get("runs", []) or not plan.get("queue"):
+        return None
+    size = plan["queue"].pop(0)
+    try:
+        nxt = start("long", dataset=plan["dataset"], device=plan["device"], total_steps=plan["total_steps"],
+                    hours=plan["hours_each"], size=size, series=plan["id"], launch=plan.get("launch", True))
+    except ValueError as error:
+        plan["error"] = str(error)
+        _write(folder() / "series.json", plan)
+        return None
+    plan["runs"].append(nxt["id"])
+    _write(folder() / "series.json", plan)
+    return nxt["id"]
+
+
 def stop_all():
     """Emergency stop: asks every running training to stop at the next chunk."""
+    plan = series()
+    if plan and plan.get("queue"):
+        plan["queue"], plan["error"] = [], "Остановлено кнопкой «Стоп всё»"
+        _write(folder() / "series.json", plan)
     stopped = []
     for item in runs():
         if item["state"] in ("starting", "running"):
@@ -476,12 +537,35 @@ def _exam(path, data, lm, save):
     best = path / "language-longrun.pt.best.pt"
     if not best.is_file():
         return
+    from backend.neural_language_benchmark import load_candidate
     from backend.neural_language_longrun import score_checkpoint
+    loaded = load_candidate(best)
     try:
-        score, count = score_checkpoint(best, data["test"], objective="lm" if lm else "dialogue")
+        exam = score_checkpoint(best, data["test"], objective="lm" if lm else "dialogue", loaded=loaded)
     except ValueError:
         return
-    save(exam_nll=round(score, 4), exam_count=count)
+    save(exam_nll=round(exam["nll"], 4), exam_count=exam["count"], exam_per_char=round(exam["per_char"], 4))
+    if lm or path.name.endswith("-pilot"):
+        return
+    # Old exams: the test splits of earlier dialogue versions. Scored per character, so a
+    # version with another tokenizer compares fairly; worse than the old version means forgetting.
+    old = []
+    for item in runs():
+        if (item["id"] == path.name or item["mode"] != "long" or item.get("exam_per_char") is None or
+                not item.get("dataset") or len(old) >= 5):
+            continue
+        try:
+            test = _prepare(_load_records(item["dataset"]))["test"]
+            mine = score_checkpoint(best, test, loaded=loaded)["per_char"]
+        except ValueError:
+            continue
+        old.append({"run": item["id"], "theirs": item["exam_per_char"], "mine": round(mine, 4)})
+    save(old_exams=old)
+    try:
+        from backend import honesty
+        save(honesty=honesty.exam(loaded))
+    except (ValueError, ImportError):
+        pass
 
 
 def _heartbeat(path, stop):
@@ -543,6 +627,7 @@ def worker(run_id):
             if progress.get("steps", 0) >= run_info["total_steps"] or elapsed >= run_info["time_limit"]:
                 _exam(path, data, lm, save)
                 save(state="finished")
+                _continue_series(run_id)
                 return 0
             chunk = max(1.0, min(CHUNK_SECONDS, run_info["time_limit"] - elapsed))
             began = time.monotonic()
@@ -664,6 +749,14 @@ def _answer(model, state, prompt, max_tokens):
     return b"".join(pieces[t - OFFSET] for t in out).decode("utf-8", errors="replace")
 
 
+def _with_tools(answer):
+    from backend.tools import run_tools
+    try:
+        return run_tools(answer)[0]
+    except Exception:  # noqa: BLE001 - a broken tool must not hide the model's own answer
+        return answer
+
+
 def compare(run_ids, questions):
     if not isinstance(run_ids, list) or not 1 <= len(run_ids) <= 2 or len(set(run_ids)) != len(run_ids):
         raise ValueError("Выберите одну или две версии")
@@ -678,7 +771,7 @@ def compare(run_ids, questions):
             raise ValueError("У версии %s ещё нет сохранённой лучшей точки" % run_id)
         model, state = load_candidate(best)
         columns.append({"id": run_id, "step": state["step"],
-                        "answers": [_answer(model, state, q.strip(), 64) for q in questions]})
+                        "answers": [_with_tools(_answer(model, state, q.strip(), 64)) for q in questions]})
     return {"questions": [q.strip() for q in questions], "versions": columns,
             "note": "Ответы получены жадным выбором слов; сравнивайте сами, это не оценка людьми"}
 
@@ -688,4 +781,5 @@ def status():
     return {"folder": str(where), "onedrive": "onedrive" in str(where).lower(),
             "data_folder": str(where / "data"), "torch": torch_state(),
             "probe": _read(_system() / "probe.json"), "data": data_files(), "runs": runs(),
-            "active": active(), "min_long_records": MIN_LONG_RECORDS, "texts": texts()}
+            "active": active(), "min_long_records": MIN_LONG_RECORDS, "texts": texts(),
+            "sizes": {k: dict(v) for k, v in SIZES.items()}, "series": series()}

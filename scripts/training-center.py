@@ -8,22 +8,39 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from backend import continual_learning as cl
 from backend import blind
 from backend import night_cycle as night
 from backend import self_learning as sl
 from backend import teacher
 from backend import training_center as tc
 
-READS = {"status", "sl-status", "teacher-status", "night-status"}
+READS = {"status", "sl-status", "teacher-status", "night-status", "continual-status"}
 WRITES = {"probe", "install-torch", "data-check", "folder", "open-folder", "start", "control",
           "activate", "rollback", "compare", "stop-all", "sl-collect-setting", "sl-collect",
           "sl-list", "sl-rate", "sl-delete", "sl-export", "sl-dismiss", "text-approve",
           "teacher-limits", "teacher-estimate", "teacher-start", "teacher-stop", "teacher-accept",
           "night-settings", "series", "sl-pack-preview", "sl-pack-add", "blind-start", "blind-vote", "blind-results",
-          "teacher-models"}
+          "teacher-models", "continual-settings", "continual-run", "continual-activate", "continual-stop", "continual-experience"}
 
 
 def handle(action, body):
+    if action == "continual-experience":
+        if not cl.settings()["enabled"] or not sl._settings()["collect"] or cl.busy():
+            return {"added": 0}
+        with cl.lock():
+            return sl.collect()
+    if action == "continual-status":
+        return cl.status()
+    if action == "continual-settings":
+        return cl.configure(body.get("enabled"), device=body.get("device", "cuda"),
+                            steps=body.get("steps", 8), seconds=body.get("seconds", 60))
+    if action == "continual-run":
+        return {"queued": cl.trigger()}
+    if action == "continual-activate":
+        return cl.activate(body.get("id"))
+    if action == "continual-stop":
+        return cl.stop()
     if action == "status":
         return tc.status()
     if action == "probe":
@@ -63,7 +80,12 @@ def handle(action, body):
     if action == "sl-list":
         return sl.list_items(body.get("view", "unrated"), body.get("offset", 0), body.get("limit", 20))
     if action == "sl-rate":
-        return sl.rate(body.get("id"), body.get("rating"), body.get("correction"))
+        result = sl.rate(body.get("id"), body.get("rating"), body.get("correction"))
+        try:
+            result["continual_queued"] = cl.trigger()
+        except OSError:
+            result["continual_queued"] = False
+        return result
     if action == "sl-delete":
         return sl.delete(body.get("id"))
     if action == "sl-export":
@@ -107,6 +129,9 @@ def handle(action, body):
 
 
 def main(argv):
+    if len(argv) == 2 and argv[1] == "continual-worker":
+        cl.worker()
+        return 0
     if len(argv) == 3 and argv[1] == "worker":
         return tc.worker(argv[2])
     if len(argv) == 2 and argv[1] == "pip-worker":

@@ -30,6 +30,21 @@
  </section>
  <p id="page-error" class="banner banner-err" role="alert" hidden></p>
 
+ <section class="card" aria-labelledby="continual-title">
+  <h2 id="continual-title">Непрерывное обучение</h2>
+  <p>После вашей оценки ответа — короткое дообучение текущих весов с повторением старого. Ночью — более длинный цикл. Копия сохраняется до обучения, ухудшение экзаменов отклоняет кандидата.</p>
+  <p class="hint">Нужны активная собственная модель, её исходный учебный файл и включённый сбор опыта. Непроверенные ответы не становятся уроками. Облако не используется.</p>
+  <div class="button-row">
+   <label><input type="checkbox" id="continual-enabled"> После оценённых ответов и ночью</label>
+   <label for="continual-device">Устройство</label><select id="continual-device" class="field"><option value="cuda">Видеокарта</option><option value="cpu">Процессор</option></select>
+   <button class="secondary" id="continual-save">Сохранить</button>
+   <button class="secondary" id="continual-run">Повторить цикл</button>
+   <button class="danger" id="continual-stop">Остановить</button>
+   <button class="primary" id="continual-activate" hidden>Выбрать проверенную версию</button>
+  </div>
+  <p id="continual-state" class="hint" role="status" aria-live="polite">Загрузка состояния…</p>
+ </section>
+
  <div class="tabs" role="tablist" aria-label="Разделы обучения">
   <button class="tab" role="tab" id="tab-train" aria-controls="pane-train" aria-selected="true" data-tab="train"><span class="tab-ic" data-icon="zap" aria-hidden="true"></span>Обучение</button>
   <button class="tab" role="tab" id="tab-exp" aria-controls="pane-exp" aria-selected="false" data-tab="exp" tabindex="-1"><span class="tab-ic" data-icon="thumb" aria-hidden="true"></span>Опыт<span class="tab-badge" id="tab-exp-badge" hidden></span></button>

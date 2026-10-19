@@ -4,6 +4,9 @@ on:
     paths:
       - 'backend/neural_*.py'
       - 'backend/training_engine.py'
+      - 'backend/continual_learning.py'
+      - 'tests/test_continual_learning.py'
+      - 'tests/test_neural_adaptive.py'
       - '.github/workflows/neural-smoke.yml'
   workflow_dispatch:
 permissions:
@@ -59,3 +62,8 @@ jobs:
         run: PYTHONPATH=. python -m unittest discover -s tests -p 'test_neural_language_bpe_v2.py' -v
       - name: Train Russian UTF-8 language brain and evaluate held-out NLL
         run: PYTHONPATH=. python scripts/verify-language-brain.py
+
+      - name: Verify continual weight consolidation and offline adaptive architecture
+        run: |
+          PYTHONPATH=. OMP_NUM_THREADS=1 python -m unittest discover -s tests -p 'test_continual_learning.py' -v
+          PYTHONPATH=. OMP_NUM_THREADS=1 python -m unittest discover -s tests -p 'test_neural_adaptive.py' -v

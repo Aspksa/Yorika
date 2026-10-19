@@ -7,6 +7,7 @@ safely between chunks. Nothing is activated automatically and there is no CPU fa
 hidden behind a CUDA request.
 """
 import hashlib
+import functools
 import importlib.util
 import json
 import os
@@ -58,6 +59,15 @@ def _now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _without_consolidation(function):
+    @functools.wraps(function)
+    def guarded(*args, **kwargs):
+        from backend import continual_learning
+        with continual_learning.lock():
+            return function(*args, **kwargs)
+    return guarded
+
+
 def base_dir():
     override = os.environ.get("YORIKA_HOME")
     if override:
@@ -92,6 +102,7 @@ def _system():
     return base_dir() / "training-system"
 
 
+@_without_consolidation
 def set_folder(path):
     if not isinstance(path, str) or not path.strip() or len(path) > 400:
         raise ValueError("Укажите полный путь к папке")
@@ -409,6 +420,7 @@ def config_for(size):
     return dict(DEFAULT_CONFIG, **SIZES[size], size=size)
 
 
+@_without_consolidation
 def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, config=None, launch=True, base=None,
           size="s", series=None):
     if mode not in ("pilot", "long", "pretrain"):
@@ -520,6 +532,8 @@ def _continue_series(run_id):
 
 def stop_all():
     """Emergency stop: asks every running training to stop at the next chunk."""
+    from backend import continual_learning
+    continual_learning.stop()
     plan = series()
     if plan and plan.get("queue"):
         plan["queue"], plan["error"] = [], "Остановлено кнопкой «Стоп всё»"
@@ -685,6 +699,7 @@ def _point_to(relative, meta):
     _write(folder() / "active-meta.json", meta)
 
 
+@_without_consolidation
 def activate(run_id):
     path = _run_dir(run_id)
     item = _summary(path)
@@ -715,6 +730,7 @@ def activate(run_id):
     return active()
 
 
+@_without_consolidation
 def rollback():
     history = _read(folder() / "active-history.json", []) or []
     if not _read(folder() / "active-brain.json"):

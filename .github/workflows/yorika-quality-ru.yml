@@ -1,0 +1,59 @@
+name: "Yorika | Автопроверка изменений"
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: yorika-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: "Русский отчёт: код, тесты и безопасность"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: "Получить исходники"
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: "Python 3.12"
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: "Node.js 22"
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: "Проверить синтаксис Python"
+        run: python -B -m compileall -q backend scripts tests
+      - name: "Проверить синтаксис JavaScript"
+        run: node --check www/avatar.js
+      - name: "Проверить случайные секреты в отслеживаемых файлах"
+        shell: bash
+        run: |
+          python scripts/ci-secrets-check.py
+      - name: "Запустить Python и SQLite тесты"
+        id: acceptance
+        run: python scripts/run-acceptance.py --report yorika-acceptance.json
+      - name: "Русский итог проверок"
+        if: always()
+        run: |
+          python scripts/ci-report-ru.py --input yorika-acceptance.json --output ОТЧЁТ_YORIKA.md
+      - name: "Приложить отчёты"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yorika-russian-quality
+          path: |
+            ОТЧЁТ_YORIKA.md
+            yorika-acceptance.json
+          if-no-files-found: warn
+          retention-days: 7

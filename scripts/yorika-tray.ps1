@@ -153,7 +153,7 @@ try{
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
        $proc=[Diagnostics.Process]::Start($psi)
        try{
-        if($action -in @('save','persona-config','persona-delete')){$proc.StandardInput.Write($body)}
+        if($action -in @('save','persona-config','persona-delete')){Write-ChildUtf8 $proc $body}
         $proc.StandardInput.Close()
         $stdoutTask=$proc.StandardOutput.ReadToEndAsync()
         $stderrTask=$proc.StandardError.ReadToEndAsync()
@@ -258,7 +258,7 @@ try{
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
        $proc=[Diagnostics.Process]::Start($psi)
        try{
-        $proc.StandardInput.Write($body);$proc.StandardInput.Close()
+        Write-ChildUtf8 $proc $body;$proc.StandardInput.Close()
         $stdoutTask=$proc.StandardOutput.ReadToEndAsync()
         $stderrTask=$proc.StandardError.ReadToEndAsync()
         if(-not $proc.WaitForExit(25000)){try{$proc.Kill()}catch{};throw 'Истекло время ответа модели'}

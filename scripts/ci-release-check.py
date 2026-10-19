@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sys
 import zipfile
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = ["ЦЕНТР_YORIKA/ЦЕНТР_YORIKA.bat", "ЦЕНТР_YORIKA/center.ps1",
@@ -50,9 +51,14 @@ def main():
         return 0
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    paths = sorted(p for p in ROOT.rglob("*") if p.is_file() and
-                   eligible(p.relative_to(ROOT)) and not p.is_symlink() and
-                   out.resolve() not in p.resolve().parents)
+    try:
+        tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT)
+    except (OSError, subprocess.CalledProcessError):
+        print("НЕ ГОТОВО: для сборки необходим проверенный Git checkout")
+        return 1
+    paths = sorted(ROOT / name for name in tracked.decode("utf-8", "surrogateescape").split("\\0")
+                   if name and eligible(Path(name)) and (ROOT / name).is_file()
+                   and not (ROOT / name).is_symlink())
     archive = out / "Yorika-source-checked.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
         for p in paths:

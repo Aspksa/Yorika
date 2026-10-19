@@ -22,6 +22,14 @@ COMMANDS = [
 ]
 
 
+
+def compact_log(log, limit=24000):
+    """Preserve both start and end of large test logs for actionable CI triage."""
+    if len(log) <= limit:
+        return log
+    half = limit // 2
+    return log[:half] + "\n[... middle of output omitted ...]\n" + log[-half:]
+
 def execute(root=ROOT, *, runner=subprocess.run):
     results = []
     for name, command in COMMANDS:
@@ -30,7 +38,7 @@ def execute(root=ROOT, *, runner=subprocess.run):
                                errors="replace", capture_output=True, timeout=240)
             results.append({"name": name, "status": "passed" if completed.returncode == 0 else "failed",
                             "returncode": completed.returncode,
-                            "output": (completed.stdout + "\n" + completed.stderr)[-24000:]})
+                            "output": compact_log(completed.stdout + "\n" + completed.stderr)})
         except (OSError, subprocess.TimeoutExpired) as exc:
             results.append({"name": name, "status": "error", "returncode": None,
                             "output": type(exc).__name__})

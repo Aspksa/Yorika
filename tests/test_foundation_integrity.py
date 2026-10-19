@@ -30,6 +30,7 @@ class FoundationIntegrityTests(unittest.TestCase):
             with self.subTest(task=task_id):
                 lines = re.findall(
                     rf"^- \[([ x])\] {task_id}\b", roadmap, re.MULTILINE
+                )
                 self.assertEqual(lines, [" "])
 
     def test_memory_survives_database_reopening(self):

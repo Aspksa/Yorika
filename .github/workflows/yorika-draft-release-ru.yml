@@ -1,0 +1,42 @@
+name: "Yorika | Подготовка архива (без публикации)"
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: "Проверка и архив с SHA-256"
+    if: github.ref == 'refs/heads/main' && github.repository == 'Aspksa/Yorika'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: "Получить проверенный main"
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: "Подготовить Python 3.12"
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: "Проверить имена файлов на секреты"
+        run: python scripts/ci-secrets-check.py
+      - name: "Выполнить Python и SQLite тесты"
+        run: python scripts/run-acceptance.py --report yorika-acceptance.json
+      - name: "Подготовить архив исходников и SHA-256"
+        run: python scripts/ci-release-check.py --report yorika-acceptance.json --build
+      - name: "Русский отчёт"
+        if: always()
+        run: python scripts/ci-report-ru.py --input yorika-acceptance.json --output ОТЧЁТ_YORIKA.md
+      - name: "Сохранить диагностические файлы"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yorika-draft-archive
+          path: |
+            dist/
+            ОТЧЁТ_YORIKA.md
+            yorika-acceptance.json
+          retention-days: 7
+          if-no-files-found: warn

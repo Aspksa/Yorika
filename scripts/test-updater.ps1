@@ -41,6 +41,13 @@ try{
    } finally { $target.Dispose() }
   }
  }finally{$zip.Dispose()}
+ $inspect=[IO.Compression.ZipFile]::OpenRead($zipPath)
+ try {
+  $names=@($inspect.Entries | ForEach-Object { $_.FullName })
+  if($names -notcontains 'yorika-release/Yorika.bat'){
+   throw ('Invalid test ZIP entries: '+($names -join ', '))
+  }
+ }finally{$inspect.Dispose()}
  $hash=(Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
  [IO.File]::WriteAllText((Join-Path $staging ($sha+'.json')),(@{sha=$sha;hash=$hash}|ConvertTo-Json -Compress))
  & $installer -Root $root -Sha $sha -ServerPid 0 -TestOnly

@@ -14,13 +14,14 @@ from backend import self_learning as sl
 from backend import teacher
 from backend import training_center as tc
 
-READS = {"status", "sl-status", "teacher-status", "night-status"}
+READS = {"status", "sl-status", "teacher-status", "night-status", "brain-status"}
 WRITES = {"probe", "install-torch", "data-check", "folder", "open-folder", "start", "control",
           "activate", "rollback", "compare", "stop-all", "sl-collect-setting", "sl-collect",
           "sl-list", "sl-rate", "sl-delete", "sl-export", "sl-dismiss", "text-approve",
           "teacher-limits", "teacher-estimate", "teacher-start", "teacher-stop", "teacher-accept",
           "night-settings", "series", "sl-pack-preview", "sl-pack-add", "blind-start", "blind-vote", "blind-results",
-          "teacher-models"}
+          "teacher-models", "chat-engine", "continual-settings", "continual-now", "evolve", "merge",
+          "compress", "grow", "curiosity-now", "think"}
 
 
 def handle(action, body):
@@ -40,10 +41,11 @@ def handle(action, body):
         hours = body.get("hours", 8)
         return tc.start(body.get("mode"), dataset=body.get("dataset"), device=body.get("device", "cuda"),
                         total_steps=body.get("steps", 100000), hours=hours, base=body.get("base"),
-                        size=body.get("size", "s"))
+                        size=body.get("size", "s"), arch=body.get("arch"))
     if action == "series":
         return tc.start_series(body.get("dataset"), body.get("sizes"), device=body.get("device", "cuda"),
-                               total_steps=body.get("steps", 100000), hours_each=body.get("hours", 2.0))
+                               total_steps=body.get("steps", 100000), hours_each=body.get("hours", 2.0),
+                               arch=body.get("arch"))
     if action == "control":
         return tc.control(body.get("id"), body.get("action"))
     if action == "activate":
@@ -93,6 +95,45 @@ def handle(action, body):
         return blind.vote(body.get("round"), body.get("index"), body.get("choice"))
     if action == "blind-results":
         return {"results": blind.results()}
+    if action == "brain-status":
+        from backend import brain, continual, curiosity
+        return {"engine": brain.engine(), "continual": continual.status(), "wishes": curiosity.wishes(),
+                "frontier": curiosity.logic_frontier(), "curiosity": curiosity.last()}
+    if action == "chat-engine":
+        from backend import brain
+        return brain.set_engine(body.get("engine"), body.get("drafts", 3), body.get("compressed", False) is True)
+    if action == "continual-settings":
+        from backend import continual
+        return continual.set_settings(body.get("enabled"), body.get("auto_activate", False) is True,
+                                      body.get("min_new", 20), body.get("minutes", 5))
+    if action == "continual-now":
+        from backend import continual
+        return {"run": continual.maybe_start(force=True)}
+    if action == "evolve":
+        return tc.start_evolution(body.get("dataset"), body.get("population", 4), device=body.get("device", "cuda"),
+                                  total_steps=body.get("steps", 100000), hours_each=body.get("hours", 1.0))
+    if action == "merge":
+        ids = body.get("ids") or [None, None]
+        return tc.merge(*ids[:2]) if isinstance(ids, list) and len(ids) == 2 else tc.merge(None, None)
+    if action == "compress":
+        return tc.compress(body.get("id"))
+    if action == "grow":
+        return tc.start("long", dataset=body.get("dataset"), device=body.get("device", "cuda"),
+                        total_steps=body.get("steps", 100000), hours=body.get("hours", 8),
+                        grow={"from": body.get("id"), "layers": body.get("layers", 2)})
+    if action == "curiosity-now":
+        from backend import curiosity
+        return curiosity.start()
+    if action == "think":
+        from backend import brain
+        loaded = brain.load(tc._run_dir(body.get("id")) / "language-longrun.pt.best.pt")
+        question = body.get("question")
+        if not isinstance(question, str) or not 1 <= len(question.strip()) <= 500:
+            raise ValueError("Вопрос от 1 до 500 символов")
+        drafts = body.get("drafts", 3)
+        if drafts not in (1, 3, 5):
+            raise ValueError("Черновиков 1, 3 или 5")
+        return brain.think(*loaded, question.strip(), drafts=drafts)
     if action == "teacher-stop":
         return teacher.stop()
     if action == "teacher-accept":
@@ -102,7 +143,8 @@ def handle(action, body):
     if action == "night-settings":
         return night.set_settings(body.get("enabled"), body.get("time", "02:00"), body.get("hours", 4.0),
                                   body.get("teacher_tokens", 0), body.get("selfplay", 20),
-                                  sizes=body.get("sizes"))
+                                  sizes=body.get("sizes"), sleep=body.get("sleep", True) is True,
+                                  curiosity=body.get("curiosity", True) is True, evolve=body.get("evolve", 0))
     raise ValueError("Неизвестное действие")
 
 
@@ -113,6 +155,11 @@ def main(argv):
         return tc.pip_worker()
     if len(argv) == 2 and argv[1] == "teacher-worker":
         return teacher.worker()
+    if len(argv) == 3 and argv[1] == "exam-worker":
+        return tc.exam_worker(argv[2])
+    if len(argv) == 2 and argv[1] == "curiosity-worker":
+        from backend import curiosity
+        return curiosity.worker()
     if len(argv) == 2 and argv[1] == "night-run":
         night.run()
         return 0

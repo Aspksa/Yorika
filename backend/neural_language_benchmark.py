@@ -38,7 +38,7 @@ def load_candidate(path):
     if state.get("vocab_size") != vocab:
         raise ValueError("Vocabulary mismatch")
     model = make_model(torch, vocab_size=vocab, width=width, heads=heads,
-                       layers=layers, context=context)
+                       layers=layers, context=context, arch=state.get("arch"))
     model.load_state_dict(state["weights"], strict=True)
     model.eval()
     return model, state

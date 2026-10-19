@@ -34,9 +34,12 @@ DEFAULT_CONFIG = {"width": 320, "heads": 8, "layers": 4, "context": 256,
                   "batch_size": 16, "accumulate": 1, "precision": "auto"}
 # Model sizes the owner can pick. "l" needs about 2 GB of video memory (estimate), so it takes
 # half the batch per step and accumulates two of them: the same 16 examples per update.
-SIZES = {"s": {"width": 320, "heads": 8, "layers": 4},
-         "m": {"width": 512, "heads": 8, "layers": 8},
-         "l": {"width": 640, "heads": 10, "layers": 10, "batch_size": 8, "accumulate": 2}}
+# New versions use 1024–2048 word pieces instead of 128 (words cost one or two tokens, not five)
+# and the pre-norm "lab" network that can grow and think in loops.
+SIZES = {"s": {"width": 320, "heads": 8, "layers": 4, "max_merges": 1024},
+         "m": {"width": 512, "heads": 8, "layers": 8, "max_merges": 2048},
+         "l": {"width": 640, "heads": 10, "layers": 10, "batch_size": 8, "accumulate": 2, "max_merges": 2048}}
+KINDS = ("quick", "sleep", "evolution", "merge", "grow")
 RUN_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-(pilot|long|pretrain)\Z")
 TEXT_NAME = re.compile(r"^[^\\/:*?\"<>|]{1,120}\.txt\Z")
 TEXT_LICENSES = ("public-domain", "user-consent")
@@ -383,6 +386,9 @@ def _summary(path):
             "exam_per_char": progress.get("exam_per_char"), "old_exams": progress.get("old_exams", []),
             # The page needs the score; the answers stay in progress.json for whoever wants to read them.
             "honesty": {k: v for k, v in (progress.get("honesty") or {}).items() if k != "answers"} or None,
+            "logic": progress.get("logic"), "kind": run.get("kind"), "verdict": progress.get("verdict"),
+            "arch": (run.get("config") or {}).get("arch") or {}, "layers": (run.get("config") or {}).get("layers"),
+            "grown_from": run.get("grown_from"), "compressed": progress.get("compressed"),
             "history": progress.get("history", []), "has_best": best.is_file(),
             "resumable": progress.get("state") in ("paused", "interrupted") and run.get("mode") in ("long", "pretrain")}
 
@@ -403,24 +409,42 @@ def _active_job():
     return None
 
 
-def config_for(size):
+def config_for(size, arch=None):
+    from backend.neural_language_bpe_v2 import check_arch
     if size not in SIZES:
         raise ValueError("Размер модели: s, m или l")
-    return dict(DEFAULT_CONFIG, **SIZES[size], size=size)
+    try:
+        arch = check_arch(dict({"lab": True}, **(arch or {})))
+    except ValueError:
+        raise ValueError("Неверные настройки устройства мозга") from None
+    return dict(DEFAULT_CONFIG, **SIZES[size], size=size, arch=arch)
 
 
 def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, config=None, launch=True, base=None,
-          size="s", series=None):
+          size="s", series=None, arch=None, kind=None, init=None, grow=None, records=None):
+    """init: a checkpoint (relative to the folder) whose weights and tokenizer the run continues;
+    grow: {"from": run id, "layers": n} grows that version deeper first; records: a prepared
+    dataset for internal runs (quick learning, sleep), which skip the 10 000 gate."""
     if mode not in ("pilot", "long", "pretrain"):
         raise ValueError("Неизвестный режим")
-    config = dict(config) if config else config_for(size)
+    if kind is not None and kind not in KINDS:
+        raise ValueError("Неизвестный вид обучения")
+    config = dict(config) if config else config_for(size, arch)
     config.setdefault("size", size)
+    if grow is not None:
+        source = _summary(_run_dir(grow.get("from")))
+        if source["mode"] != "long" or not source["has_best"]:
+            raise ValueError("Вырастить можно обученную версию диалогов")
+        config = dict(_read(_run_dir(source["id"]) / "run.json")["config"])
+        config["layers"] = config["layers"] + grow.get("layers", 2)
+        if config["layers"] > 16:
+            raise ValueError("Больше 16 слоёв не поддерживается")
     if device not in ("cpu", "cuda"):
         raise ValueError("Выберите видеокарту или процессор")
     if _active_job():
         raise ValueError("Обучение уже идёт")
     if mode != "pilot" and (type(total_steps) is not int or not 100 <= total_steps <= 1000000 or
-                            type(hours) not in (int, float) or not 0.1 <= hours <= 72):
+                            type(hours) not in (int, float) or not (0.01 if records is not None else 0.1) <= hours <= 72):
         raise ValueError("Шагов от 100 до 1 000 000, времени от 0,1 до 72 часов")
     if base is not None:
         if mode != "long":
@@ -428,17 +452,18 @@ def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, c
         base_item = _summary(_run_dir(base))
         if base_item["mode"] != "pretrain" or not base_item["has_best"]:
             raise ValueError("Основой может быть только предобучение с сохранённой лучшей точкой")
-        if base_item["size"] != config.get("size", "s"):
-            raise ValueError("Основа другого размера: выберите тот же размер модели, что у предобучения")
+        if base_item["size"] != config.get("size", "s") or base_item["arch"] != config.get("arch", {}):
+            raise ValueError("Основа другого размера или устройства: выберите те же, что у предобучения")
+    internal = records is not None
     if mode == "pilot":
         records, dataset, total_steps, limit = pilot_records(), None, 1000000, PILOT_SECONDS
     elif mode == "pretrain":
         records, dataset, limit = None, None, int(hours * 3600)
     else:
-        records = _load_records(dataset)
+        records = records if internal else _load_records(dataset)
         limit = int(hours * 3600)
     data = pretrain_corpus() if mode == "pretrain" else _prepare(records)
-    if mode == "long":
+    if mode == "long" and not internal and kind not in ("quick", "sleep"):
         blocker = long_gate(records)
         if blocker:
             raise ValueError(blocker)
@@ -449,10 +474,24 @@ def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, c
     if path.exists():
         raise ValueError("Подождите секунду и запустите снова")
     path.mkdir(parents=True)
+    if internal:
+        # Internal datasets are saved next to the run, so resumed chunks read the same records.
+        _write(path / "dataset.json", records)
+        dataset = dataset or "(%s)" % kind
+    if grow is not None:
+        from backend.growth import grow as grow_brain
+        try:
+            grow_brain(_run_dir(grow["from"]) / "language-longrun.pt.best.pt", path / "grown.pt", grow.get("layers", 2))
+        except ValueError:
+            shutil.rmtree(path, ignore_errors=True)
+            raise
+        init, kind = "runs/%s/grown.pt" % run_id, kind or "grow"
     _write(path / "run.json", {"schema": "yorika-training-run-v1", "id": run_id, "mode": mode,
                                "dataset": dataset, "manifest": data["manifest"], "device": device,
                                "config": config, "total_steps": total_steps,
-                               "time_limit": limit, "created": _now(), "base": base, "series": series})
+                               "time_limit": limit, "created": _now(), "base": base, "series": series,
+                               "kind": kind, "init": init, "internal": internal,
+                               "grown_from": grow["from"] if grow else None})
     _write(path / "progress.json", {"state": "starting", "t": time.time(), "steps": 0, "history": []})
     if launch:
         _spawn([sys.executable, str(CLI), "worker", run_id], path / "worker.log")
@@ -481,34 +520,44 @@ def control(run_id, action):
     raise ValueError("Неизвестное действие")
 
 
-def start_series(dataset, sizes, *, device="cuda", total_steps=100000, hours_each=2.0, launch=True):
-    """Sandbox: the same data, several model sizes one after another, compared on the same exam."""
-    if (not isinstance(sizes, list) or not 2 <= len(sizes) <= 3 or len(set(sizes)) != len(sizes) or
-            any(size not in SIZES for size in sizes)):
-        raise ValueError("Выберите от двух до трёх разных размеров")
+def start_series(dataset, sizes=None, *, device="cuda", total_steps=100000, hours_each=2.0, launch=True,
+                 configs=None, kind=None, arch=None):
+    """Sandbox: the same data, several model sizes (or evolution variants) one after another,
+    compared on the same exam."""
+    if configs is None:
+        if (not isinstance(sizes, list) or not 2 <= len(sizes) <= 3 or len(set(sizes)) != len(sizes) or
+                any(size not in SIZES for size in sizes)):
+            raise ValueError("Выберите от двух до трёх разных размеров")
+        configs = [config_for(size, arch) for size in sizes]
     series_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     first = start("long", dataset=dataset, device=device, total_steps=total_steps, hours=hours_each,
-                  size=sizes[0], series=series_id, launch=launch)
+                  config=configs[0], series=series_id, launch=launch, kind=kind)
     _write(folder() / "series.json", {"id": series_id, "dataset": dataset, "device": device,
                                        "total_steps": total_steps, "hours_each": hours_each,
-                                       "queue": sizes[1:], "runs": [first["id"]], "created": _now(),
-                                       "launch": launch})
-    return {"series": series_id, "first": first["id"], "queue": sizes[1:]}
+                                       "queue": configs[1:], "runs": [first["id"]], "created": _now(),
+                                       "launch": launch, "kind": kind})
+    return {"series": series_id, "first": first["id"], "queue": [c.get("label") or c.get("size") for c in configs[1:]]}
 
 
 def series():
-    return _read(folder() / "series.json")
+    plan = _read(folder() / "series.json")
+    if plan:
+        # Older plans queued size letters; newer ones queue whole configurations.
+        plan["queue"] = [q if isinstance(q, str) else (q.get("label") or q.get("size")) for q in plan.get("queue", [])]
+    return plan
 
 
 def _continue_series(run_id):
-    """Called when a series run finishes: starts the next size, if any is left."""
-    plan = series()
+    """Called when a series run finishes: starts the next variant, if any is left."""
+    plan = _read(folder() / "series.json")
     if not plan or run_id not in plan.get("runs", []) or not plan.get("queue"):
         return None
-    size = plan["queue"].pop(0)
+    item = plan["queue"].pop(0)
+    config = config_for(item) if isinstance(item, str) else item
     try:
         nxt = start("long", dataset=plan["dataset"], device=plan["device"], total_steps=plan["total_steps"],
-                    hours=plan["hours_each"], size=size, series=plan["id"], launch=plan.get("launch", True))
+                    hours=plan["hours_each"], config=config, series=plan["id"], launch=plan.get("launch", True),
+                    kind=plan.get("kind"))
     except ValueError as error:
         plan["error"] = str(error)
         _write(folder() / "series.json", plan)
@@ -516,6 +565,166 @@ def _continue_series(run_id):
     plan["runs"].append(nxt["id"])
     _write(folder() / "series.json", plan)
     return nxt["id"]
+
+
+def _describe(config):
+    arch = config.get("arch") or {}
+    parts = ["%s слоёв × %s" % (config["layers"], config["width"])]
+    if arch.get("loops", 1) > 1:
+        parts.append("думает ×%d" % arch["loops"])
+    if arch.get("experts"):
+        parts.append("%d экспертов" % arch["experts"])
+    if arch.get("memory"):
+        parts.append("память %d" % arch["memory"])
+    return ", ".join(parts)
+
+
+def mutate(parent, rng):
+    """One variant of a configuration: a random change of depth, width, loops, experts or memory."""
+    child = json.loads(json.dumps(parent))
+    arch = dict(child.get("arch") or {"lab": True}, lab=True)
+    gene = rng.choice(["layers", "width", "loops", "experts", "memory", "merges"])
+    if gene == "layers":
+        child["layers"] = max(2, min(12, child["layers"] + rng.choice([-2, 2])))
+    elif gene == "width":
+        child["width"] = max(128, min(640, child["width"] + rng.choice([-64, 64])))
+        child["heads"] = 8 if child["width"] % 8 == 0 else 4
+    elif gene == "loops":
+        arch["loops"] = rng.choice([v for v in (1, 2, 3) if v != arch.get("loops", 1)])
+    elif gene == "experts":
+        arch["experts"] = 0 if arch.get("experts") else rng.choice([4, 6])
+    elif gene == "memory":
+        arch["memory"] = 0 if arch.get("memory") else rng.choice([128, 256])
+    else:
+        child["max_merges"] = rng.choice([v for v in (512, 1024, 2048) if v != child.get("max_merges")])
+    from backend.neural_language_bpe_v2 import check_arch
+    child["arch"] = check_arch(arch)
+    child["label"] = _describe(child)
+    return child
+
+
+def start_evolution(dataset, population=4, *, device="cuda", total_steps=100000, hours_each=1.0, launch=True, seed=None):
+    """Evolution: the current best configuration and its mutants train on the same data.
+
+    The exam picks the winner; the next round mutates the winner. Nothing is activated."""
+    import random
+    if type(population) is not int or not 3 <= population <= 8:
+        raise ValueError("В поколении от 3 до 8 вариантов")
+    finished = [r for r in runs() if r["mode"] == "long" and r.get("exam_per_char") is not None]
+    if finished:
+        best = min(finished, key=lambda r: r["exam_per_char"])
+        parent = dict(_read(_run_dir(best["id"]) / "run.json")["config"])
+    else:
+        parent = config_for("s")
+    parent["label"] = "родитель: " + _describe(parent)
+    rng = random.Random(seed)
+    children, seen = [parent], {json.dumps({k: v for k, v in parent.items() if k != "label"}, sort_keys=True)}
+    for _ in range(population * 10):
+        if len(children) >= population:
+            break
+        child = mutate(parent, rng)
+        key = json.dumps({k: v for k, v in child.items() if k != "label"}, sort_keys=True)
+        if key not in seen:
+            seen.add(key)
+            children.append(child)
+    return start_series(dataset, configs=children, device=device, total_steps=total_steps,
+                        hours_each=hours_each, launch=launch, kind="evolution")
+
+
+def merge(run_a, run_b, launch=True):
+    """Crossbreeding by averaging weights. Only versions with the same network and the same word
+    pieces can be averaged; the merged version takes its own exam and is kept only if you want."""
+    import torch
+    a, b = _summary(_run_dir(run_a)), _summary(_run_dir(run_b))
+    if run_a == run_b or a["mode"] != "long" or b["mode"] != "long" or not a["has_best"] or not b["has_best"]:
+        raise ValueError("Выберите две разные обученные версии диалогов")
+    sa = torch.load(_run_dir(run_a) / "language-longrun.pt.best.pt", map_location="cpu", weights_only=True)
+    sb = torch.load(_run_dir(run_b) / "language-longrun.pt.best.pt", map_location="cpu", weights_only=True)
+    if (sa["config"][:4] != sb["config"][:4] or sa.get("arch", {}) != sb.get("arch", {}) or
+            sa["tokenizer"]["sha256"] != sb["tokenizer"]["sha256"]):
+        raise ValueError("Скрестить можно только версии с одинаковым устройством и словарём "
+                         "(например, выросшие из одной основы)")
+    weights = {k: (v + sb["weights"][k]) / 2 if v.is_floating_point() else v for k, v in sa["weights"].items()}
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-long"
+    path = folder() / "runs" / run_id
+    if path.exists():
+        raise ValueError("Подождите секунду и запустите снова")
+    path.mkdir(parents=True)
+    info = _read(_run_dir(run_a) / "run.json")
+    payload = dict(sa, weights=weights, optimizer=None)
+    payload.pop("optimizer")
+    torch.save(payload, path / "language-longrun.pt.best.pt")
+    _write(path / "run.json", dict(info, id=run_id, created=_now(), kind="merge", series=None,
+                                   merged=[run_a, run_b]))
+    if info.get("internal"):
+        shutil.copyfile(_run_dir(run_a) / "dataset.json", path / "dataset.json")
+    _write(path / "progress.json", {"state": "finished", "steps": sa.get("best_step", 0), "best_step": sa.get("best_step", 0),
+                                    "history": [], "t": time.time(),
+                                    "parameters": sum(v.numel() for v in weights.values())})
+
+    if launch:
+        _spawn([sys.executable, str(CLI), "exam-worker", run_id], path / "worker.log")
+    return _summary(path)
+
+
+def exam_worker(run_id):
+    """Exams for a version made without training (crossbreeding); takes minutes on a laptop."""
+    path = _run_dir(run_id)
+    info = _read(path / "run.json")
+    progress = _read(path / "progress.json", {}) or {}
+
+    def save(**fields):
+        progress.update(fields)
+        _write(path / "progress.json", progress)
+    try:
+        data = _read(path / "dataset.json") if info.get("internal") else _load_records(info["dataset"])
+        _exam(path, _prepare(data), False, save)
+    except Exception as error:  # noqa: BLE001 - the page shows why the exam failed
+        save(error=str(error)[:200])
+        return 1
+    return 0
+
+
+def compress(run_id):
+    """4-bit copy of a version for answering; reports the size and what the exam says it cost."""
+    from backend.neural_language_longrun import score_checkpoint
+    from backend.quantize import load_quantized, quantize
+    item = _summary(_run_dir(run_id))
+    if item["mode"] != "long" or not item["has_best"]:
+        raise ValueError("Сжать можно обученную версию диалогов")
+    best = _run_dir(run_id) / "language-longrun.pt.best.pt"
+    small = _run_dir(run_id) / "language-longrun.pt.best.q4.pt"
+    sizes = quantize(best, small)
+    info = _read(_run_dir(run_id) / "run.json")
+    records = _read(_run_dir(run_id) / "dataset.json") if info.get("internal") else _load_records(info["dataset"])
+    test = _prepare(records)["test"]
+    after = score_checkpoint(small, test, loaded=load_quantized(small))["per_char"]
+    result = {"bytes": sizes["bytes"], "original_bytes": best.stat().st_size, "exam_before": item["exam_per_char"],
+              "exam_after": round(after, 4)}
+    progress = _read(_run_dir(run_id) / "progress.json", {}) or {}
+    progress["compressed"] = result
+    _write(_run_dir(run_id) / "progress.json", progress)
+    # The chat uses the compressed copy of the active version when asked to; copy it next to it.
+    current = active()
+    if current and current.get("run") == run_id:
+        target = folder() / current["checkpoint"]
+        shutil.copyfile(small, target.with_name(target.name[:-3] + ".q4.pt"))
+    return result
+
+
+def protected_prompts():
+    """Prompts of every earlier exam: internal datasets never train on them."""
+    banned = set()
+    for item in runs():
+        if item["mode"] != "long" or not item.get("dataset"):
+            continue
+        info = _read(_run_dir(item["id"]) / "run.json", {}) or {}
+        try:
+            records = _read(_run_dir(item["id"]) / "dataset.json") if info.get("internal") else _load_records(item["dataset"])
+            banned.update(p.casefold().strip() for p, _ in _prepare(records)["test"])
+        except (ValueError, TypeError):
+            continue
+    return banned
 
 
 def stop_all():
@@ -566,6 +775,11 @@ def _exam(path, data, lm, save):
         save(honesty=honesty.exam(loaded))
     except (ValueError, ImportError):
         pass
+    try:
+        from backend import logic
+        save(logic=logic.exam(loaded))
+    except (ValueError, ImportError):
+        pass
 
 
 def _heartbeat(path, stop):
@@ -598,7 +812,8 @@ def worker(run_id):
         if lm:
             data = pretrain_corpus()
         else:
-            records = pilot_records() if run_info["mode"] == "pilot" else _load_records(run_info["dataset"])
+            records = (pilot_records() if run_info["mode"] == "pilot" else
+                       _read(path / "dataset.json") if run_info.get("internal") else _load_records(run_info["dataset"]))
             data = _prepare(records)
         if data["manifest"] != run_info["manifest"]:
             raise ValueError("Данные изменились после запуска; начните новое обучение")
@@ -616,6 +831,8 @@ def worker(run_id):
         init_from = None
         if run_info.get("base"):
             init_from = _run_dir(run_info["base"]) / "language-longrun.pt.best.pt"
+        if run_info.get("init"):
+            init_from = folder() / run_info["init"]
         save(state="running", gpu_name=gpu, error=None)
         while True:
             request = (_read(path / "control.json", {}) or {}).get("request")
@@ -627,6 +844,9 @@ def worker(run_id):
             if progress.get("steps", 0) >= run_info["total_steps"] or elapsed >= run_info["time_limit"]:
                 _exam(path, data, lm, save)
                 save(state="finished")
+                if run_info.get("kind") in ("quick", "sleep"):
+                    from backend import continual
+                    save(verdict=continual.judge(run_id))
                 _continue_series(run_id)
                 return 0
             chunk = max(1.0, min(CHUNK_SECONDS, run_info["time_limit"] - elapsed))
@@ -637,7 +857,7 @@ def worker(run_id):
                          context=cfg["context"], max_merges=cfg["max_merges"], seed=cfg["seed"],
                          max_run_seconds=chunk, device=device, batch_size=cfg.get("batch_size", 1),
                          accumulate=cfg.get("accumulate", 1), precision=precision,
-                         objective="lm" if lm else "dialogue", init_from=init_from)
+                         objective="lm" if lm else "dialogue", init_from=init_from, arch=cfg.get("arch"))
             elapsed += time.monotonic() - began
             if status["steps"] <= status["resumed_from"] and status["steps"] < run_info["total_steps"]:
                 raise RuntimeError("Обучение не продвигается")
@@ -685,7 +905,7 @@ def _point_to(relative, meta):
     _write(folder() / "active-meta.json", meta)
 
 
-def activate(run_id):
+def activate(run_id, by="user"):
     path = _run_dir(run_id)
     item = _summary(path)
     if item["mode"] == "pretrain":
@@ -710,7 +930,7 @@ def activate(run_id):
         history.append({"pointer": current, "meta": _read(folder() / "active-meta.json", {})})
         _write(folder() / "active-history.json", history[-20:])
     meta = {"run": run_id, "step": item["best_step"], "sha256": _sha256(target), "activated": _now(),
-            "by": "user"}
+            "by": by}
     _point_to(target.relative_to(folder()).as_posix(), meta)
     return active()
 
@@ -730,23 +950,8 @@ def rollback():
 
 
 def _answer(model, state, prompt, max_tokens):
-    import torch
-    from backend.neural_bpe_v1 import OFFSET, SPECIAL, encode
-    tokenizer, context = state["tokenizer"], state["config"][3]
-    ids = [1, 3] + encode(prompt, tokenizer) + [4]
-    out = []
-    with torch.inference_mode():
-        for _ in range(max_tokens):
-            token = int(model(torch.tensor([ids[-context:]], dtype=torch.long))[0, -1].argmax())
-            if token == 2:
-                break
-            ids.append(token)
-            if token >= len(SPECIAL):
-                out.append(token)
-    pieces = [bytes([i]) for i in range(256)]
-    for left, right in tokenizer["merges"]:
-        pieces.append(pieces[left - OFFSET] + pieces[right - OFFSET])
-    return b"".join(pieces[t - OFFSET] for t in out).decode("utf-8", errors="replace")
+    from backend.brain import generate
+    return generate(model, state, prompt, max_tokens)["text"]
 
 
 def _with_tools(answer):

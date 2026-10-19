@@ -8,7 +8,28 @@ from pathlib import Path
 from backend.neural_bpe_v1 import SPECIAL, OFFSET, train as train_bpe, encode as encode_bpe, decode as decode_bpe, validate as validate_bpe
 
 
-def make_model(torch, *, vocab_size, width=64, heads=4, context=128, layers=2):
+ARCH_KEYS = ("lab", "loops", "experts", "memory")
+
+
+def check_arch(arch):
+    """Optional brain features; an empty dict is the original architecture, bit for bit.
+
+    "lab" alone is the newer pre-norm network (it can grow); loops, experts and memory imply it.
+    """
+    arch = dict(arch or {})
+    if set(arch) - set(ARCH_KEYS):
+        raise ValueError("Unknown architecture option")
+    loops, experts, memory = arch.get("loops", 1), arch.get("experts", 0), arch.get("memory", 0)
+    if (type(loops) is not int or not 1 <= loops <= 4 or type(experts) is not int or experts not in (0, 2, 4, 6, 8)
+            or type(memory) is not int or memory not in (0, 64, 128, 256, 512, 1024)
+            or arch.get("lab", True) is not True):
+        raise ValueError("Invalid architecture options")
+    out = {k: v for k, v in (("loops", loops), ("experts", experts), ("memory", memory))
+           if v != {"loops": 1, "experts": 0, "memory": 0}[k]}
+    return dict(lab=True, **out) if out or arch.get("lab") else {}
+
+
+def make_model(torch, *, vocab_size, width=64, heads=4, context=128, layers=2, arch=None):
     if type(vocab_size) is not int or not 261 <= vocab_size <= 4357:
         raise ValueError("Invalid BPE vocabulary size")
     from torch import nn
@@ -17,6 +38,9 @@ def make_model(torch, *, vocab_size, width=64, heads=4, context=128, layers=2):
             type(layers) is not int or not 1 <= layers <= 16 or
             not 32 <= context <= 512):
         raise ValueError("Invalid model configuration")
+    arch = check_arch(arch)
+    if arch:
+        return _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch)
     class LanguageBrain(nn.Module):
         def __init__(self):
             super().__init__()
@@ -35,6 +59,109 @@ def make_model(torch, *, vocab_size, width=64, heads=4, context=128, layers=2):
             mask = torch.triu(torch.ones(length, length, dtype=torch.bool, device=ids.device), diagonal=1)
             return self.output(self.encoder(self.embedding(ids)+self.position(p), mask=mask))
     return LanguageBrain()
+
+
+def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
+    """Pre-norm blocks with three optional brain features.
+
+    loops: the block stack runs several times (shared weights); training samples 1..loops passes,
+    so the same model can answer fast or think longer. experts: each block's feed-forward is a
+    mixture of experts and every token uses the two its router picks. memory: a learned slot
+    memory read by attention after the first block.
+    Zero-initialised output projections make a new block an exact identity, which is what lets
+    the brain grow deeper without losing what it learned (backend/growth.py).
+    """
+    from torch.nn import functional as F
+    loops, experts, slots = arch.get("loops", 1), arch.get("experts", 0), arch.get("memory", 0)
+
+    class Experts(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.router = nn.Linear(width, experts, bias=False)
+            self.up = nn.Parameter(torch.randn(experts, width, width * 2) * width ** -0.5)
+            self.down = nn.Parameter(torch.zeros(experts, width * 2, width))
+
+        def forward(self, x):
+            logits = self.router(x)
+            weights, chosen = logits.topk(2, dim=-1)
+            weights = weights.softmax(-1)
+            # Balance term (Switch Transformer): keeps every expert in use instead of two winners.
+            share = F.one_hot(chosen[..., 0], experts).float().reshape(-1, experts).mean(0)
+            self.aux = experts * (share * logits.softmax(-1).reshape(-1, experts).mean(0)).sum()
+            out = torch.zeros_like(x)
+            for slot in range(2):
+                for e in range(experts):
+                    hit = chosen[..., slot] == e
+                    if hit.any():
+                        h = F.gelu(x[hit] @ self.up[e]) @ self.down[e]
+                        out[hit] += weights[..., slot][hit].unsqueeze(-1) * h
+            return out
+
+    class Block(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.norm1, self.norm2 = nn.LayerNorm(width), nn.LayerNorm(width)
+            self.attn = nn.MultiheadAttention(width, heads, batch_first=True, bias=False)
+            nn.init.zeros_(self.attn.out_proj.weight)
+            if experts:
+                self.ffn = Experts()
+            else:
+                self.ffn = nn.Sequential(nn.Linear(width, width * 4), nn.GELU(), nn.Linear(width * 4, width))
+                nn.init.zeros_(self.ffn[2].weight)
+                nn.init.zeros_(self.ffn[2].bias)
+
+        def forward(self, x, mask):
+            h = self.norm1(x)
+            x = x + self.attn(h, h, h, attn_mask=mask, need_weights=False)[0]
+            return x + self.ffn(self.norm2(x))
+
+    class Memory(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.norm = nn.LayerNorm(width)
+            self.keys = nn.Parameter(torch.randn(slots, width) * width ** -0.5)
+            self.values = nn.Parameter(torch.zeros(slots, width))
+
+        def forward(self, x):
+            scores = self.norm(x) @ self.keys.t() * width ** -0.5
+            return x + scores.softmax(-1) @ self.values
+
+    class LabBrain(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embedding = nn.Embedding(vocab_size, width)
+            self.position = nn.Embedding(context, width)
+            self.blocks = nn.ModuleList(Block() for _ in range(layers))
+            if loops > 1:
+                self.loop = nn.Embedding(loops, width)
+                nn.init.zeros_(self.loop.weight)
+            if slots:
+                self.memory = Memory()
+            self.norm = nn.LayerNorm(width)
+            self.output = nn.Linear(width, vocab_size)
+            self.passes = loops
+
+        def forward(self, ids, passes=None):
+            length = ids.shape[1]
+            if length > context:
+                raise ValueError("Context overflow")
+            if passes is None:
+                passes = int(torch.randint(1, loops + 1, ()).item()) if self.training and loops > 1 else self.passes
+            p = torch.arange(length, device=ids.device)
+            mask = torch.triu(torch.ones(length, length, dtype=torch.bool, device=ids.device), diagonal=1)
+            x = self.embedding(ids) + self.position(p)
+            for n in range(max(1, min(passes, loops))):
+                if loops > 1:
+                    x = x + self.loop.weight[n]
+                for k, block in enumerate(self.blocks):
+                    x = block(x, mask)
+                    # Memory is read right after the first block, so growing deeper never moves it.
+                    if slots and k == 0:
+                        x = self.memory(x)
+            self.aux_loss = sum(b.ffn.aux for b in self.blocks) / len(self.blocks) if experts else None
+            return self.output(self.norm(x))
+
+    return LabBrain()
 
 
 def train_language(pairs, output, *, steps=10, seed=42, width=64, heads=4, context=128, max_merges=64, layers=2):

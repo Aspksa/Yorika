@@ -191,6 +191,16 @@ def main():
         conversation_id = incoming.get("conversation_id")
     else:
         query, conversation_id = incoming, None
+    from backend import brain
+    if brain.own_engine_selected() and isinstance(query, str) and query.strip():
+        # The owner chose Yorika's own model for chat: answer with it, never with Cloud.ru instead.
+        try:
+            own = brain.chat(query[:MAX_QUERY], conversation_id)
+        except Exception as error:  # noqa: BLE001 - our own short message
+            print(json.dumps({"error": brain.chat_error(error)}, ensure_ascii=False))
+            sys.exit(1)
+        print(json.dumps({"answer": own["answer"], "provider": "yorika-own", "run": own["run"]}, ensure_ascii=False))
+        return
     print(json.dumps(answer(query, conversation_id=conversation_id), ensure_ascii=False))
 
 

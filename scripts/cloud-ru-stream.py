@@ -33,8 +33,25 @@ def read_request(source):
     return query, conversation_id
 
 
+def own_model(query, conversation_id):
+    """When the owner chose Yorika's own model for chat, answer with it and stop here."""
+    from backend import brain
+    if not brain.own_engine_selected():
+        return False
+    try:
+        answer = brain.chat(query, conversation_id)["answer"]
+    except Exception as error:  # noqa: BLE001 - shown as our own short message
+        emit({"type": "error", "message": brain.chat_error(error)})
+        sys.exit(1)
+    emit({"type": "delta", "text": answer})
+    emit({"type": "done", "answer": answer})
+    return True
+
+
 def main():
     query, conversation_id = read_request(sys.stdin)
+    if own_model(query, conversation_id):
+        return
     path = Path(__file__).with_name("cloud-ru-model.py")
     spec = importlib.util.spec_from_file_location("yorika_cloud_stream_model", path)
     module = importlib.util.module_from_spec(spec)

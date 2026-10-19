@@ -8,8 +8,8 @@ import hashlib
 import json
 import time
 from pathlib import Path
-from backend.neural_bpe_v1 import OFFSET, train as fit_bpe, encode as bpe_encode, validate as check_bpe
-from backend.neural_language_bpe_v2 import make_model
+from backend.neural_bpe_v1 import OFFSET, train as fit_bpe, train_words as fit_bpe_words, encode as bpe_encode, validate as check_bpe
+from backend.neural_language_bpe_v2 import check_arch, make_model
 
 SCHEMA = "yorika-language-longrun-v1"
 PRECISIONS = ("fp32", "bf16", "fp16")
@@ -45,7 +45,7 @@ def digest(pairs):
 def run(train, validation, output, *, total_steps, checkpoint_every=20,
         width=320, heads=8, layers=4, context=256, max_merges=128, seed=42,
         max_run_seconds=None, device='cpu', batch_size=1, accumulate=1, precision="fp32",
-        objective="dialogue", init_from=None):
+        objective="dialogue", init_from=None, arch=None):
     import torch
     from torch.nn import functional as F
     if max_run_seconds is not None and (type(max_run_seconds) not in (int, float) or
@@ -82,14 +82,17 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
                       for p, a in list(train) + list(validation)):
         raise ValueError("Invalid examples")
     speed = [batch_size, accumulate, precision]
+    arch = check_arch(arch)
     base = None
     if init_from is not None:
         base_path = Path(init_from)
         if not base_path.is_file() or not 0 < base_path.stat().st_size <= 200_000_000:
             raise ValueError("Missing pretrained checkpoint")
         base = torch.load(base_path, map_location="cpu", weights_only=True)
-        if (base.get("schema") != SCHEMA or base.get("objective") != "lm" or
-                base.get("config", [None]*6)[:4] != [width, heads, layers, context]):
+        # A base is pretraining, the active brain (learning continues) or a grown copy of either.
+        if (base.get("schema") != SCHEMA or base.get("objective") not in ("lm", "dialogue") or
+                base.get("config", [None]*6)[:4] != [width, heads, layers, context] or
+                base.get("arch", {}) != arch):
             raise ValueError("Pretrained checkpoint does not match this model")
         check_bpe(base["tokenizer"])
         base_sha = hashlib.sha256(base_path.read_bytes()).hexdigest()
@@ -106,7 +109,8 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
                 [width, heads, layers, context, max_merges, seed] or
                 state.get("speed", [1, 1, "fp32"]) != speed or
                 state.get("objective", "dialogue") != objective or
-                state.get("init_sha256") != (base_sha if base else None)):
+                state.get("init_sha256") != (base_sha if base else None) or
+                state.get("arch", {}) != arch):
             raise ValueError("Checkpoint incompatible with current experiment")
         tokenizer = state["tokenizer"]
         check_bpe(tokenizer)
@@ -122,11 +126,12 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
                 break
             sample.append(text[:20000])
             size += len(sample[-1])
-        tokenizer = fit_bpe(sample, max_merges=max_merges)
+        # Large vocabularies are fitted over word counts: thousands of merges in seconds.
+        tokenizer = (fit_bpe_words if max_merges > 256 else fit_bpe)(sample, max_merges=max_merges)
         state = None
     vocab = OFFSET + 256 + len(tokenizer["merges"])
     torch.manual_seed(seed)
-    model = make_model(torch, vocab_size=vocab, width=width, heads=heads, layers=layers, context=context)
+    model = make_model(torch, vocab_size=vocab, width=width, heads=heads, layers=layers, context=context, arch=arch)
     count = sum(p.numel() for p in model.parameters())
     if base and not state:
         if base.get("vocab_size") != vocab:
@@ -213,7 +218,9 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
                                     ignore_index=-100, reduction="none").reshape(y.shape)
         counted = (y != -100).sum(1).clamp(min=1)
         # Mean per example, then over the batch: same metric as one example at a time.
-        return (per_token.sum(1) / counted).mean()
+        loss = (per_token.sum(1) / counted).mean()
+        aux = getattr(model, "aux_loss", None)
+        return loss + 0.01 * aux.float() if aux is not None and model.training else loss
     def evaluate():
         model.eval()
         with torch.inference_mode():
@@ -259,7 +266,7 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
                        "best_validation_nll": best_nll, "best_step": best_step,
                        "config": [width, heads, layers, context, max_merges, seed],
                        "training_device": device, "speed": speed, "objective": objective,
-                       "init_sha256": base_sha if base else None}
+                       "init_sha256": base_sha if base else None, "arch": arch}
             if scaler is not None:
                 payload["scaler"] = scaler.state_dict()
             if device == "cuda":

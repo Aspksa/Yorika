@@ -4,8 +4,10 @@ No implicit download, no corpus collection, and no change to the active brain.
 This tokenizer is NOT compatible with language-v1 checkpoints.
 """
 import hashlib
+import heapq
 import json
-from collections import Counter
+import re
+from collections import Counter, defaultdict
 
 SPECIAL = ("<pad>", "<bos>", "<eos>", "<user>", "<assistant>")
 OFFSET = len(SPECIAL)
@@ -52,6 +54,65 @@ def train(texts, *, max_merges=256, min_frequency=2):
     return manifest
 
 
+WORD = re.compile(r" ?[^\s]+|\s+")
+
+
+def train_words(texts, *, max_merges=1024, min_frequency=2):
+    """Same manifest as train(), learned over word counts so thousands of merges take seconds.
+
+    Merges are learned inside words (a leading space belongs to the word), which is how large
+    vocabularies are usually fitted; encode() and decode() are unchanged.
+    """
+    if not isinstance(texts, (list, tuple)) or not texts:
+        raise ValueError("Nonempty training strings required")
+    if type(max_merges) is not int or not 0 <= max_merges <= MAX_MERGES:
+        raise ValueError("Invalid merge budget")
+    if type(min_frequency) is not int or not 2 <= min_frequency <= 1000000:
+        raise ValueError("Invalid minimum frequency")
+    if len(texts) > 100000 or any(not isinstance(t, str) or not t or len(t) > 20000 for t in texts):
+        raise ValueError("Invalid training texts")
+    freq = Counter(w for t in texts for w in WORD.findall(t))
+    words = [list(_bytes(w)) for w in freq]
+    counts = [freq[w] for w in freq]
+    pairs, where = Counter(), defaultdict(set)
+    for k, row in enumerate(words):
+        for pair in zip(row, row[1:]):
+            pairs[pair] += counts[k]
+            where[pair].add(k)
+    heap = [(-n, pair) for pair, n in pairs.items()]
+    heapq.heapify(heap)
+    merges = []
+    while len(merges) < max_merges and heap:
+        n, best = heapq.heappop(heap)
+        if pairs.get(best, 0) != -n:
+            continue  # stale entry; the current count is elsewhere in the heap
+        if -n < min_frequency:
+            break
+        token = OFFSET + 256 + len(merges)
+        merges.append([best[0], best[1]])
+        touched = Counter()
+        for k in list(where.pop(best, ())):
+            row = words[k]
+            for pair in zip(row, row[1:]):
+                pairs[pair] -= counts[k]
+                touched[pair] += 0
+                where[pair].discard(k)
+            row = words[k] = _merge(row, best, token)
+            for pair in zip(row, row[1:]):
+                pairs[pair] += counts[k]
+                touched[pair] += 0
+                where[pair].add(k)
+        pairs.pop(best, None)
+        for pair in touched:
+            if pairs.get(pair, 0) > 0:
+                heapq.heappush(heap, (-pairs[pair], pair))
+            else:
+                pairs.pop(pair, None)
+    manifest = {"schema": SCHEMA, "special": list(SPECIAL), "merges": merges}
+    manifest["sha256"] = _digest(manifest)
+    return manifest
+
+
 def _merge(row, pair, token):
     result = []
     i = 0
@@ -89,11 +150,29 @@ def validate(manifest):
     return True
 
 
+_RANKS = {}
+
+
+def _ranks(manifest):
+    key = manifest.get("sha256") if isinstance(manifest, dict) else None
+    if key not in _RANKS:
+        validate(manifest)
+        if len(_RANKS) > 16:
+            _RANKS.clear()
+        _RANKS[key] = {tuple(pair): i for i, pair in enumerate(manifest["merges"])}
+    return _RANKS[key]
+
+
 def encode(text, manifest):
-    validate(manifest)
+    """Applies merges in learned order. Merging the lowest-ranked pair present each time gives the
+    same tokens as one pass per merge, but costs the text length instead of the merge count."""
+    ranks = _ranks(manifest)
     row = list(_bytes(text))
-    for i, pair in enumerate(manifest["merges"]):
-        row = _merge(row, pair, OFFSET + 256 + i)
+    while len(row) > 1:
+        rank = min((ranks.get(pair, 1 << 30) for pair in zip(row, row[1:])), default=1 << 30)
+        if rank == 1 << 30:
+            break
+        row = _merge(row, manifest["merges"][rank], OFFSET + 256 + rank)
     return row
 
 

@@ -19,8 +19,9 @@ MAX_TEXT = 2000
 MAX_ITEMS = 100000
 RATINGS = (None, "up", "down")
 SOURCES = {"yorika-chat": "user-consent", "teacher": "synthetic", "selfplay": "synthetic",
-           "honesty": "synthetic", "tools": "synthetic", "selfcheck": "synthetic", "memory": "user-consent"}
-PACKS = ("honesty", "tools")
+           "honesty": "synthetic", "tools": "synthetic", "selfcheck": "synthetic", "memory": "user-consent",
+           "logic": "synthetic"}
+PACKS = ("honesty", "tools", "logic")
 MAX_SCORED = 400
 
 
@@ -146,6 +147,7 @@ def uncertainty(items):
     stamp = "%s:%d" % (checkpoint.name, int(checkpoint.stat().st_mtime))
     cache = tc._read(tc.folder() / "uncertainty.json", {}) or {}
     scores = cache.get("scores", {}) if cache.get("checkpoint") == stamp else {}
+    surprise = cache.get("surprise", {}) if cache.get("checkpoint") == stamp else {}
     missing = [i for i in items if i["id"] not in scores][:MAX_SCORED]
     if missing:
         import torch
@@ -162,21 +164,32 @@ def uncertainty(items):
                     scores[item["id"]] = None
                     continue
                 y = torch.tensor([ids[1:]])
-                y[:, :len(prefix) - 1] = -100
                 logits = model(torch.tensor([ids[:-1]]))
-                scores[item["id"]] = round(float(F.cross_entropy(logits.reshape(-1, logits.shape[-1]),
-                                                                 y.reshape(-1), ignore_index=-100)), 4)
-        tc._write(tc.folder() / "uncertainty.json", {"checkpoint": stamp, "scores": scores})
+                flat = logits.reshape(-1, logits.shape[-1])
+                # Surprise: how unexpected your words were (loss on the prompt tokens themselves).
+                said = y.clone()
+                said[:, len(prefix) - 2:] = -100
+                said[:, :1] = -100
+                if int((said != -100).sum()):
+                    surprise[item["id"]] = round(float(F.cross_entropy(flat, said.reshape(-1), ignore_index=-100)), 4)
+                y[:, :len(prefix) - 1] = -100
+                scores[item["id"]] = round(float(F.cross_entropy(flat, y.reshape(-1), ignore_index=-100)), 4)
+        tc._write(tc.folder() / "uncertainty.json", {"checkpoint": stamp, "scores": scores, "surprise": surprise})
     return scores
 
 
+def surprises():
+    cache = tc._read(tc.folder() / "uncertainty.json", {}) or {}
+    return cache.get("surprise", {})
+
+
 def list_items(view="unrated", offset=0, limit=20):
-    if view not in ("unrated", "uncertain", "teacher", "up", "down", "all"):
+    if view not in ("unrated", "uncertain", "surprise", "teacher", "up", "down", "all"):
         raise ValueError("Неизвестный фильтр")
     if type(offset) is not int or type(limit) is not int or offset < 0 or not 1 <= limit <= 50:
         raise ValueError("Неверная страница")
     items = list(reversed(_load()["items"]))
-    if view in ("unrated", "uncertain"):
+    if view in ("unrated", "uncertain", "surprise"):
         items = [i for i in items if i["rating"] is None]
     elif view == "teacher":
         items = [i for i in items if i["rating"] is None and i.get("teacher")]
@@ -188,6 +201,13 @@ def list_items(view="unrated", offset=0, limit=20):
             item["doubt"] = scores.get(item["id"])
         scored = [i for i in items if i["doubt"] is not None]
         items = sorted(scored, key=lambda i: -i["doubt"]) + [i for i in items if i["doubt"] is None]
+    if view == "surprise":
+        uncertainty(items)
+        table = surprises()
+        for item in items:
+            item["surprise"] = table.get(item["id"])
+        items = sorted((i for i in items if i["surprise"] is not None), key=lambda i: -i["surprise"]) + \
+            [i for i in items if i["surprise"] is None]
     return {"items": items[offset:offset + limit], "matching": len(items), "counts": counts()}
 
 
@@ -206,8 +226,17 @@ def rate(item_id, rating, correction=None):
             item["rating"] = rating
             item["correction"] = correction if rating == "down" else None
             _save(store)
-            return {"item": item, "counts": counts(store)}
+            return {"item": item, "counts": counts(store), "lesson": _after_review()}
     raise ValueError("Пример не найден")
+
+
+def _after_review():
+    """Enough new approvals start a short lesson, when the owner turned learning-after-talks on."""
+    try:
+        from backend import continual
+        return continual.maybe_start()
+    except Exception:  # noqa: BLE001 - a lesson that cannot start must not lose the rating
+        return None
 
 
 def delete(item_id):
@@ -271,6 +300,9 @@ def _pack(name):
     if name == "tools":
         from backend import tools
         return tools.lessons()
+    if name == "logic":
+        from backend import curiosity, logic
+        return logic.lessons(min(5, curiosity.logic_frontier() + 1))
     raise ValueError("Неизвестный урок")
 
 
@@ -293,7 +325,7 @@ def add_pack(name, confirm=False):
                                "rating": "up", "correction": None, "source": name, "pack_approved": True})
         added += 1
     _save(store)
-    return {"added": added, "counts": counts(store)}
+    return {"added": added, "counts": counts(store), "lesson": _after_review()}
 
 
 def dismiss(run_id):

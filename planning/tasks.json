@@ -137,14 +137,14 @@
     {
       "id": "CHAT-001",
       "title": "Wire real backend responder into existing avatar",
-      "status": "todo",
+      "status": "in_progress",
       "priority": "P1",
       "depends_on": [
         "API-001"
       ],
       "evidence": [],
       "completed_at": null,
-      "notes": ""
+      "notes": "2026-10-19: chat can route to the active own checkpoint (backend/brain.py, chat-engine.json, explicit choice, no silent Cloud.ru fallback). Linux unit tests only; Windows tray chat not verified."
     },
     {
       "id": "CHAT-002",

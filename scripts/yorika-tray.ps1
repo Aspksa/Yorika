@@ -18,35 +18,69 @@ function Write-ChildUtf8($process, [string]$value){
 function Log($msg){try{[IO.File]::AppendAllText($log,("["+(Get-Date -Format o)+"] "+$msg+"`r`n"),[Text.Encoding]::UTF8)}catch{}}
 # python.exe in WindowsApps may be the Microsoft Store stub that only prints "Python was not found".
 # Each candidate must report Python 3 before it is used; the py launcher is the fallback.
+# The choice is remembered: Microsoft Store Python keeps its own private copy of %LOCALAPPDATA%,
+# so switching interpreters between starts made the saved Cloud.ru key and memory seem to vanish.
 $pythonCache=@{}
+$pythonPin=if($env:LOCALAPPDATA){Join-Path $env:LOCALAPPDATA 'Yorika\python-interpreter.txt'}else{''}
+function Test-YorikaPython([string]$file,[string]$prefix){
+ try{
+  $check=New-Object Diagnostics.ProcessStartInfo
+  $check.FileName=$file;$check.Arguments=$prefix+'--version'
+  $check.UseShellExecute=$false;$check.CreateNoWindow=$true
+  $check.RedirectStandardOutput=$true;$check.RedirectStandardError=$true
+  $probe=[Diagnostics.Process]::Start($check)
+  try{
+   $outTask=$probe.StandardOutput.ReadToEndAsync();$errTask=$probe.StandardError.ReadToEndAsync()
+   # A Store Python's first start after an update can take several seconds.
+   if(-not $probe.WaitForExit(15000)){try{$probe.Kill()}catch{};return ''}
+   $version=($outTask.GetAwaiter().GetResult()+$errTask.GetAwaiter().GetResult()).Trim()
+   $exitCode=$probe.ExitCode
+  }finally{$probe.Dispose()}
+  if($exitCode -eq 0 -and $version -match '^Python 3\.'){return $version}
+ }catch{}
+ return ''
+}
 function Get-YorikaPython{
  if($pythonCache.File){return $pythonCache}
  $candidates=@()
+ if($pythonPin -and [IO.File]::Exists($pythonPin)){
+  try{$saved=[IO.File]::ReadAllLines($pythonPin);if($saved.Length -ge 1 -and $saved[0]){$candidates+=,@($saved[0],$(if($saved.Length -ge 2){$saved[1]}else{''}))}}catch{}
+ }
  foreach($c in @(Get-Command python.exe -All -ErrorAction SilentlyContinue)){if($c.Source){$candidates+=,@($c.Source,'')}}
  $py=Get-Command py.exe -ErrorAction SilentlyContinue
  if($py){$candidates+=,@($py.Source,'-3 ')}
  foreach($candidate in $candidates){
-  try{
-   $check=New-Object Diagnostics.ProcessStartInfo
-   $check.FileName=$candidate[0];$check.Arguments=$candidate[1]+'--version'
-   $check.UseShellExecute=$false;$check.CreateNoWindow=$true
-   $check.RedirectStandardOutput=$true;$check.RedirectStandardError=$true
-   $probe=[Diagnostics.Process]::Start($check)
-   try{
-    $outTask=$probe.StandardOutput.ReadToEndAsync();$errTask=$probe.StandardError.ReadToEndAsync()
-    if(-not $probe.WaitForExit(4000)){try{$probe.Kill()}catch{};continue}
-    $version=($outTask.GetAwaiter().GetResult()+$errTask.GetAwaiter().GetResult()).Trim()
-    $exitCode=$probe.ExitCode
-   }finally{$probe.Dispose()}
-   if($exitCode -eq 0 -and $version -match '^Python 3\.'){
-    $pythonCache.File=$candidate[0];$pythonCache.Prefix=$candidate[1];$pythonCache.Source=$candidate[0]
-    Log ('Python: '+$version+' '+$candidate[0])
-    return $pythonCache
-   }
-  }catch{}
+  $version=Test-YorikaPython $candidate[0] $candidate[1]
+  if($version){
+   $pythonCache.File=$candidate[0];$pythonCache.Prefix=$candidate[1];$pythonCache.Source=$candidate[0]
+   Log ('Python: '+$version+' '+$candidate[0])
+   if($pythonPin){try{[IO.Directory]::CreateDirectory((Split-Path -Parent $pythonPin))|Out-Null;[IO.File]::WriteAllLines($pythonPin,[string[]]@($candidate[0],$candidate[1]))}catch{}}
+   return $pythonCache
+  }
  }
  Log 'Python 3 не найден: python.exe и py.exe недоступны'
  return $null
+}
+# Copies a Cloud.ru key that Microsoft Store Python saved in its private %LOCALAPPDATA% to the
+# real one when it is newer, so every interpreter and every release sees the same key.
+function Sync-StorePythonSecrets{
+ if(-not $env:LOCALAPPDATA){return}
+ $real=Join-Path $env:LOCALAPPDATA 'Yorika\secrets\cloud-ru.dpapi'
+ $packages=Join-Path $env:LOCALAPPDATA 'Packages'
+ if(-not [IO.Directory]::Exists($packages)){return}
+ $newest=$null
+ foreach($dir in @(Get-ChildItem -LiteralPath $packages -Directory -Filter 'PythonSoftwareFoundation.Python.*' -ErrorAction SilentlyContinue)){
+  $copy=Join-Path $dir.FullName 'LocalCache\Local\Yorika\secrets\cloud-ru.dpapi'
+  if([IO.File]::Exists($copy)){$info=Get-Item -LiteralPath $copy;if(-not $newest -or $info.LastWriteTimeUtc -gt $newest.LastWriteTimeUtc){$newest=$info}}
+ }
+ if(-not $newest){return}
+ if([IO.File]::Exists($real) -and (Get-Item -LiteralPath $real).LastWriteTimeUtc -ge $newest.LastWriteTimeUtc){return}
+ try{
+  [IO.Directory]::CreateDirectory((Split-Path -Parent $real))|Out-Null
+  $temp=$real+'.tmp';[IO.File]::Copy($newest.FullName,$temp,$true)
+  if([IO.File]::Exists($real)){[IO.File]::Replace($temp,$real,$null)}else{[IO.File]::Move($temp,$real)}
+  Log 'Ключ Cloud.ru из хранилища Microsoft Store Python перенесён в общий профиль'
+ }catch{Log ('Перенос ключа Cloud.ru: '+$_.Exception.Message)}
 }
 $key=[BitConverter]::ToString(([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($root.ToLowerInvariant()))),0,12).Replace('-','')
 $mutex=[Threading.Mutex]::new($false,('Local\Yorika-'+$key))
@@ -137,6 +171,7 @@ function Clear-ChatWorkers{
  }
 }
 $server=$null;$tray=$null;$timer=$null;$retire=$null;$url=''
+Sync-StorePythonSecrets
 try{
  $server=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
  $server.Start(16)

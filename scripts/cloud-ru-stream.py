@@ -79,6 +79,8 @@ if __name__ == "__main__":
             message = "Cloud.ru: нет соединения с API; проверьте сеть и прокси"
         elif "timed out" in detail.lower() or "timeout" in detail.lower():
             message = "Cloud.ru: превышено время ожидания ответа"
+        elif "stream reported an error" in detail:
+            message = "Cloud.ru: сервис вернул ошибку во время ответа; попробуйте ещё раз"
         elif "Invalid Cloud.ru stream event" in detail:
             message = "Cloud.ru: несовместимый формат потокового ответа"
         elif "Cloud.ru streamed answer too long" in detail:

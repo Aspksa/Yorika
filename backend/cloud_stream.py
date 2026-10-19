@@ -26,9 +26,22 @@ def collect_stream(response, on_delta=None):
             return
         try:
             event = json.loads(data.decode("utf-8"))
-            chunk = event["choices"][0].get("delta", {}).get("content")
-        except (UnicodeError, ValueError, KeyError, IndexError, AttributeError, TypeError):
+        except (UnicodeError, ValueError):
             raise RuntimeError("Invalid Cloud.ru stream event") from None
+        if not isinstance(event, dict):
+            raise RuntimeError("Invalid Cloud.ru stream event")
+        if event.get("error") is not None:
+            raise RuntimeError("Cloud.ru stream reported an error")
+        # Usage-only chunks (choices: []) and role/reasoning-only deltas carry no answer text.
+        choices = event.get("choices")
+        if not choices:
+            return
+        if not isinstance(choices, list) or not isinstance(choices[0], dict):
+            raise RuntimeError("Invalid Cloud.ru stream event")
+        delta = choices[0].get("delta") or choices[0].get("message") or {}
+        if not isinstance(delta, dict):
+            raise RuntimeError("Invalid Cloud.ru stream event")
+        chunk = delta.get("content")
         if chunk is None:
             return
         if not isinstance(chunk, str):

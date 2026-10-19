@@ -56,7 +56,7 @@ def main():
     except (OSError, subprocess.CalledProcessError):
         print("НЕ ГОТОВО: для сборки необходим проверенный Git checkout")
         return 1
-    paths = sorted(ROOT / name for name in tracked.decode("utf-8", "surrogateescape").split("\\0")
+    paths = sorted(ROOT / name for name in tracked.decode("utf-8", "surrogateescape").split("\0")
                    if name and eligible(Path(name)) and (ROOT / name).is_file()
                    and not (ROOT / name).is_symlink())
     archive = out / "Yorika-source-checked.zip"

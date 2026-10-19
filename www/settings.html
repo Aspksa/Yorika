@@ -62,7 +62,7 @@
    <div class="token-field"><input id="cloud-ru-key" type="password" autocomplete="new-password" placeholder="Оставьте пустым, чтобы сохранить действующий ключ" maxlength="8192"></div>
    <label class="token-label" for="cloud-ru-model">Модель Cloud.ru — выберите из списка или введите ID</label>
    <div class="token-field"><input id="cloud-ru-model" type="text" list="cloud-ru-model-suggestions" maxlength="150" value="ai-sage/GigaChat3-10B-A1.8B" required><datalist id="cloud-ru-model-suggestions"><option value="ai-sage/GigaChat3-10B-A1.8B">GigaChat 3 10B (ID по умолчанию)</option></datalist></div><p class="support-text">Список подсказок не является каталогом всех доступных моделей. Можно вставить любой точный ID модели из Cloud.ru; доступ проверяется отдельной кнопкой и может тарифицироваться.</p>
-   <p id="cloud-ru-status" class="setting-note" role="status" aria-live="polite">Проверка сохранённых настроек…</p>
+   <label class="token-label" for="cloud-ru-model-select">Доступные модели (после загрузки)</label><div class="token-field"><select id="cloud-ru-model-select" disabled><option value="">Сначала нажмите «Загрузить доступные модели»</option></select></div><p id="cloud-ru-status" class="setting-note" role="status" aria-live="polite">Проверка сохранённых настроек…</p>
    <div class="button-row">
     <button id="cloud-ru-save" class="secondary" type="submit">Сохранить ключ и модель</button>
     <button id="cloud-ru-models-refresh" class="ghost" type="button">Загрузить доступные модели</button>

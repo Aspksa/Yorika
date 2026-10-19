@@ -15,9 +15,12 @@ class CloudStreamUiTests(unittest.TestCase):
         self.assertIn('id="cloud-ru-model-suggestions"', html)
         self.assertIn("введите ID", html)
         self.assertIn('id="cloud-ru-models-refresh"', html)
+        self.assertIn('id="cloud-ru-model-select"', html)
         js = (ROOT / "www/settings.js").read_text(encoding="utf-8")
         self.assertIn('el("cloud-ru-model").value=result.model', js)
         self.assertIn('api("/api/cloud-ru/models")', js)
+        self.assertIn('el("cloud-ru-model-select").onchange', js)
+        self.assertIn('picker.disabled=result.models.length===0', js)
         gateway = (ROOT / "scripts/yorika-tray.ps1").read_text(encoding="utf-8-sig")
         self.assertIn("(status|models|save|check|delete|diagnostics", gateway)
         server = (ROOT / "scripts/cloud-ru-settings.py").read_text(encoding="utf-8")
@@ -37,6 +40,7 @@ class CloudStreamUiTests(unittest.TestCase):
         source = (ROOT / "scripts/cloud-ru-stream.py").read_text(encoding="utf-8")
         self.assertIn('if "HTTP 401" in detail:', source)
         self.assertIn('elif "HTTP 404" in detail:', source)
+        self.assertIn('"Invalid Cloud.ru stream event" in detail', source)
         self.assertNotIn('{"type": "error", "message": detail}', source)
 
 

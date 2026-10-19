@@ -33,20 +33,32 @@ jobs:
         with:
           node-version: '22'
       - name: "Проверить синтаксис Python"
+        id: python_syntax
         run: python -B -m compileall -q backend scripts tests
       - name: "Проверить синтаксис JavaScript"
+        id: javascript
         run: node --check www/avatar.js
       - name: "Проверить случайные секреты в отслеживаемых файлах"
+        id: secrets
         shell: bash
         run: |
           python scripts/ci-secrets-check.py
       - name: "Запустить Python и SQLite тесты"
         id: acceptance
         run: python scripts/run-acceptance.py --report yorika-acceptance.json
-      - name: "Русский итог проверок"
+      - name: "Русский итог всех проверок"
         if: always()
+        env:
+          PYTHON_SYNTAX: ${{ steps.python_syntax.outcome }}
+          JAVASCRIPT: ${{ steps.javascript.outcome }}
+          SECRETS: ${{ steps.secrets.outcome }}
+          ACCEPTANCE: ${{ steps.acceptance.outcome }}
         run: |
-          python scripts/ci-report-ru.py --input yorika-acceptance.json --output ОТЧЁТ_YORIKA.md
+          python scripts/ci-report-ru.py --input yorika-acceptance.json --output ОТЧЁТ_YORIKA.md \\
+            --require "Синтаксис Python=$PYTHON_SYNTAX" \\
+            --require "Синтаксис JavaScript=$JAVASCRIPT" \\
+            --require "Контроль файлов с секретами=$SECRETS" \\
+            --require "Приёмочные тесты Python/SQLite=$ACCEPTANCE"
       - name: "Приложить отчёты"
         if: always()
         uses: actions/upload-artifact@v4

@@ -31,5 +31,5 @@ jobs:
         run: PYTHONPATH=. python scripts/verify-neural-exact-resume.py
       - name: Verify periodic checkpoint crash recovery
         run: PYTHONPATH=. python scripts/verify-neural-longrun.py
-      - name: Verify deterministic Russian BPE tokenizer\n        run: PYTHONPATH=. python -m unittest tests/test_neural_bpe_v1.py -v\n      - name: Train Russian UTF-8 language brain and evaluate held-out NLL
+      - name: Verify deterministic Russian BPE tokenizer\n        run: PYTHONPATH=. python -m unittest discover -s tests -p 'test_neural_bpe_v1.py' -v\n      - name: Train Russian UTF-8 language brain and evaluate held-out NLL
         run: PYTHONPATH=. python scripts/verify-language-brain.py

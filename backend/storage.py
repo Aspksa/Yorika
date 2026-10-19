@@ -679,6 +679,97 @@ class Store:
                 continue
         return found
 
+
+    def set_memory_policy(self, record_id: str, *, priority: int = 3,
+                          expires_at: str | None = None) -> dict:
+        """Attach editable lifecycle metadata without modifying the memory itself."""
+        if not isinstance(record_id, str) or not record_id or len(record_id) > 512:
+            raise ValueError("Invalid memory ID")
+        if type(priority) is not int or not 1 <= priority <= 5:
+            raise ValueError("priority must be 1..5")
+        if expires_at is not None:
+            if not isinstance(expires_at, str) or len(expires_at) > 64:
+                raise ValueError("Invalid expiration timestamp")
+            try:
+                parsed = datetime.fromisoformat(expires_at)
+            except ValueError as exc:
+                raise ValueError("Invalid expiration timestamp") from exc
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                raise ValueError("Expiration must include timezone")
+        db = self.connection
+        if db.in_transaction:
+            raise RuntimeError("Finish current transaction before changing policies")
+        db.execute("BEGIN IMMEDIATE")
+        try:
+            if db.execute("SELECT 1 FROM records WHERE namespace='memories' "
+                          "AND record_id=?", (record_id,)).fetchone() is None:
+                raise ValueError("Memory does not exist")
+            value = {"priority": priority, "expires_at": expires_at}
+            db.execute(
+                "INSERT INTO records(namespace,record_id,payload,updated_at) VALUES(?,?,?,?) "
+                "ON CONFLICT(namespace,record_id) DO UPDATE SET "
+                "payload=excluded.payload,updated_at=excluded.updated_at",
+                ("memory_policies", record_id, json.dumps(value), utc_now()))
+            db.commit()
+            return {"record_id": record_id, **value}
+        except BaseException:
+            db.rollback()
+            raise
+
+    def memory_context(self, *, limit: int = 20, max_chars: int = 4000,
+                       at: str | None = None) -> list[dict]:
+        """Construct a bounded, sourced context from nonexpired explicit memories.
+
+        No automatic deletion: expired entries are excluded from retrieval only.
+        """
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("limit must be 1..100")
+        if type(max_chars) is not int or not 1 <= max_chars <= 20000:
+            raise ValueError("max_chars must be 1..20000")
+        now = datetime.now(timezone.utc) if at is None else datetime.fromisoformat(at)
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise ValueError("Context timestamp must include timezone")
+        rows = self.connection.execute(
+            "SELECT m.record_id,m.payload,p.payload FROM records AS m "
+            "LEFT JOIN records AS p ON p.namespace='memory_policies' AND p.record_id=m.record_id "
+            "WHERE m.namespace='memories' ORDER BY m.record_id"
+        )
+        entries = []
+        for record_id, raw, policy_raw in rows:
+            try:
+                item = json.loads(raw)
+                policy = json.loads(policy_raw) if policy_raw is not None else {}
+                if not isinstance(item, dict) or not isinstance(policy, dict):
+                    continue
+                content, source = item.get("text"), item.get("source")
+                if not isinstance(content, str) or not isinstance(source, str):
+                    continue
+                priority = policy.get("priority", 3)
+                if type(priority) is not int or not 1 <= priority <= 5:
+                    continue
+                expiry = policy.get("expires_at")
+                if expiry is not None and datetime.fromisoformat(expiry) <= now:
+                    continue
+                entries.append((priority, record_id, content, source, item.get("source_id", "")))
+            except (ValueError, TypeError):
+                continue
+        entries.sort(key=lambda item: (-item[0], item[1]))
+        selected, used = [], 0
+        for priority, record_id, content, source, source_id in entries:
+            if len(selected) == limit:
+                break
+            remaining = max_chars - used
+            if remaining <= 0:
+                break
+            fragment = content[:remaining]
+            if not fragment:
+                continue
+            selected.append({"record_id": record_id, "text": fragment, "source": source,
+                             "source_id": source_id, "priority": priority,
+                             "truncated": len(fragment) < len(content)})
+            used += len(fragment)
+        return selected
+
     def append_event(self, event_type: str, value: dict) -> int:
         if not event_type or not isinstance(value, dict):
             raise ValueError("event_type must be non-empty and value must be an object")

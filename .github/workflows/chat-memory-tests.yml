@@ -43,6 +43,8 @@ jobs:
           cat yorika-acceptance.json
       - name: Verify Cloud.ru model selection and streaming error handling
         run: python -m unittest discover -s tests -p 'test_cloud_model_picker_stream.py' -v
+      - name: Verify public updater and Cloud.ru UTF-8 stdout
+        run: python -m unittest discover -s tests -p 'test_public_updater_utf8.py' -v
       - name: Guard PowerShell 5.1 child UTF-8 stdin compatibility
         run: python -m unittest discover -s tests -p 'test_powershell_stdin_compat.py' -v
       - name: Validate task checkboxes

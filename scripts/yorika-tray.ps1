@@ -103,6 +103,7 @@ try{
        $psi.RedirectStandardOutput=$true
        $psi.RedirectStandardError=$true
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
+       $psi.EnvironmentVariables['PYTHONIOENCODING']='utf-8:strict'
        $proc=[Diagnostics.Process]::Start($psi)
        try{
         if($method -eq 'POST'){Write-ChildUtf8 $proc $body}
@@ -151,6 +152,7 @@ try{
        $psi.UseShellExecute=$false;$psi.CreateNoWindow=$true
        $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
+       $psi.EnvironmentVariables['PYTHONIOENCODING']='utf-8:strict'
        $proc=[Diagnostics.Process]::Start($psi)
        try{
         if($action -in @('save','persona-config','persona-delete')){Write-ChildUtf8 $proc $body}
@@ -199,6 +201,7 @@ try{
        $psi.UseShellExecute=$false;$psi.CreateNoWindow=$true
        $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
+       $psi.EnvironmentVariables['PYTHONIOENCODING']='utf-8:strict'
        $proc=[Diagnostics.Process]::Start($psi)
        try{
         Write-ChildUtf8 $proc ($builder.ToString());$proc.StandardInput.Close()
@@ -256,6 +259,7 @@ try{
        $psi.CreateNoWindow=$true
        $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
+       $psi.EnvironmentVariables['PYTHONIOENCODING']='utf-8:strict'
        $proc=[Diagnostics.Process]::Start($psi)
        try{
         Write-ChildUtf8 $proc $body;$proc.StandardInput.Close()
@@ -301,6 +305,7 @@ try{
        $psi.RedirectStandardOutput=$true
        $psi.RedirectStandardError=$true
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
+       $psi.EnvironmentVariables['PYTHONIOENCODING']='utf-8:strict'
        $proc=[Diagnostics.Process]::Start($psi)
        try{
         Write-ChildUtf8 $proc $text

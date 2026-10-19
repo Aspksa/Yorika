@@ -57,7 +57,7 @@ el("apply-update").onclick=async()=>{
   const r=await api("/api/updates/settings");
   settings={channel:r.channel==="stable"?"stable":"fresh",interval:Number(r.interval)||0};
   versions();
-  el("token-status").textContent=r.hasToken?"Токен сохранён на компьютере (доступ проверяется при проверке)":"Токен не задан";
+  el("token-status").textContent=r.hasToken?"Токен сохранён, но публичные обновления работают без него":"Токен не требуется: репозиторий публичный";
   schedule();
   check();
  }catch(error){

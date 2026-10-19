@@ -174,7 +174,7 @@ el("clear-data").onclick=async()=>{
   const r=await api("/api/updates/settings");
   select("update-channel",r.channel);select("update-interval",r.interval);
   el("updates-status").textContent="";
-  el("token-state").textContent=r.hasToken?"Сохранён на компьютере":"Не задан (нужен только для приватного репозитория)";
+  el("token-state").textContent=r.hasToken?"Сохранён на компьютере":"Не нужен для публичного репозитория";
  }catch(e){
   el("updates-status").textContent="Нет связи с Yorika: "+e.message;el("token-state").textContent="Неизвестно";
   radios("update-channel").concat(radios("update-interval")).forEach(input=>input.disabled=true);

@@ -33,7 +33,12 @@ try{
  try {
   foreach($file in @(Get-ChildItem -LiteralPath $fixture -File -Recurse)){
    $relative=$file.FullName.Substring($fixture.Length+1).Replace([char]92,'/').Replace([char]47,'/')
-   [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$file.FullName,$relative)
+   $entry=$zip.CreateEntry($relative)
+   $target=$entry.Open()
+   try {
+    $inputFile=[IO.File]::OpenRead($file.FullName)
+    try { $inputFile.CopyTo($target) } finally { $inputFile.Dispose() }
+   } finally { $target.Dispose() }
   }
  }finally{$zip.Dispose()}
  $hash=(Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash

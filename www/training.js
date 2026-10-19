@@ -44,6 +44,7 @@ const ICONS={
  exam:["M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z","M14 2v6h6","M9 15l2 2 4-4"],
  stop:["M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z","M9 9h6v6H9z"],
  gift:["M20 12v10H4V12","M2 7h20v5H2z","M12 22V7","M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z","M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"],
+ puzzle:["M19.4 15a1.6 1.6 0 0 0 0 3.2H21V22h-4v-1.6a1.6 1.6 0 0 0-3.2 0V22H3V11h1.6a1.6 1.6 0 0 0 0-3.2H3V4h7v1.6a1.6 1.6 0 0 0 3.2 0V4H21v11z"],
  calc:["M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z","M8 6h8v4H8z","M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"],
 };
 function icon(name){
@@ -77,6 +78,11 @@ const el=(name,cls,text)=>{const e=document.createElement(name);if(cls)e.classNa
 const runName=r=>({pilot:"проба",long:"диалоги",pretrain:"предобучение"})[r.mode]||r.mode;
 const SIZE={s:"S · ≈5 млн",m:"M · ≈25 млн",l:"L · ≈50 млн"};
 // Forgetting: worse than an earlier version on that version's own exam, per character.
+const KINDS={quick:"урок",sleep:"сон",evolution:"эволюция",merge:"скрещена"};
+const VERDICT={rolled_back:["chip-warn","откат"],waiting:["chip-next","ждёт вас"],activated:["chip-ok","включена сама"]};
+const mb=b=>b?(b/1048576).toFixed(1).replace(".",",")+" МБ":"—";
+const fx=v=>v==null?"—":Number(v).toFixed(3);
+const archBody=()=>{const a={};if($("arch-loops").checked)a.loops=3;if($("arch-experts").checked)a.experts=4;if($("arch-memory").checked)a.memory=256;return a};
 const forgets=r=>(r.old_exams||[]).filter(o=>o.mine>o.theirs*1.05);
 let status=null,slStatus=null,tStatus=null;
 
@@ -202,6 +208,15 @@ function renderVersions(s){
     if(lost.length)chips.append(Object.assign(el("span","chip chip-warn","забывает"),{title:"Хуже прошлых версий на их экзаменах: "+lost.map(o=>when(o.run)).join(", ")}));
     else if((r.old_exams||[]).length)chips.append(Object.assign(el("span","chip chip-ok","помнит старое"),{title:`Пересдала ${r.old_exams.length} прошлых экзамен(а) не хуже`}));
     if(r.series)chips.append(el("span","chip chip-next","песочница"));
+    const a=r.arch||{};
+    if(a.loops>1)chips.append(Object.assign(el("span","chip chip-next",`думает ×${a.loops}`),{title:"Слои проходятся несколько раз; на трудном вопросе дольше"}));
+    if(a.experts)chips.append(Object.assign(el("span","chip chip-next",`эксперты ×${a.experts}`),{title:"На каждое слово работают 2 эксперта из "+a.experts}));
+    if(a.memory)chips.append(Object.assign(el("span","chip chip-next","память "+a.memory),{title:"Ячейки памяти внутри сети"}));
+    if(KINDS[r.kind])chips.append(el("span","chip",KINDS[r.kind]));
+    if(r.grown_from)chips.append(Object.assign(el("span","chip chip-next",`выросла · ${r.layers} слоёв`),{title:"Выросла из версии "+when(r.grown_from)}));
+    if(r.logic){const lv=r.logic.levels||{},passed=Object.keys(lv).filter(k=>lv[k]>=.8).length;chips.append(Object.assign(el("span","chip "+(passed?"chip-ok":""),`логика ур. ${passed}`),{title:"Уровни логики, сданные на 80%: "+Object.entries(lv).map(([k,v])=>`${k}: ${Math.round(v*100)}%`).join(", ")}))}
+    if(r.verdict&&VERDICT[r.verdict.result])chips.append(Object.assign(el("span","chip "+VERDICT[r.verdict.result][0],VERDICT[r.verdict.result][1]),{title:r.verdict.why||""}));
+    if(r.compressed)chips.append(Object.assign(el("span","chip chip-ok","4 бита"),{title:`Сжата: ${mb(r.compressed.bytes)} вместо ${mb(r.compressed.original_bytes)}, экзамен ${fx(r.compressed.exam_before)} → ${fx(r.compressed.exam_after)}`}));
     if(chips.children.length)info.append(chips);
     li.append(info);
     const exam=el("div","exam");
@@ -216,6 +231,17 @@ function renderVersions(s){
       const b=el("button","secondary small","Сделать активной");
       b.onclick=()=>{if(confirm("Сделать эту версию активной? Прошлую можно будет вернуть."))act_(b,()=>post("activate",{id:r.id}))};
       li.append(b);
+    }
+    if(r.mode==="long"&&r.has_best&&!LIVE.has(r.state)){
+      const more=el("div","version-more");
+      if(r.arch&&r.arch.lab){
+        const g=el("button","ghost small","Вырастить +2 слоя");g.title="Новая версия глубже на 2 слоя: начинает с того же, что знает эта, и учится дальше";
+        g.onclick=()=>{if(confirm(`Вырастить версию на 2 слоя и учить дальше на «${r.dataset}»? Эта версия не изменится.`))act_(g,()=>post("grow",{id:r.id,dataset:r.dataset,device:r.device||radio("device"),steps:parseInt($("steps").value,10),hours:parseFloat($("hours").value)}))};
+        more.append(g);
+      }
+      const c=el("button","ghost small",r.compressed?"Сжать заново":"Сжать в 4 бита");c.title="Копия в 4 раза меньше для ответов; экзамен покажет, чего это стоило";
+      c.onclick=()=>act(c,async()=>{c.textContent="Сжимаю…";const x=await post("compress",{id:r.id});alert(`Сжато: ${mb(x.bytes)} вместо ${mb(x.original_bytes)}. Экзамен ${fx(x.exam_before)} → ${fx(x.exam_after)} (ниже — лучше).`);await refresh()});
+      more.append(c);li.append(more);
     }
     list.append(li);
   }
@@ -256,7 +282,7 @@ function renderSeries(s){
 async function refresh(){
   try{
     const s=status=await api("/api/training/status");
-    renderReady(s);renderData(s);renderJob(s.runs);renderVersions(s);renderFlow();
+    renderReady(s);renderData(s);renderJob(s.runs);renderVersions(s);renderFlow();if(!$("pane-brain").hidden)renderLogic();
     const busy=s.runs.some(r=>LIVE.has(r.state))||s.torch.install.running;
     clearTimeout(timer);timer=setTimeout(refresh,busy?3000:20000);
   }catch(e){showError(e.message);clearTimeout(timer);timer=setTimeout(refresh,10000)}
@@ -268,13 +294,17 @@ function syncMode(){
   for(const box of document.querySelectorAll("[data-for]"))box.hidden=!box.dataset.for.split(" ").includes(mode);
   $("hours-label").textContent=mode==="sandbox"?"Часов на каждый размер":"Не дольше, часов";
   $("start").textContent=mode==="sandbox"?"Запустить песочницу":"Начать обучение";
+  if(mode==="sandbox"&&radio("sandbox-kind")==="evolution")$("arch-box").hidden=true;
 }
 const startRun=(button,mode)=>act_(button,()=>{
   if(mode==="sandbox"){
+    const common={dataset:$("long-file").value,device:radio("device"),steps:parseInt($("steps").value,10),hours:parseFloat($("hours").value)};
+    if(radio("sandbox-kind")==="evolution")return post("evolve",{...common,population:parseInt($("population").value,10)});
     const sizes=[...document.querySelectorAll("input[name=series-size]:checked")].map(i=>i.value);
-    return post("series",{dataset:$("long-file").value,sizes,device:radio("device"),steps:parseInt($("steps").value,10),hours:parseFloat($("hours").value)});
+    return post("series",{...common,sizes,arch:archBody()});
   }
   const body={mode,device:radio("device")};
+  if(mode!=="pilot")body.arch=archBody();
   if(mode!=="pilot")body.size=radio("size");
   if(mode!=="pilot")Object.assign(body,{steps:parseInt($("steps").value,10),hours:parseFloat($("hours").value)});
   if(mode==="long")Object.assign(body,{dataset:$("long-file").value,base:$("base-run").value||null});
@@ -295,6 +325,8 @@ $("refresh").onclick=e=>act(e.currentTarget,refresh);
 $("results-folder").oninput=()=>{folderTouched=true};
 $("save-folder").onclick=e=>act_(e.currentTarget,async()=>{await post("folder",{path:$("results-folder").value});folderTouched=false});
 for(const r of document.querySelectorAll("input[name=mode]"))r.onchange=syncMode;
+const syncKind=()=>{const evo=radio("sandbox-kind")==="evolution";$("evolution-box").hidden=!evo;$("size-box").hidden=evo;$("arch-box").hidden=evo||!["long","pretrain","sandbox"].includes(radio("mode"))};
+for(const r of document.querySelectorAll("input[name=sandbox-kind]"))r.onchange=syncKind;
 $("start").onclick=e=>startRun(e.currentTarget,radio("mode"));
 $("pause").onclick=e=>act_(e.currentTarget,()=>post("control",{id:current.id,action:"pause"}));
 $("stop").onclick=e=>{if(confirm("Остановить обучение? Сохранённый прогресс останется."))act_(e.currentTarget,()=>post("control",{id:current.id,action:"stop"}))};
@@ -305,6 +337,11 @@ $("stop-all").onclick=e=>{if(confirm("Остановить всё обучени
   try{await post("teacher-stop");teacherStopped=true}catch{}
   showError("");alert(r.stopped.length||teacherStopped?"Останавливаю.":"Сейчас ничего не работает.");await refresh();await refreshTeacher();
 })};
+$("merge").onclick=e=>{
+  const ids=[$("cmp-a").value,$("cmp-b").value];
+  if(!ids[1]||ids[0]===ids[1]){showError("Выберите две разные версии");return}
+  if(confirm("Скрестить две версии: усреднить их веса? Получится новая версия, она сдаст экзамены. Родители не изменятся."))act_(e.currentTarget,()=>post("merge",{ids}));
+};
 $("compare").onclick=e=>act(e.currentTarget,async()=>{
   const ids=[$("cmp-a").value,$("cmp-b").value].filter(Boolean),questions=$("questions").value.split("\n").map(q=>q.trim()).filter(Boolean);
   $("compare-status").textContent="Модели отвечают…";
@@ -358,7 +395,7 @@ $("blind-start").onclick=e=>act(e.currentTarget,async()=>{
 $("blind-box").addEventListener("toggle",()=>{if($("blind-box").open)loadBlindResults()});
 
 // ---- tabs ----
-const TABS=["train","exp","teacher","night","future"];
+const TABS=["train","brain","exp","teacher","night","future"];
 function openTab(name,focus){
   if(name==="self")name="exp";if(name==="grow")name="future";
   if(!TABS.includes(name))name="train";
@@ -369,6 +406,7 @@ function openTab(name,focus){
   if(name==="exp")refreshSelf();
   if(name==="teacher")refreshTeacher();
   if(name==="night")refreshNight();
+  if(name==="brain")refreshBrain();
 }
 for(const t of TABS){
   $("tab-"+t).onclick=()=>openTab(t);
@@ -391,7 +429,7 @@ function renderCounts(c){
 function example(item){
   const li=el("li","example");li.dataset.rating=item.rating||"none";
   const top=el("div","ex-top");
-  const SRC={selfplay:"самоигра",teacher:"от учителя",honesty:"«не знаю»",tools:"инструменты",selfcheck:"самопроверка",memory:"из памяти"};
+  const SRC={selfplay:"самоигра",teacher:"от учителя",honesty:"«не знаю»",tools:"инструменты",selfcheck:"самопроверка",memory:"из памяти",logic:"логика ✓"};
   if(item.source&&item.source!=="yorika-chat")top.append(el("span","chip chip-next",SRC[item.source]||item.source));
   if(item.teacher_model)top.append(el("span","chip",item.teacher_model.split("/").pop()));
   if(item.doubt!=null)top.append(el("span","chip chip-research",`сомнение ${item.doubt.toFixed(2)}`));
@@ -423,7 +461,7 @@ function example(item){
   }
   return li;
 }
-const EMPTY={unrated:"Неоценённых примеров нет. Включите сбор и нажмите «Собрать из чата» или попросите учителя написать примеры.",uncertain:"Неоценённых примеров нет.",teacher:"Учитель ещё ничего не проверял: вкладка «Учитель» → «Проверить ответы»."};
+const EMPTY={unrated:"Неоценённых примеров нет. Включите сбор и нажмите «Собрать из чата» или попросите учителя написать примеры.",uncertain:"Неоценённых примеров нет.",teacher:"Учитель ещё ничего не проверял: вкладка «Учитель» → «Проверить ответы».",surprise:"Удивление считается по активной или последней обученной версии. Пока удивляться нечему."};
 async function loadExamples(reset){
   if(reset)shown=0;
   const list=$("examples");
@@ -544,13 +582,14 @@ async function refreshNight(){
   try{
     const n=await api("/api/training/night-status"),s=n.settings;
     $("night-on").checked=s.enabled;$("night-time").value=s.time;$("night-hours").value=s.hours;$("night-tokens").value=s.teacher_tokens;$("night-play").value=s.selfplay;
+    $("night-sleep").checked=s.sleep!==false;$("night-curiosity").checked=s.curiosity!==false;$("night-evolve").value=String(s.evolve||0);
     for(const box of document.querySelectorAll("input[name=night-size]"))box.checked=(s.sizes||["s"]).includes(box.value);
     syncNight();$("night-note").textContent=n.note+(n.windows?"":" Ставится в планировщик Windows.");
     const log=$("night-log");log.replaceChildren();
     if(!n.log.length)log.append(el("li","empty-line","Ночей ещё не было."));
     for(const entry of n.log.slice().reverse()){
       const li=el("li");li.append(el("strong",null,new Date(entry.started).toLocaleString("ru-RU",{day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"})));
-      const ul=el("ul");for(const st of entry.steps)ul.append(el("li",null,`${{collect:"Сбор",teacher:"Учитель",export:"Набор",train:"Обучение",cycle:"Цикл"}[st.step]||st.step}: ${st.result}`));
+      const ul=el("ul");for(const st of entry.steps)ul.append(el("li",null,`${{collect:"Сбор",teacher:"Учитель",curiosity:"Любопытство",export:"Набор",train:"Обучение",cycle:"Цикл"}[st.step]||st.step}: ${st.result}`));
       li.append(ul);log.append(li);
     }
   }catch(e){showError(e.message)}
@@ -567,8 +606,80 @@ for(const box of document.querySelectorAll("input[name=night-size]"))box.addEven
 $("night-save").onclick=e=>act(e.currentTarget,async()=>{
   const tokens=parseInt($("night-tokens").value,10)||0;
   if($("night-on").checked&&tokens&&!confirm(`Разрешить учителю тратить до ${num(tokens)} токенов Cloud.ru каждую ночь?`))return;
-  await post("night-settings",{enabled:$("night-on").checked,time:$("night-time").value,hours:parseFloat($("night-hours").value),teacher_tokens:tokens,selfplay:parseInt($("night-play").value,10),sizes:[...document.querySelectorAll("input[name=night-size]:checked")].map(i=>i.value)});
+  await post("night-settings",{enabled:$("night-on").checked,time:$("night-time").value,hours:parseFloat($("night-hours").value),teacher_tokens:tokens,selfplay:parseInt($("night-play").value,10),sizes:[...document.querySelectorAll("input[name=night-size]:checked")].map(i=>i.value),sleep:$("night-sleep").checked,curiosity:$("night-curiosity").checked,evolve:parseInt($("night-evolve").value,10)});
   await refreshNight();
+});
+
+// ---- brain: who answers, living learning, logic, memory, curiosity, thinking ----
+const LIVE_EVENT={start:"урок начат",rolled_back:"откат",activated:"включена сама",waiting:"ждёт вас"};
+let brainTimer=null;
+function renderLogic(){
+  const runs=status?status.runs.filter(r=>r.mode==="long"&&r.has_best):[];
+  const ref=(status&&status.active&&runs.find(r=>r.id===status.active.run))||runs[0];
+  const box=$("logic-bars");box.replaceChildren();
+  const lv=ref&&ref.logic&&ref.logic.levels;
+  for(const k of ["1","2","3","4","5"]){
+    const v=lv?lv[k]||0:0,row=el("div","logic-row"+(lv&&v>=.8?" ok":"")),bar=el("span","exam-bar"),fill=el("i");
+    fill.style.width=`${Math.round(v*100)}%`;bar.append(fill);
+    row.append(el("b",null,`Ур. ${k}`),bar,el("small",null,lv?`${Math.round(v*100)}%`:"—"));box.append(row);
+  }
+  $("logic-note").textContent=!ref?"Обучите версию: экзамен логики она сдаёт после обучения.":!lv?`У версии от ${when(ref.id)} экзамена логики ещё не было.`:`Версия от ${when(ref.id)}. Сдано, если решено 80%. Следующая цель: уровень ${ref.logic.frontier}.`;
+  const sel=$("think-run"),keep=sel.value;sel.replaceChildren();
+  if(!runs.length)sel.append(option("","Обученных версий нет"));
+  for(const r of runs)sel.append(option(r.id,`${when(r.id)}${status.active&&status.active.run===r.id?" · активная":""}`));
+  if([...sel.options].some(o=>o.value===keep))sel.value=keep;
+  $("think-go").disabled=!runs.length;
+}
+async function refreshBrain(){
+  try{
+    if(!status)status=await api("/api/training/status");
+    const b=await api("/api/training/brain-status"),e=b.engine,c=b.continual,s=c.settings,m=c.memory;
+    if(!$("pane-brain").contains(document.activeElement)){
+      document.querySelector(`input[name=engine][value=${e.engine}]`).checked=true;
+      document.querySelector(`input[name=drafts][value="${e.drafts}"]`).checked=true;$("engine-q4").checked=e.compressed;
+      $("live-on").checked=s.enabled;$("live-auto").checked=s.auto_activate;$("live-min").value=s.min_new;$("live-min-time").value=s.minutes;
+    }
+    $("engine-note").textContent=e.engine==="own"?`Сейчас отвечает своя модель: активная версия${status.active?" от "+when(status.active.run):""}.`:"Сейчас отвечает Cloud.ru.";
+    $("live-pending").textContent=`Новых одобренных примеров: ${num(c.pending)} из ${num(s.min_new)}`;
+    const log=$("live-log");log.replaceChildren();
+    for(const x of c.log.slice().reverse().slice(0,6)){
+      const li=el("li",x.event==="rolled_back"?"warn":x.event==="activated"?"ok":"");
+      li.append(el("b",null,LIVE_EVENT[x.event]||x.event),` · ${new Date(x.at).toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}`,x.why?` · ${x.why}`:x.new!=null?` · новых ${x.new}, повтор ${x.replay}`:"");
+      log.append(li);
+    }
+    if(!c.log.length)log.append(el("li","empty-line","Уроков ещё не было."));
+    $("mem-ready").textContent=num(m.ready);$("mem-strong").textContent=num(m.strong);$("mem-faded").textContent=num(m.faded);$("mem-half").textContent=`${m.half_life_days} дней`;
+    const w=$("wishes");w.replaceChildren();
+    for(const x of b.wishes){
+      const li=el("li");li.append(el("span",null,x.what));
+      if(x.action)li.append(el("span","chip "+(x.free?"chip-ok":""),x.free?"бесплатно":"нужен учитель"));
+      w.append(li);
+    }
+    const cur=b.curiosity,running=cur&&cur.state==="running";
+    $("cur-now").disabled=running;$("cur-now").textContent=running?"Занимается…":"Позаниматься сейчас";
+    $("cur-last").textContent=cur?(running?"Решает задачи на краю своих сил…":`Последний раз: ${cur.state==="failed"?"не получилось":""} ${cur.result||""}`):"Ещё не занималась. Ночью это происходит само, если включено.";
+    renderLogic();
+    clearTimeout(brainTimer);if(running)brainTimer=setTimeout(refreshBrain,4000);
+  }catch(e){showError(e.message)}
+}
+$("engine-save").onclick=e=>{
+  const engine=radio("engine");
+  if(engine==="own"&&!confirm("Отвечать в чате своей моделью? Она маленькая и может отвечать слабо. Cloud.ru подставляться не будет."))return;
+  act(e.currentTarget,async()=>{await post("chat-engine",{engine,drafts:parseInt(radio("drafts"),10),compressed:$("engine-q4").checked});await refreshBrain()});
+};
+$("live-save").onclick=e=>{
+  if($("live-auto").checked&&!confirm("Разрешить включать новую версию без вас, если она не хуже на экзаменах? Прошлую всегда можно вернуть."))return;
+  act(e.currentTarget,async()=>{await post("continual-settings",{enabled:$("live-on").checked,auto_activate:$("live-auto").checked,min_new:parseInt($("live-min").value,10),minutes:parseFloat($("live-min-time").value)});await refreshBrain()});
+};
+$("live-now").onclick=e=>act(e.currentTarget,async()=>{const r=await post("continual-now");await refresh();await refreshBrain();if(r.run)$("live-pending").textContent="Урок начат: его видно на вкладке «Обучение»."});
+$("cur-now").onclick=e=>act(e.currentTarget,async()=>{await post("curiosity-now");await refreshBrain()});
+$("think-go").onclick=e=>act(e.currentTarget,async()=>{
+  e.currentTarget.textContent="Думает…";
+  const r=await post("think",{id:$("think-run").value,question:$("think-q").value,drafts:parseInt(radio("drafts"),10)});
+  const out=$("think-out");out.hidden=false;out.replaceChildren();
+  out.append(el("p","think-answer",r.answer||"(пустой ответ)"));
+  const facts=[`черновиков ${r.drafts}`,r.passes>1?`думала ×${r.passes}, вопрос трудный`:r.hard?"вопрос трудный":"вопрос лёгкий",r.fixed?"лучшим оказался не первый черновик":"первый черновик оказался лучшим",r.errors?`ошибок в счёте: ${r.errors}`:"ошибок в счёте нет",r.tools&&r.tools.length?`инструменты: ${r.tools.length}`:null].filter(Boolean);
+  out.append(el("small",null,facts.join(" · ")));
 });
 
 // ---- future: horizon, steps 07–19, safety ----
@@ -578,10 +689,10 @@ const GROW=[
  {n:"09",t:"Знание своих границ",d:"Отдельный экзамен честности у каждой версии и уроки «не знаю».",s:"partial"},
  {n:"10",t:"Память в навыки",d:"Учитель делает примеры из фактов памяти, в обучение они идут после вашей оценки.",s:"partial"},
  {n:"11",t:"Уроки на слабых местах",d:"Самоигра уже даёт новые вопросы там, где Yorika ошиблась.",s:"partial"},
- {n:"12",t:"Команда специалистов",d:"Маленькие модели для речи, памяти и плана, для вас одна Yorika.",s:"research"},
+ {n:"12",t:"Команда специалистов",d:"Рой экспертов внутри сети: на каждое слово работают 2 из 4. Отдельные модели для речи и плана пока в исследовании.",s:"partial"},
  {n:"13",t:"Модель мира",d:"Предсказывает последствия действий и учится на ошибках прогноза.",s:"research"},
  {n:"14",t:"Умение учиться",d:"Измеряется и улучшается скорость освоения новой задачи.",s:"research"},
- {n:"15",t:"Изменение своего устройства",d:"Предлагает изменения нейросети и доказывает их цифрами.",s:"research"},
+ {n:"15",t:"Изменение своего устройства",d:"Растёт на слои без потери выученного, эволюция пробует варианты устройства, экзамен выбирает, включаете вы.",s:"partial"},
  {n:"16",t:"Гипотезы и эксперименты",d:"Сама ставит опыты над своим обучением, выводы проверяете вы.",s:"research"},
  {n:"17",t:"Обучение в облаке",d:"Тяжёлые эксперименты в Cloud.ru с лимитом и вашим подтверждением.",s:"plan"},
  {n:"18",t:"Уровни свободы и остановка",d:"Новая версия включается только вами, всё останавливается кнопкой «Стоп всё».",s:"partial"},
@@ -594,11 +705,11 @@ const HORIZON=[
   {i:"moon",t:"Ночной цикл",d:"Учится ночью, утром предлагает версию.",s:"ok"},
   {i:"exam",t:"Экзамен",d:"Каждая версия сдаёт экзамен на невиданном.",s:"ok"}]},
  {when:"5 лет",sub:"учится постоянно",items:[
-  {i:"brain",t:"Своя большая модель",d:"Уже можно 5, 25 или 50 млн параметров и песочница размеров. Дальше сотни миллионов.",s:"partial"},
+  {i:"brain",t:"Своя большая модель",d:"Уже 5, 25 или 50 млн параметров, рост на слои и сжатие в 4 бита для ответов. Дальше сотни миллионов.",s:"partial"},
   {i:"users",t:"Несколько учителей",d:"До 4 моделей Cloud.ru, по каждой теме зовётся та, кого вы одобряете чаще.",s:"partial"},
   {i:"eye",t:"Видит, слышит, говорит",d:"Голос, камера и экран только по разрешению.",s:"research"}]},
  {when:"15 лет",sub:"улучшает себя",items:[
-  {i:"pen",t:"Проектирует следующую версию",d:"Новая архитектура в песочнице и доказательство цифрами.",s:"research"},
+  {i:"pen",t:"Проектирует следующую версию",d:"Эволюция уже пробует варианты устройства в песочнице, доказательство цифрами экзамена.",s:"partial"},
   {i:"globe",t:"Модель мира",d:"Причины и следствия, планы на недели вперёд.",s:"research"},
   {i:"swarm",t:"Рой Yorika",d:"Копии-специалисты сводятся в одну личность и память.",s:"research"}]},
  {when:"50 лет",sub:"за пределами сегодняшнего",items:[

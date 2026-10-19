@@ -18,7 +18,9 @@ from backend import training_center as tc
 
 TASK_NAME = "Yorika Night Training"
 TIME = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]\Z")
-DEFAULTS = {"enabled": False, "time": "02:00", "hours": 4.0, "teacher_tokens": 0, "selfplay": 20, "sizes": ["s"]}
+DEFAULTS = {"enabled": False, "time": "02:00", "hours": 4.0, "teacher_tokens": 0, "selfplay": 20, "sizes": ["s"],
+            "sleep": True, "curiosity": True, "evolve": 0}
+EVOLUTION_WEEKDAY = 5  # Saturday night: evolution; other nights: sleep that continues the active version
 
 
 def _now():
@@ -52,7 +54,8 @@ def schedule_command(enabled, time):
             "/TR", '"%s"' % _launcher()]
 
 
-def set_settings(enabled, time="02:00", hours=4.0, teacher_tokens=0, selfplay=20, apply=True, sizes=None):
+def set_settings(enabled, time="02:00", hours=4.0, teacher_tokens=0, selfplay=20, apply=True, sizes=None,
+                 sleep=True, curiosity=True, evolve=0):
     if not isinstance(enabled, bool):
         raise ValueError("Неверное значение")
     if not isinstance(time, str) or not TIME.match(time):
@@ -69,6 +72,8 @@ def set_settings(enabled, time="02:00", hours=4.0, teacher_tokens=0, selfplay=20
     if (not isinstance(sizes, list) or not 1 <= len(sizes) <= 3 or len(set(sizes)) != len(sizes) or
             any(size not in tc.SIZES for size in sizes)):
         raise ValueError("Выберите от одного до трёх размеров модели")
+    if not isinstance(sleep, bool) or not isinstance(curiosity, bool) or type(evolve) is not int or evolve not in (0, 3, 4, 5, 6):
+        raise ValueError("Эволюция: 0 или от 3 до 6 вариантов")
     if apply:
         if os.name != "nt":
             raise ValueError("Ночной цикл ставится в планировщик Windows")
@@ -77,7 +82,8 @@ def set_settings(enabled, time="02:00", hours=4.0, teacher_tokens=0, selfplay=20
         if result.returncode and enabled:
             raise ValueError("Планировщик Windows не принял задачу")
     value = {"enabled": enabled, "time": time, "hours": float(hours), "teacher_tokens": teacher_tokens,
-             "selfplay": selfplay, "sizes": sizes, "changed": _now()}
+             "selfplay": selfplay, "sizes": sizes, "sleep": sleep, "curiosity": curiosity, "evolve": evolve,
+             "changed": _now()}
     tc._write(tc.folder() / "night.json", value)
     return settings()
 
@@ -85,6 +91,39 @@ def set_settings(enabled, time="02:00", hours=4.0, teacher_tokens=0, selfplay=20
 def _newest_experience():
     files = sorted((f for f in tc.data_files() if f["name"].startswith("опыт-")), key=lambda f: f["name"])
     return files[-1]["name"] if files else None
+
+
+def _train(plan, name, launch):
+    """Sleep continues the active version; evolution night breeds variants; else a fresh run."""
+    if not name:
+        raise ValueError("нет файла опыта")
+    current = tc.active()
+    evolution_night = plan["evolve"] and datetime.now().weekday() == EVOLUTION_WEEKDAY
+    if current and plan["sleep"] and not evolution_night:
+        # Sleep: the active version relives the day mixed with older examples and continues.
+        from backend import continual
+        records, mix = continual.sleep_set(name)
+        config = dict(tc._read(tc._run_dir(current["run"]) / "run.json")["config"])
+        started = tc.start("long", device=continual._device(current["run"]), total_steps=1000000,
+                           hours=plan["hours"], config=config, kind="sleep", init=current["checkpoint"],
+                           records=records, dataset=name, launch=launch)
+        return "сон %s: новых %d, повтор старого %d, всего %d" % (started["id"], mix["new"], mix["replay"], len(records))
+    blocker = tc.long_gate(tc._load_records(name))
+    if blocker:
+        raise ValueError(blocker)
+    if evolution_night:
+        each = round(plan["hours"] / plan["evolve"], 2)
+        started = tc.start_evolution(name, plan["evolve"], device="cuda", total_steps=1000000, hours_each=each,
+                                     launch=launch)
+        return "эволюция %s: %d вариантов по %s ч" % (started["series"], plan["evolve"], each)
+    sizes = plan["sizes"] if isinstance(plan["sizes"], list) and plan["sizes"] else ["s"]
+    if len(sizes) > 1:
+        each = round(plan["hours"] / len(sizes), 2)
+        started = tc.start_series(name, sizes, device="cuda", total_steps=1000000, hours_each=each, launch=launch)
+        return "песочница %s: размеры %s, по %s ч" % (started["series"], "/".join(sizes).upper(), each)
+    started = tc.start("long", dataset=name, device="cuda", total_steps=1000000, hours=plan["hours"],
+                       launch=launch, size=sizes[0])
+    return "запущено обучение %s на %s ч" % (started["id"], plan["hours"])
 
 
 def run(launch=True, opener=None):
@@ -113,6 +152,12 @@ def run(launch=True, opener=None):
                 step("teacher", str(error)[:160])
         else:
             step("teacher", "учитель ночью выключен" if not plan["teacher_tokens"] else "нет слабых мест")
+        if plan["curiosity"]:
+            try:
+                from backend import curiosity
+                step("curiosity", curiosity.night_step())
+            except Exception as error:  # noqa: BLE001
+                step("curiosity", str(error)[:160])
         try:
             newest = _newest_experience()
             ready = sl.counts()["ready"]
@@ -122,23 +167,8 @@ def run(launch=True, opener=None):
             step("export", "файл %s, примеров %d" % (exported["name"], exported["count"]))
         except Exception as error:  # noqa: BLE001
             step("export", str(error)[:160])
-        name = _newest_experience()
         try:
-            if not name:
-                raise ValueError("нет файла опыта")
-            blocker = tc.long_gate(tc._load_records(name))
-            if blocker:
-                raise ValueError(blocker)
-            sizes = plan["sizes"] if isinstance(plan["sizes"], list) and plan["sizes"] else ["s"]
-            if len(sizes) > 1:
-                each = round(plan["hours"] / len(sizes), 2)
-                started = tc.start_series(name, sizes, device="cuda", total_steps=1000000, hours_each=each,
-                                          launch=launch)
-                step("train", "песочница %s: размеры %s, по %s ч" % (started["series"], "/".join(sizes).upper(), each))
-            else:
-                started = tc.start("long", dataset=name, device="cuda", total_steps=1000000, hours=plan["hours"],
-                                   launch=launch, size=sizes[0])
-                step("train", "запущено обучение %s на %s ч" % (started["id"], plan["hours"]))
+            step("train", _train(plan, _newest_experience(), launch))
         except Exception as error:  # noqa: BLE001
             step("train", str(error)[:160])
     entry["finished"] = _now()

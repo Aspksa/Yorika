@@ -32,6 +32,7 @@
 
  <div class="tabs" role="tablist" aria-label="Разделы обучения">
   <button class="tab" role="tab" id="tab-train" aria-controls="pane-train" aria-selected="true" data-tab="train"><span class="tab-ic" data-icon="zap" aria-hidden="true"></span>Обучение</button>
+  <button class="tab" role="tab" id="tab-brain" aria-controls="pane-brain" aria-selected="false" data-tab="brain" tabindex="-1"><span class="tab-ic" data-icon="brain" aria-hidden="true"></span>Мозг</button>
   <button class="tab" role="tab" id="tab-exp" aria-controls="pane-exp" aria-selected="false" data-tab="exp" tabindex="-1"><span class="tab-ic" data-icon="thumb" aria-hidden="true"></span>Опыт<span class="tab-badge" id="tab-exp-badge" hidden></span></button>
   <button class="tab" role="tab" id="tab-teacher" aria-controls="pane-teacher" aria-selected="false" data-tab="teacher" tabindex="-1"><span class="tab-ic" data-icon="teacher" aria-hidden="true"></span>Учитель</button>
   <button class="tab" role="tab" id="tab-night" aria-controls="pane-night" aria-selected="false" data-tab="night" tabindex="-1"><span class="tab-ic" data-icon="moon" aria-hidden="true"></span>Ночь</button>
@@ -68,13 +69,26 @@
     </div>
    </div>
    <div class="sizes" data-for="sandbox">
-    <span class="token-label">Какие размеры сравнить</span>
-    <div class="size-grid">
-     <label class="size-card"><input type="checkbox" name="series-size" value="s" checked><span><b>S</b><strong>≈5 млн</strong><small>быстро</small></span></label>
-     <label class="size-card"><input type="checkbox" name="series-size" value="m" checked><span><b>M</b><strong>≈25 млн</strong><small>средняя</small></span></label>
-     <label class="size-card"><input type="checkbox" name="series-size" value="l"><span><b>L</b><strong>≈50 млн</strong><small>большая</small></span></label>
+    <div class="segmented sandbox-kind" role="radiogroup" aria-label="Что сравнить"><label><input type="radio" name="sandbox-kind" value="sizes" checked><span>Разные размеры</span></label><label><input type="radio" name="sandbox-kind" value="evolution"><span>Эволюция</span></label></div>
+    <div id="size-box">
+     <span class="token-label">Какие размеры сравнить</span>
+     <div class="size-grid">
+      <label class="size-card"><input type="checkbox" name="series-size" value="s" checked><span><b>S</b><strong>≈5 млн</strong><small>быстро</small></span></label>
+      <label class="size-card"><input type="checkbox" name="series-size" value="m" checked><span><b>M</b><strong>≈25 млн</strong><small>средняя</small></span></label>
+      <label class="size-card"><input type="checkbox" name="series-size" value="l"><span><b>L</b><strong>≈50 млн</strong><small>большая</small></span></label>
+     </div>
+     <p class="hint">Все версии учатся на одних данных по очереди и сдают один экзамен. Включаете лучшую вы.</p>
     </div>
-    <p class="hint">Все версии учатся на одних данных по очереди и сдают один экзамен. Включаете лучшую вы.</p>
+    <div id="evolution-box" class="evo-line" hidden><div><label class="token-label" for="population">Вариантов в поколении</label><input id="population" class="field" type="number" min="3" max="8" value="4"></div><p class="hint">Лучшая версия и её мутанты: глубже или мельче, шире, с экспертами, памятью или повторами мысли. Победителя выбирает экзамен, включаете вы.</p></div>
+   </div>
+   <div class="arch" id="arch-box" data-for="long pretrain sandbox">
+    <span class="token-label">Устройство мозга</span>
+    <div class="arch-grid">
+     <label class="arch-card"><input type="checkbox" id="arch-loops"><span><b data-icon="loop" aria-hidden="true"></b><strong>Думает глубже</strong><small>слои проходятся до 3 раз; на трудном вопросе дольше</small></span></label>
+     <label class="arch-card"><input type="checkbox" id="arch-experts"><span><b data-icon="swarm" aria-hidden="true"></b><strong>Рой экспертов</strong><small>4 эксперта, на каждое слово работают 2</small></span></label>
+     <label class="arch-card"><input type="checkbox" id="arch-memory"><span><b data-icon="archive" aria-hidden="true"></b><strong>Память внутри сети</strong><small>256 ячеек, которые сеть читает сама</small></span></label>
+    </div>
+    <p class="hint">Новое устройство умеет расти: к обученной версии можно добавить слои, не потеряв выученного.</p>
    </div>
    <div class="form-grid">
     <div data-for="long sandbox"><label class="token-label" for="long-file">Файл диалогов</label><select id="long-file" class="field"></select></div>
@@ -161,10 +175,73 @@
     <label class="token-label" for="questions">Вопросы, по одному в строке (до 5)</label>
     <textarea id="questions" class="field" rows="3">Привет! Как тебя зовут?
 Что ты умеешь?</textarea>
-    <div class="button-row"><button class="secondary" id="compare">Сравнить</button></div>
+    <div class="button-row"><button class="secondary" id="compare">Сравнить</button><button class="ghost" id="merge" title="Усреднить веса двух версий с одинаковым устройством">Скрестить эти две</button></div>
     <p id="compare-status" class="hint" role="status" aria-live="polite"></p>
     <div id="compare-result" class="compare" hidden></div>
    </details>
+  </section>
+ </div>
+
+ <!-- ============ Мозг ============ -->
+ <div class="pane" role="tabpanel" id="pane-brain" aria-labelledby="tab-brain" hidden>
+  <section class="card brain-top" aria-labelledby="engine-title">
+   <header class="card-head"><span class="card-ic" data-icon="chat" aria-hidden="true"></span><div><h2 id="engine-title">Кто отвечает в чате</h2><p id="engine-note">Сейчас отвечает Cloud.ru.</p></div></header>
+   <div class="segmented engine" role="radiogroup" aria-label="Кто отвечает">
+    <label><input type="radio" name="engine" value="cloud" checked><span>Cloud.ru</span></label>
+    <label><input type="radio" name="engine" value="own"><span>Своя модель</span></label>
+   </div>
+   <div class="form-grid">
+    <div><span class="token-label">Обдумывание перед ответом</span><div class="segmented"><label><input type="radio" name="drafts" value="1"><span>Сразу</span></label><label><input type="radio" name="drafts" value="3" checked><span>3 черновика</span></label><label><input type="radio" name="drafts" value="5"><span>5 черновиков</span></label></div></div>
+    <label class="switch compact"><input type="checkbox" id="engine-q4"><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Сжатая копия (4 бита)</strong><small>Если версия сжата, отвечает копия в 4 раза меньше.</small></span></label>
+   </div>
+   <p class="hint">Своя модель отвечает сама и никогда не подменяется Cloud.ru: если она не справится, чат покажет ошибку. Черновики проверяются: неверный счёт отбрасывается, инструменты считают точно.</p>
+   <div class="button-row"><button class="primary" id="engine-save">Сохранить</button></div>
+  </section>
+
+  <section class="card" aria-labelledby="live-title">
+   <header class="card-head"><span class="card-ic" data-icon="loop" aria-hidden="true"></span><div><h2 id="live-title">Учится постоянно</h2><p>Когда набирается достаточно одобренных вами примеров, она проходит короткий урок. Экзамен решает: оставить или откатить.</p></div></header>
+   <label class="switch"><input type="checkbox" id="live-on"><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Уроки после разговоров</strong><small>Продолжает активную версию на новых примерах вместе с повтором старых.</small></span></label>
+   <label class="switch"><input type="checkbox" id="live-auto"><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Включать новую версию самой, если она не хуже</strong><small>Иначе новая версия ждёт вашего решения. Хуже на экзамене, в честности или логике — откат всегда.</small></span></label>
+   <div class="form-grid">
+    <div><label class="token-label" for="live-min">Урок после, примеров</label><input id="live-min" class="field" type="number" min="10" max="1000" value="20"></div>
+    <div><label class="token-label" for="live-min-time">Длина урока, минут</label><input id="live-min-time" class="field" type="number" min="1" max="60" value="5"></div>
+   </div>
+   <div class="live-row"><span id="live-pending">—</span><button class="secondary small" id="live-now">Урок сейчас</button><button class="primary small" id="live-save">Сохранить</button></div>
+   <ul id="live-log" class="live-log"></ul>
+  </section>
+
+  <div class="brain-grid">
+   <section class="card" aria-labelledby="logic-title">
+    <header class="card-head"><span class="card-ic" data-icon="puzzle" aria-hidden="true"></span><div><h2 id="logic-title">Логика</h2><p>Экзамен на задачах, которых она не видела. Уровень — число шагов рассуждения.</p></div></header>
+    <div id="logic-bars" class="logic-bars"></div>
+    <p class="hint" id="logic-note">—</p>
+   </section>
+   <section class="card" aria-labelledby="mem-title">
+    <header class="card-head"><span class="card-ic" data-icon="archive" aria-hidden="true"></span><div><h2 id="mem-title">Память и забывание</h2><p>Частое крепнет, редкое со временем блекнет.</p></div></header>
+    <dl class="goal-facts mem-facts">
+     <div><dt>Навыков в опыте</dt><dd id="mem-ready">0</dd></div>
+     <div><dt>Крепких</dt><dd id="mem-strong">0</dd></div>
+     <div><dt>Поблекло</dt><dd id="mem-faded">0</dd></div>
+     <div><dt>Полураспад</dt><dd id="mem-half">30 дней</dd></div>
+    </dl>
+    <p class="hint">Поблекшие примеры не повторяются во сне. Если вопрос всплывёт снова, пример опять окрепнет.</p>
+   </section>
+  </div>
+
+  <section class="card curious" aria-labelledby="cur-title">
+   <header class="card-head"><span class="card-ic" data-icon="bulb" aria-hidden="true"></span><div><h2 id="cur-title">Чего ей хочется выучить</h2><p>Список составлен по её экзаменам, а не придуман.</p></div><button class="secondary small head-btn" id="cur-now">Позаниматься сейчас</button></header>
+   <ol id="wishes" class="wishes"></ol>
+   <p class="hint" id="cur-last"></p>
+  </section>
+
+  <section class="card" aria-labelledby="think-title">
+   <header class="card-head"><span class="card-ic" data-icon="sparkles" aria-hidden="true"></span><div><h2 id="think-title">Спросить и посмотреть, как она думает</h2><p>Несколько черновиков, проверка, лучший ответ.</p></div></header>
+   <div class="form-grid two">
+    <div><label class="token-label" for="think-run">Версия</label><select id="think-run" class="field"></select></div>
+    <div><label class="token-label" for="think-q">Вопрос</label><input id="think-q" class="field" maxlength="500" value="У Лисы было 3 яблока, она нашла ещё 4. Сколько у неё теперь?"></div>
+   </div>
+   <div class="button-row"><button class="secondary" id="think-go">Подумать</button></div>
+   <div id="think-out" class="think-out" hidden></div>
   </section>
  </div>
 
@@ -202,6 +279,7 @@
    <header class="card-head"><span class="card-ic" data-icon="gift" aria-hidden="true"></span><div><h2 id="packs-title">Готовые уроки</h2><p>Примеры, написанные кодом, без учителя и бесплатно. Сначала посмотрите, потом одобрите урок целиком.</p></div></header>
    <div class="packs">
     <article class="pack" data-pack="honesty"><span class="task-ic" data-icon="help" aria-hidden="true"></span><div><h3>«Не знаю» вместо выдумки</h3><p>16 вопросов, на которые нельзя знать ответ. Экзамен честности использует другие 16, так что выучить его наизусть не выйдет.</p></div><button class="secondary small" data-pack-open>Посмотреть</button></article>
+    <article class="pack" data-pack="logic"><span class="task-ic" data-icon="puzzle" aria-hidden="true"></span><div><h3>Логика по шагам</h3><p>Задачи со счётом, датами, рядами и выводами. Решения пишет и проверяет программа, уровни открываются по мере роста.</p></div><button class="secondary small" data-pack-open>Посмотреть</button></article>
     <article class="pack" data-pack="tools"><span class="task-ic" data-icon="calc" aria-hidden="true"></span><div><h3>Инструменты</h3><p>120 примеров, где Yorika пишет [[calc:…]], [[time:]] или [[memory:…]]. Результат считает программа, а не нейросеть.</p></div><button class="secondary small" data-pack-open>Посмотреть</button></article>
    </div>
    <div id="pack-preview" class="pack-preview" hidden></div>
@@ -212,6 +290,7 @@
    <div class="chips-filter" role="radiogroup" aria-label="Какие примеры показать">
     <label><input type="radio" name="view" value="uncertain"><span>Сначала сомнительные</span></label>
     <label><input type="radio" name="view" value="unrated" checked><span>Без оценки</span></label>
+    <label><input type="radio" name="view" value="surprise"><span>Удивило</span></label>
     <label><input type="radio" name="view" value="teacher"><span>Проверены учителем</span></label>
     <label><input type="radio" name="view" value="up"><span>👍</span></label>
     <label><input type="radio" name="view" value="down"><span>👎</span></label>
@@ -324,6 +403,11 @@
     <div><span class="token-label">Размеры</span><div class="segmented night-sizes"><label><input type="checkbox" name="night-size" value="s"><span>S</span></label><label><input type="checkbox" name="night-size" value="m"><span>M</span></label><label><input type="checkbox" name="night-size" value="l"><span>L</span></label></div></div>
    </div>
    <p class="hint">Два-три размера — ночная песочница: часы делятся между ними поровну.</p>
+   <div class="night-switches">
+    <label class="switch"><input type="checkbox" id="night-sleep" checked><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Сон</strong><small>Активная версия заново «переживает» день вместе со старым опытом и учится дальше, а не с нуля.</small></span></label>
+    <label class="switch"><input type="checkbox" id="night-curiosity" checked><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Любопытство</strong><small>Бесплатно решает логические задачи на краю своих сил, программа проверяет ответы.</small></span></label>
+    <div><label class="token-label" for="night-evolve">Эволюция в ночь на воскресенье</label><select id="night-evolve" class="field"><option value="0">Выключена</option><option value="3">3 варианта</option><option value="4">4 варианта</option><option value="5">5 вариантов</option><option value="6">6 вариантов</option></select></div>
+   </div>
    <p class="hint">0 токенов — учитель ночью не работает и ничего не тратит. Больше нуля — это ваше заранее данное согласие тратить не больше этого за ночь.</p>
    <div class="button-row"><button class="primary" id="night-save">Сохранить</button></div>
   </section>

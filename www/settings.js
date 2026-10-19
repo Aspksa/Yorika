@@ -199,11 +199,20 @@ el("cloud-ru-models-refresh").onclick=async()=>{
   list.replaceChildren(...result.models.map(id=>{
    const option=document.createElement("option");option.value=id;option.textContent=id;return option;
   }));
+  const picker=el("cloud-ru-model-select");
+  const current=el("cloud-ru-model").value;
+  picker.replaceChildren(...result.models.map(id=>{
+   const option=document.createElement("option");option.value=id;option.textContent=id;return option;
+  }));
+  picker.disabled=result.models.length===0;
+  if(result.models.includes(current))picker.value=current;
+  else picker.selectedIndex=-1;
   el("cloud-ru-status").textContent="Доступно моделей: "+result.models.length+
     ". Выберите ID из списка и нажмите «Сохранить ключ и модель».";
  }catch(error){el("cloud-ru-status").textContent="Не удалось получить список моделей: "+error.message}
  finally{button.disabled=false}
 };
+el("cloud-ru-model-select").onchange=event=>{if(event.target.value)el("cloud-ru-model").value=event.target.value};
 el("cloud-ru-form").onsubmit=async event=>{
  event.preventDefault();
  const key=el("cloud-ru-key").value,model=el("cloud-ru-model").value.trim();

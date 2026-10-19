@@ -45,6 +45,11 @@ const ICONS={
  stop:["M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z","M9 9h6v6H9z"],
  gift:["M20 12v10H4V12","M2 7h20v5H2z","M12 22V7","M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z","M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"],
  puzzle:["M19.4 15a1.6 1.6 0 0 0 0 3.2H21V22h-4v-1.6a1.6 1.6 0 0 0-3.2 0V22H3V11h1.6a1.6 1.6 0 0 0 0-3.2H3V4h7v1.6a1.6 1.6 0 0 0 3.2 0V4H21v11z"],
+ pause:["M8 5v14","M16 5v14"],
+ calendar:["M3 5h18v16H3z","M3 10h18","M8 3v4M16 3v4","M7 14h2M11 14h2M15 14h2M7 18h2M11 18h2"],
+ branch:["M6 3v12","M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z","M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z","M18 9a9 9 0 0 1-9 9"],
+ hourglass:["M6 2h12","M6 22h12","M7 2v4a5 5 0 0 0 10 0V2","M7 22v-4a5 5 0 0 1 10 0v4"],
+ code:["M16 18l6-6-6-6","M8 6l-6 6 6 6","M14 4l-4 16"],
  calc:["M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z","M8 6h8v4H8z","M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"],
 };
 function icon(name){
@@ -577,19 +582,61 @@ $("fill-goal").onclick=()=>{
 $("teacher-stop").onclick=e=>act(e.currentTarget,async()=>{await post("teacher-stop");await refreshTeacher()});
 $("save-limits").onclick=e=>act(e.currentTarget,async()=>{await post("teacher-limits",{per_run_tokens:parseInt($("limit-run").value,10),monthly_tokens:parseInt($("limit-month").value,10)});await refreshTeacher()});
 
-// ---- night cycle ----
+// ---- schedule: when to study, what each day does, the study cycle ----
+const DAY_NAMES=["Пн","Вт","Ср","Чт","Пт","Сб","Вс"],DAY_FULL=["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"];
+const PRESET={night:Array(7).fill("0"+"1".repeat(6)+"0".repeat(17)),day:Array(7).fill("0".repeat(10)+"1".repeat(6)+"0".repeat(8)),evening:Array(7).fill("0".repeat(18)+"1".repeat(4)+"00"),weekend:[...Array(5).fill("0".repeat(24)),"1".repeat(24),"1".repeat(24)],always:Array(7).fill("1".repeat(24)),clear:Array(7).fill("0".repeat(24))};
+const ACT_ICON={sleep:"moon",distill:"hourglass",search:"branch",swarm:"swarm",evolution:"flask",fresh:"sparkles",rest:"pause"};
+let grid=PRESET.night.slice(),nightSettings=null,activities={};
+function renderHeat(){
+  const box=$("heat");box.replaceChildren();
+  const now=new Date(),today=(now.getDay()+6)%7,hour=now.getHours();
+  box.append(el("span","heat-corner"));
+  for(let h=0;h<24;h++)box.append(el("span","heat-h",h%3===0?String(h).padStart(2,"0"):""));
+  for(let d=0;d<7;d++){
+    box.append(el("span","heat-d"+(d===today?" today":""),DAY_NAMES[d]));
+    for(let h=0;h<24;h++){
+      const c=el("button","heat-c"+(grid[d][h]==="1"?" on":"")+(d===today&&h===hour?" now":""));c.type="button";
+      c.dataset.d=d;c.dataset.h=h;c.setAttribute("aria-label",`${DAY_FULL[d]}, ${h}:00 — ${grid[d][h]==="1"?"учёба":"отдых"}`);c.setAttribute("aria-pressed",grid[d][h]==="1");
+      box.append(c);
+    }
+  }
+  const total=grid.reduce((n,r)=>n+[...r].filter(x=>x==="1").length,0);
+  $("heat-sum").textContent=`${total} ч учёбы в неделю`;
+  $("heat-now").textContent=grid[today][hour]==="1"?"сейчас: часы учёбы":"сейчас: отдых";
+  $("heat-now").classList.toggle("on",grid[today][hour]==="1");
+}
+// Paint by pressing and dragging; the first cell decides whether the stroke paints or erases.
+let painting=null;
+const paint=c=>{const d=+c.dataset.d,h=+c.dataset.h,row=grid[d].split("");row[h]=painting;grid[d]=row.join("");c.classList.toggle("on",painting==="1");c.setAttribute("aria-pressed",painting==="1")};
+$("heat").addEventListener("pointerdown",e=>{const c=e.target.closest(".heat-c");if(!c)return;e.preventDefault();painting=grid[+c.dataset.d][+c.dataset.h]==="1"?"0":"1";paint(c)});
+$("heat").addEventListener("pointerover",e=>{const c=e.target.closest(".heat-c");if(c&&painting)paint(c)});
+addEventListener("pointerup",()=>{if(painting){painting=null;renderHeat()}});
+$("heat").addEventListener("keydown",e=>{const c=e.target.closest(".heat-c");if(c&&(e.key===" "||e.key==="Enter")){e.preventDefault();painting=grid[+c.dataset.d][+c.dataset.h]==="1"?"0":"1";paint(c);painting=null;renderHeat();$("heat").querySelector(`[data-d="${c.dataset.d}"][data-h="${c.dataset.h}"]`).focus()}});
+for(const b of document.querySelectorAll("[data-preset]"))b.onclick=()=>{grid=PRESET[b.dataset.preset].slice();renderHeat()};
+$("heat-save").onclick=e=>act(e.currentTarget,async()=>{await post("schedule-set",{grid,enforce:$("heat-enforce").checked});await refreshNight()});
+function renderWeek(){
+  const box=$("week-plan");box.replaceChildren();const today=(new Date().getDay()+6)%7;
+  nightSettings.week.forEach((a,d)=>{
+    const card=el("label","day-card"+(d===today?" today":"")),ic=el("span","day-ic");ic.append(icon(ACT_ICON[a]||"sparkles"));
+    const sel=el("select","field small-field");sel.dataset.day=d;sel.setAttribute("aria-label","Занятие: "+DAY_FULL[d]);
+    for(const [k,v] of Object.entries(activities))sel.append(option(k,v));sel.value=a;
+    sel.onchange=()=>{nightSettings.week[d]=sel.value;ic.replaceChildren(icon(ACT_ICON[sel.value]||"sparkles"));card.dataset.act=sel.value;syncNight()};
+    card.dataset.act=a;card.append(el("b",null,DAY_NAMES[d]),ic,sel);box.append(card);
+  });
+}
 async function refreshNight(){
   try{
-    const n=await api("/api/training/night-status"),s=n.settings;
-    $("night-on").checked=s.enabled;$("night-time").value=s.time;$("night-hours").value=s.hours;$("night-tokens").value=s.teacher_tokens;$("night-play").value=s.selfplay;
-    $("night-sleep").checked=s.sleep!==false;$("night-curiosity").checked=s.curiosity!==false;$("night-evolve").value=String(s.evolve||0);
+    const n=await api("/api/training/night-status"),s=nightSettings=n.settings;activities=n.activities;
+    grid=n.schedule.grid.slice();$("heat-enforce").checked=n.schedule.enforce;renderHeat();renderWeek();
+    $("night-on").checked=s.enabled;$("night-tokens").value=s.teacher_tokens;$("night-play").value=s.selfplay;$("night-lives").value=s.lives;
+    $("night-curiosity").checked=s.curiosity!==false;$("night-programs").checked=s.programs!==false;$("night-evolve").value=String(s.evolve||0);
     for(const box of document.querySelectorAll("input[name=night-size]"))box.checked=(s.sizes||["s"]).includes(box.value);
     syncNight();$("night-note").textContent=n.note+(n.windows?"":" Ставится в планировщик Windows.");
     const log=$("night-log");log.replaceChildren();
-    if(!n.log.length)log.append(el("li","empty-line","Ночей ещё не было."));
+    if(!n.log.length)log.append(el("li","empty-line","Учёбы по расписанию ещё не было."));
     for(const entry of n.log.slice().reverse()){
       const li=el("li");li.append(el("strong",null,new Date(entry.started).toLocaleString("ru-RU",{day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"})));
-      const ul=el("ul");for(const st of entry.steps)ul.append(el("li",null,`${{collect:"Сбор",teacher:"Учитель",curiosity:"Любопытство",export:"Набор",train:"Обучение",cycle:"Цикл"}[st.step]||st.step}: ${st.result}`));
+      const ul=el("ul");for(const st of entry.steps)ul.append(el("li",null,`${{collect:"Сбор",teacher:"Учитель",curiosity:"Любопытство",sim:"Мир задач",programs:"Программы",resume:"Продолжение",export:"Набор",train:"Обучение",compress:"Сжатие",cycle:"Цикл"}[st.step]||st.step}: ${st.result}`));
       li.append(ul);log.append(li);
     }
   }catch(e){showError(e.message)}
@@ -597,16 +644,18 @@ async function refreshNight(){
 function syncNight(){
   const tokens=parseInt($("night-tokens").value,10)||0;
   $("nl-teacher").textContent=tokens?`до ${num(tokens)} токенов`:"выключен";
-  const sizes=[...document.querySelectorAll("input[name=night-size]:checked")].map(i=>i.value.toUpperCase());
-  $("nl-hours").textContent=`${String($("night-hours").value).replace(".",",")} ч`+(sizes.length>1?` · ${sizes.join("/")}`:"");
+  const lives=parseInt($("night-lives").value,10)||0;$("nl-lives").textContent=lives?`${num(lives)} жизней`:"выключен";
+  $("nl-programs").textContent=$("night-programs").checked?"поиск":"выключен";
+  if(nightSettings)$("nl-hours").textContent=(activities[nightSettings.week[(new Date().getDay()+6)%7]]||"—").toLowerCase();
   $("night-line").classList.toggle("on",$("night-on").checked);
 }
-for(const id of ["night-tokens","night-hours","night-on"])$(id).addEventListener("input",syncNight);
-for(const box of document.querySelectorAll("input[name=night-size]"))box.addEventListener("change",syncNight);
+for(const id of ["night-tokens","night-on","night-lives","night-programs"])$(id).addEventListener("input",syncNight);
 $("night-save").onclick=e=>act(e.currentTarget,async()=>{
-  const tokens=parseInt($("night-tokens").value,10)||0;
-  if($("night-on").checked&&tokens&&!confirm(`Разрешить учителю тратить до ${num(tokens)} токенов Cloud.ru каждую ночь?`))return;
-  await post("night-settings",{enabled:$("night-on").checked,time:$("night-time").value,hours:parseFloat($("night-hours").value),teacher_tokens:tokens,selfplay:parseInt($("night-play").value,10),sizes:[...document.querySelectorAll("input[name=night-size]:checked")].map(i=>i.value),sleep:$("night-sleep").checked,curiosity:$("night-curiosity").checked,evolve:parseInt($("night-evolve").value,10)});
+  const tokens=parseInt($("night-tokens").value,10)||0,s=nightSettings||{time:"02:00",hours:4,week:null};
+  if($("night-on").checked&&tokens&&!confirm(`Разрешить учителю тратить до ${num(tokens)} токенов Cloud.ru за каждый блок учёбы?`))return;
+  await post("night-settings",{enabled:$("night-on").checked,time:s.time,hours:s.hours,teacher_tokens:tokens,selfplay:parseInt($("night-play").value,10),
+    sizes:[...document.querySelectorAll("input[name=night-size]:checked")].map(i=>i.value),sleep:true,curiosity:$("night-curiosity").checked,
+    evolve:parseInt($("night-evolve").value,10),week:s.week,lives:parseInt($("night-lives").value,10)||0,programs:$("night-programs").checked});
   await refreshNight();
 });
 
@@ -658,10 +707,106 @@ async function refreshBrain(){
     const cur=b.curiosity,running=cur&&cur.state==="running";
     $("cur-now").disabled=running;$("cur-now").textContent=running?"Занимается…":"Позаниматься сейчас";
     $("cur-last").textContent=cur?(running?"Решает задачи на краю своих сил…":`Последний раз: ${cur.state==="failed"?"не получилось":""} ${cur.result||""}`):"Ещё не занималась. Ночью это происходит само, если включено.";
-    renderLogic();
-    clearTimeout(brainTimer);if(running)brainTimer=setTimeout(refreshBrain,4000);
+    renderLogic();renderAutopilot(b.autopilot);renderMap();renderPlan(b.plans);renderSkills(b.skills);renderWorld(b.sim);
+    const planLive=b.plans.plan&&["preparing","running"].includes(b.plans.plan.state),simLive=b.sim.job&&b.sim.job.state==="running";
+    clearTimeout(brainTimer);if(running||planLive||simLive)brainTimer=setTimeout(refreshBrain,4000);
   }catch(e){showError(e.message)}
 }
+
+// ---- autopilot, a look inside, superpowers, program skills, the game world ----
+function renderAutopilot(a){
+  $("ap-on").checked=a.on;$("ap-state").textContent=a.on?"Включён":"Выключен";$("autopilot").classList.toggle("on",a.on);
+  $("ap-line").textContent=a.on?`Сегодня по плану: ${a.today.toLowerCase()}. Часов учёбы в неделю: ${a.schedule.hours_week}${a.schedule.now?", сейчас учится":""}.`:"Одна кнопка: собирает опыт, учится после разговоров, тренируется и ищет навыки в часы учёбы.";
+  const ul=$("ap-parts");ul.replaceChildren();
+  for(const p of a.parts){const li=el("li",p.on?"on":"");li.append(el("i"),p.title);if(p.optional)li.title="Это решаете вы отдельно";ul.append(li)}
+}
+$("ap-on").onchange=e=>{const on=e.target.checked;act(e.target,async()=>{const r=await post("autopilot",{enabled:on});if(r.notes&&r.notes.length)showError(r.notes.join(". "));await refreshBrain()}).then(r=>{if(r===null)e.target.checked=!on})};
+
+function mapRef(){
+  const runs=status?status.runs.filter(r=>r.mode==="long"&&r.has_best):[];
+  return (status&&status.active&&runs.find(r=>r.id===status.active.run))||runs[0];
+}
+function renderMap(){
+  const svg=$("map-svg"),ref=mapRef(),rep=ref&&ref.introspection,ns="http://www.w3.org/2000/svg";svg.replaceChildren();
+  const mk=(tag,attrs,text,parent=svg)=>{const n=document.createElementNS(ns,tag);for(const k in attrs)n.setAttribute(k,attrs[k]);if(text!=null)n.textContent=text;parent.append(n);return n};
+  $("map-look").disabled=!ref;
+  $("map-sub").textContent=ref?`Версия от ${when(ref.id)}. Каждый слой выключается по очереди: насколько хуже без него экзамен.`:"Обучите версию, и здесь появится её карта.";
+  const advice=$("map-advice");advice.replaceChildren();
+  if(!rep||rep.error){mk("text",{x:320,y:130,"text-anchor":"middle",class:"chart-empty"},rep&&rep.error?rep.error:ref?"Нажмите «Заглянуть»: замер займёт пару минут":"Карта появится после первого обучения");return}
+  const defs=mk("defs",{});const g=mk("linearGradient",{id:"layer-fill",x1:0,x2:1,y1:0,y2:0},null,defs);
+  mk("stop",{offset:0,class:"map-stop-a"},null,g);mk("stop",{offset:1,class:"map-stop-b"},null,g);
+  const blocks=rep.blocks,n=blocks.length,top=24,h=Math.min(34,(212)/Math.max(1,n)),max=Math.max(...blocks.map(b=>b.contribution||0),0.0001);
+  mk("text",{x:24,y:16,class:"map-label"},"слои: вклад в экзамен");
+  blocks.slice().reverse().forEach((b,i)=>{
+    const y=top+i*h,w=b.contribution==null?30:Math.max(6,(b.contribution/max)*200);
+    mk("text",{x:24,y:y+(h-6)/2+4,class:"map-text"},`Слой ${b.layer}`);
+    mk("rect",{x:86,y,width:200,height:h-6,rx:6,class:"map-track"});
+    const bar=mk("rect",{x:86,y,width:w,height:h-6,rx:6,class:"map-bar"+(b.contribution!=null&&b.contribution<0.002?" weak":"")});
+    bar.style.setProperty("--d",`${i*80}ms`);
+    mk("text",{x:340,y:y+(h-6)/2+4,"text-anchor":"end",class:"map-text dim"},b.contribution==null?"—":`+${(b.contribution*100).toFixed(1)}%`);
+  });
+  const cx=480;
+  if(rep.experts){
+    mk("text",{x:cx,y:16,"text-anchor":"middle",class:"map-label"},"эксперты");
+    const k=rep.experts.length;
+    rep.experts.forEach((v,i)=>{const a=-Math.PI/2+i*2*Math.PI/k,x=cx+Math.cos(a)*52,y=82+Math.sin(a)*42,r=7+v*k*9;
+      const c=mk("circle",{cx:x,cy:y,r,class:"map-orb"+(v<0.25/k?" weak":"")});c.style.setProperty("--d",`${i*120}ms`);
+      mk("text",{x,y:y+4,"text-anchor":"middle",class:"map-orb-text"},Math.round(v*100)+"%")});
+    mk("circle",{cx,cy:82,r:5,class:"map-core"});
+  }
+  if(rep.memory){
+    const m=rep.memory,dots=64,lit=Math.round(m.used/m.slots*dots),y0=rep.experts?188:40;
+    mk("text",{x:cx,y:y0-8,"text-anchor":"middle",class:"map-label"},`память: ${m.used} из ${m.slots} ячеек в деле`);
+    for(let i=0;i<dots;i++)mk("circle",{cx:cx-75+(i%16)*10,cy:y0+4+Math.floor(i/16)*10,r:3,class:"map-dot"+(i<lit?" on":"")});
+  }
+  if(!rep.experts&&!rep.memory)mk("text",{x:cx,y:130,"text-anchor":"middle",class:"map-label"},"без экспертов и памяти");
+  for(const a of rep.advice){const li=el("li",a.kind);li.append(el("span",null,a.text));advice.append(li)}
+}
+$("map-look").onclick=e=>act(e.currentTarget,async()=>{const ref=mapRef();if(!ref)return;await post("introspect",{id:ref.id});$("map-sub").textContent="Заглядываю внутрь: замер идёт в фоне, карта обновится сама.";setTimeout(async()=>{await refresh();renderMap()},15000)});
+
+const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей"};
+const PLAN_STATE={preparing:"готовится",running:"идёт",finished:"готово",failed:"ошибка",stopped:"остановлен"};
+function renderPlan(p){
+  const plan=p.plan,box=$("plan-box");box.hidden=!plan;
+  const live=plan&&["preparing","running"].includes(plan.state);
+  for(const b of document.querySelectorAll("[data-plan-go]"))b.disabled=!!live||!(status&&status.active);
+  for(const c of document.querySelectorAll(".power"))c.classList.toggle("live",!!live&&plan.kind===c.dataset.plan);
+  if(!plan)return;
+  $("plan-pill").textContent=PLAN_STATE[plan.state]||plan.state;box.dataset.state=plan.state;
+  $("plan-title").textContent=`${PLAN_NAME[plan.kind]} · ${when(plan.id)}${plan.rounds?` · раунд ${plan.round} из ${plan.rounds}`:""}`;
+  const ol=$("plan-runs");ol.replaceChildren();
+  for(const r of plan.runs||[]){const run=status&&status.runs.find(x=>x.id===r.id),li=el("li",run?run.state:"");li.append(el("b",null,r.label),el("small",null,run?`${STATES[run.state]||run.state}${run.exam_per_char!=null?` · экзамен ${run.exam_per_char.toFixed(3)}`:""}`:"—"));ol.append(li)}
+  for(const q of plan.queued||[]){const li=el("li","queued");li.append(el("b",null,q),el("small",null,"в очереди"));ol.append(li)}
+  const log=$("plan-log");log.replaceChildren();
+  for(const x of (plan.log||[]).slice().reverse().slice(0,6)){const li=el("li");li.append(el("b",null,new Date(x.at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})),` · ${x.text}`);log.append(li)}
+}
+for(const b of document.querySelectorAll("[data-plan-go]"))b.onclick=()=>{
+  const kind=b.dataset.planGo,body={kind,minutes:parseFloat($("plan-minutes").value)};
+  if(kind==="swarm")body.copies=[...document.querySelectorAll("#swarm-skills input:checked")].map(i=>i.value);
+  if(kind==="search")Object.assign(body,{branches:parseInt($("search-branches").value,10),rounds:parseInt($("search-rounds").value,10)});
+  if(kind==="distill")Object.assign(body,{rounds:parseInt($("distill-rounds").value,10),prompts:parseInt($("distill-prompts").value,10)});
+  if(!confirm(`${PLAN_NAME[kind]}: запустить план из нескольких уроков по ${body.minutes} мин? Активная версия не изменится без вашего решения.`))return;
+  act(b,async()=>{await post("plan-start",body);await refresh();await refreshBrain()});
+};
+function renderSkills(list){
+  const ul=$("skills");ul.replaceChildren();let have=0;
+  for(const k of list){const li=el("li",k.expr?"on":"");if(k.expr)have++;
+    li.append(el("b",null,k.title),el("code",null,k.pretty?`${k.name}(${k.args.join(", ")}) = ${k.pretty}`:"ещё не найдена"));ul.append(li)}
+  $("skills-find").textContent=have===list.length?"Все найдены":"Искать";$("skills-find").disabled=have===list.length;
+}
+$("skills-find").onclick=e=>act(e.currentTarget,async()=>{const r=await post("programs-learn");renderSkills(r.skills);$("skills-note").textContent=r.found.length?`Найдено: ${r.found.length}. Уроков, как ими пользоваться: ${r.lessons}.`:"Новых программ не нашлось."});
+function renderWorld(w){
+  $("world-lives").textContent=num(w.lives);
+  const box=$("world-envs");box.replaceChildren();
+  for(const [k,e] of Object.entries(w.envs)){
+    const row=el("div","logic-row"),bar=el("span","exam-bar"),fill=el("i");fill.style.width=`${e.lives?Math.round(e.wins/e.lives*100):0}%`;bar.append(fill);
+    row.append(el("b",null,e.name),bar,el("small",null,e.lives?`${Math.round(e.wins/e.lives*100)}%`:"—"));box.append(row);
+  }
+  const job=w.job,running=job&&job.state==="running";
+  $("world-now").disabled=running||!(status&&status.runs.some(r=>r.has_best&&r.mode==="long"));$("world-now").textContent=running?"Живёт…":"Прожить 150 жизней";
+  $("world-last").textContent=job?(running?"Играет и решает…":`Последний раз: ${job.result||""}`):`Ночей в мире задач: ${num(w.nights)}.`;
+}
+$("world-now").onclick=e=>act(e.currentTarget,async()=>{await post("sim-now");await refreshBrain()});
 $("engine-save").onclick=e=>{
   const engine=radio("engine");
   if(engine==="own"&&!confirm("Отвечать в чате своей моделью? Она маленькая и может отвечать слабо. Cloud.ru подставляться не будет."))return;
@@ -692,8 +837,8 @@ const GROW=[
  {n:"12",t:"Команда специалистов",d:"Рой экспертов внутри сети: на каждое слово работают 2 из 4. Отдельные модели для речи и плана пока в исследовании.",s:"partial"},
  {n:"13",t:"Модель мира",d:"Предсказывает последствия действий и учится на ошибках прогноза.",s:"research"},
  {n:"14",t:"Умение учиться",d:"Измеряется и улучшается скорость освоения новой задачи.",s:"research"},
- {n:"15",t:"Изменение своего устройства",d:"Растёт на слои без потери выученного, эволюция пробует варианты устройства, экзамен выбирает, включаете вы.",s:"partial"},
- {n:"16",t:"Гипотезы и эксперименты",d:"Сама ставит опыты над своим обучением, выводы проверяете вы.",s:"research"},
+ {n:"15",t:"Изменение своего устройства",d:"Смотрит внутрь себя (вклад каждого слоя, эксперты, память), растёт на слои, эволюция пробует варианты; экзамен выбирает, включаете вы.",s:"partial"},
+ {n:"16",t:"Гипотезы и эксперименты",d:"Ветки времени и копии: несколько путей обучения из одной точки, экзамен решает, какой оставить.",s:"partial"},
  {n:"17",t:"Обучение в облаке",d:"Тяжёлые эксперименты в Cloud.ru с лимитом и вашим подтверждением.",s:"plan"},
  {n:"18",t:"Уровни свободы и остановка",d:"Новая версия включается только вами, всё останавливается кнопкой «Стоп всё».",s:"partial"},
  {n:"19",t:"Независимые экзамены",d:"Экзамен на невиданном, пересдача старых экзаменов и слепая проверка вами.",s:"partial"},
@@ -711,7 +856,7 @@ const HORIZON=[
  {when:"15 лет",sub:"улучшает себя",items:[
   {i:"pen",t:"Проектирует следующую версию",d:"Эволюция уже пробует варианты устройства в песочнице, доказательство цифрами экзамена.",s:"partial"},
   {i:"globe",t:"Модель мира",d:"Причины и следствия, планы на недели вперёд.",s:"research"},
-  {i:"swarm",t:"Рой Yorika",d:"Копии-специалисты сводятся в одну личность и память.",s:"research"}]},
+  {i:"swarm",t:"Рой Yorika",d:"Копии учат разные навыки и сливаются обратно; дальше — копии на разных компьютерах.",s:"partial"}]},
  {when:"50 лет",sub:"за пределами сегодняшнего",items:[
   {i:"infinity",t:"Учится всю жизнь",d:"Непрерывно и без забывания.",s:"dream"},
   {i:"bulb",t:"Открывает новое",d:"Гипотезы, проверенные людьми.",s:"dream"},

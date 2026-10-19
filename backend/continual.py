@@ -141,6 +141,10 @@ def maybe_start(launch=True, force=False):
     new = _since_last()
     if not force and len(new) < plan["min_new"]:
         return None
+    from backend import schedule
+    if not force and not schedule.allowed():
+        # Lessons wait for study hours; the examples stay counted until then.
+        return None
     if not new:
         raise ValueError("Новых одобренных примеров нет")
     records, mix = build_set(new, plan["replay"])
@@ -148,7 +152,8 @@ def maybe_start(launch=True, force=False):
         raise ValueError("Для урока нужно хотя бы 10 примеров")
     config = dict(tc._read(tc._run_dir(current["run"]) / "run.json")["config"])
     run = tc.start("long", device=_device(current["run"]), total_steps=1000000, hours=plan["minutes"] / 60,
-                   config=config, kind="quick", init=current["checkpoint"], records=records, launch=launch)
+                   config=config, kind="quick", init=current["checkpoint"], records=records, launch=launch,
+                   scheduled=not force)
     state = tc._read(tc.folder() / "continual-state.json", {}) or {}
     state["learned"] = (state.get("learned", []) + [i["id"] for i in new])[-50000:]
     state["pending"] = run["id"]

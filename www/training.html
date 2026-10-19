@@ -35,7 +35,7 @@
   <button class="tab" role="tab" id="tab-brain" aria-controls="pane-brain" aria-selected="false" data-tab="brain" tabindex="-1"><span class="tab-ic" data-icon="brain" aria-hidden="true"></span>Мозг</button>
   <button class="tab" role="tab" id="tab-exp" aria-controls="pane-exp" aria-selected="false" data-tab="exp" tabindex="-1"><span class="tab-ic" data-icon="thumb" aria-hidden="true"></span>Опыт<span class="tab-badge" id="tab-exp-badge" hidden></span></button>
   <button class="tab" role="tab" id="tab-teacher" aria-controls="pane-teacher" aria-selected="false" data-tab="teacher" tabindex="-1"><span class="tab-ic" data-icon="teacher" aria-hidden="true"></span>Учитель</button>
-  <button class="tab" role="tab" id="tab-night" aria-controls="pane-night" aria-selected="false" data-tab="night" tabindex="-1"><span class="tab-ic" data-icon="moon" aria-hidden="true"></span>Ночь</button>
+  <button class="tab" role="tab" id="tab-night" aria-controls="pane-night" aria-selected="false" data-tab="night" tabindex="-1"><span class="tab-ic" data-icon="calendar" aria-hidden="true"></span>Расписание</button>
   <button class="tab" role="tab" id="tab-future" aria-controls="pane-future" aria-selected="false" data-tab="future" tabindex="-1"><span class="tab-ic" data-icon="sparkles" aria-hidden="true"></span>Будущее</button>
  </div>
 
@@ -184,6 +184,17 @@
 
  <!-- ============ Мозг ============ -->
  <div class="pane" role="tabpanel" id="pane-brain" aria-labelledby="tab-brain" hidden>
+  <section class="autopilot" id="autopilot" aria-labelledby="ap-title">
+   <div class="ap-glow" aria-hidden="true"></div>
+   <div class="ap-main">
+    <span class="ap-orb" data-icon="infinity" aria-hidden="true"></span>
+    <div class="ap-text"><h2 id="ap-title">Автопилот</h2><p id="ap-line">Одна кнопка: собирает опыт, учится после разговоров, тренируется и ищет навыки в часы учёбы.</p></div>
+    <label class="switch ap-switch"><input type="checkbox" id="ap-on"><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong id="ap-state">Выключен</strong></span></label>
+   </div>
+   <ul class="ap-parts" id="ap-parts"></ul>
+   <p class="ap-note">Тратить токены Cloud.ru и включать версии без вас автопилот сам не начинает: это решаете вы.</p>
+  </section>
+
   <section class="card brain-top" aria-labelledby="engine-title">
    <header class="card-head"><span class="card-ic" data-icon="chat" aria-hidden="true"></span><div><h2 id="engine-title">Кто отвечает в чате</h2><p id="engine-note">Сейчас отвечает Cloud.ru.</p></div></header>
    <div class="segmented engine" role="radiogroup" aria-label="Кто отвечает">
@@ -225,6 +236,67 @@
      <div><dt>Полураспад</dt><dd id="mem-half">30 дней</dd></div>
     </dl>
     <p class="hint">Поблекшие примеры не повторяются во сне. Если вопрос всплывёт снова, пример опять окрепнет.</p>
+   </section>
+  </div>
+
+  <section class="card brain-map-card" aria-labelledby="map-title">
+   <header class="card-head"><span class="card-ic" data-icon="eye" aria-hidden="true"></span><div><h2 id="map-title">Взгляд внутрь себя</h2><p id="map-sub">Каждый слой выключается по очереди: насколько хуже без него экзамен.</p></div><button class="secondary small head-btn" id="map-look">Заглянуть</button></header>
+   <div class="brain-map">
+    <svg id="map-svg" viewBox="0 0 640 260" role="img" aria-label="Карта сети: слои, эксперты и память"></svg>
+   </div>
+   <ul class="advice" id="map-advice"></ul>
+  </section>
+
+  <section class="powers" aria-labelledby="powers-title">
+   <h2 id="powers-title" class="section-title">То, чего не умеет мозг человека</h2>
+   <div class="power-grid">
+    <article class="power" data-plan="swarm">
+     <span class="power-ic" data-icon="swarm" aria-hidden="true"></span>
+     <h3>Копии и слияние</h3>
+     <p>Копии учат каждая свой навык. Обратно сливаются только те, что стали лучше в своём навыке и не хуже в остальном.</p>
+     <div class="skill-chips" id="swarm-skills">
+      <label><input type="checkbox" value="logic" checked><span>логика</span></label>
+      <label><input type="checkbox" value="sim" checked><span>мир задач</span></label>
+      <label><input type="checkbox" value="programs" checked><span>программы</span></label>
+      <label><input type="checkbox" value="tools"><span>инструменты</span></label>
+      <label><input type="checkbox" value="experience" checked><span>разговоры</span></label>
+     </div>
+     <button class="primary small" data-plan-go="swarm">Запустить копии</button>
+    </article>
+    <article class="power" data-plan="search">
+     <span class="power-ic" data-icon="branch" aria-hidden="true"></span>
+     <h3>Ветки времени</h3>
+     <p>Из одной точки идут несколько путей обучения. Лучший по экзамену становится новой точкой, если ни один не лучше, она возвращается назад.</p>
+     <div class="mini-fields"><label>Веток<input id="search-branches" class="field" type="number" min="2" max="6" value="3"></label><label>Раундов<input id="search-rounds" class="field" type="number" min="1" max="5" value="2"></label></div>
+     <button class="primary small" data-plan-go="search">Пойти разными путями</button>
+    </article>
+    <article class="power" data-plan="distill">
+     <span class="power-ic" data-icon="hourglass" aria-hidden="true"></span>
+     <h3>Учиться у себя будущей</h3>
+     <p>Медленная Yorika (5 черновиков, глубокое обдумывание) отвечает, программа и согласие черновиков отбирают верное. Быстрая учится отвечать так же сразу.</p>
+     <div class="mini-fields"><label>Раундов<input id="distill-rounds" class="field" type="number" min="1" max="5" value="2"></label><label>Вопросов<input id="distill-prompts" class="field" type="number" min="20" max="1000" step="10" value="120"></label></div>
+     <button class="primary small" data-plan-go="distill">Учиться у себя</button>
+    </article>
+   </div>
+   <div class="plan-line"><label class="token-label" for="plan-minutes">Минут на каждый урок</label><input id="plan-minutes" class="field" type="number" min="1" max="240" value="20"></div>
+   <div class="plan-box" id="plan-box" hidden>
+    <div class="plan-head"><span class="state-pill" id="plan-pill">—</span><strong id="plan-title"></strong></div>
+    <ol class="plan-runs" id="plan-runs"></ol>
+    <ul class="live-log" id="plan-log"></ul>
+   </div>
+  </section>
+
+  <div class="brain-grid">
+   <section class="card" aria-labelledby="skills-title">
+    <header class="card-head"><span class="card-ic" data-icon="code" aria-hidden="true"></span><div><h2 id="skills-title">Навыки-программы</h2><p>Знание в виде маленькой проверенной программы, а не в весах.</p></div><button class="secondary small head-btn" id="skills-find">Искать</button></header>
+    <ul class="skills" id="skills"></ul>
+    <p class="hint" id="skills-note">Формулу находит перебор по примерам; навык остаётся, только если он верен на 40 новых примерах.</p>
+   </section>
+   <section class="card" aria-labelledby="world-title">
+    <header class="card-head"><span class="card-ic" data-icon="globe" aria-hidden="true"></span><div><h2 id="world-title">Мир задач</h2><p id="world-sub">Игры и головоломки, где каждый ответ проверяет программа.</p></div><button class="secondary small head-btn" id="world-now">Прожить 150 жизней</button></header>
+    <div class="world-total"><b id="world-lives">0</b><span>жизней прожито</span></div>
+    <div class="world-envs" id="world-envs"></div>
+    <p class="hint" id="world-last"></p>
    </section>
   </div>
 
@@ -385,34 +457,51 @@
 
  <!-- ============ Ночь ============ -->
  <div class="pane" role="tabpanel" id="pane-night" aria-labelledby="tab-night" hidden>
+  <section class="card week-card" aria-labelledby="week-title">
+   <header class="card-head"><span class="card-ic" data-icon="calendar" aria-hidden="true"></span><div><h2 id="week-title">Когда учиться</h2><p>Закрасьте часы учёбы. По ним работает всё: уроки после разговоров, ночной цикл, копии и ветки.</p></div></header>
+   <div class="segmented presets" role="group" aria-label="Готовые варианты">
+    <button type="button" data-preset="night">Ночью</button><button type="button" data-preset="day">Днём</button><button type="button" data-preset="evening">Вечером</button><button type="button" data-preset="weekend">Выходные</button><button type="button" data-preset="always">Всегда</button><button type="button" data-preset="clear">Очистить</button>
+   </div>
+   <div class="heat-wrap"><div class="heat" id="heat" role="grid" aria-label="Часы учёбы по дням недели"></div></div>
+   <div class="heat-foot"><span id="heat-sum">—</span><span class="heat-now" id="heat-now"></span></div>
+   <label class="switch"><input type="checkbox" id="heat-enforce" checked><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Ставить уроки на паузу вне этих часов</strong><small>Урок, начатый автоматически, остановится в конце часов учёбы и продолжится в начале следующих. Ваши ручные запуски не трогаются.</small></span></label>
+   <div class="button-row"><button class="primary" id="heat-save">Сохранить часы</button></div>
+  </section>
+
+  <section class="card" aria-labelledby="plan-week-title">
+   <header class="card-head"><span class="card-ic" data-icon="layers" aria-hidden="true"></span><div><h2 id="plan-week-title">План недели</h2><p>Чем занимается каждый день в часы учёбы.</p></div></header>
+   <div class="week-plan" id="week-plan"></div>
+  </section>
+
   <section class="card night" aria-labelledby="night-title">
-   <header class="card-head"><span class="card-ic" data-icon="moon" aria-hidden="true"></span><div><h2 id="night-title">Ночной цикл</h2><p>Пока вы спите, Yorika собирает опыт, учится и сдаёт экзамен. Утром решаете вы.</p></div></header>
+   <header class="card-head"><span class="card-ic" data-icon="moon" aria-hidden="true"></span><div><h2 id="night-title">Цикл учёбы</h2><p>В часы учёбы Yorika собирает опыт, тренируется, ищет навыки, учится и сдаёт экзамен. Решаете вы.</p></div></header>
    <ol class="night-line" id="night-line" aria-label="Что происходит ночью">
     <li><span data-icon="chat" aria-hidden="true"></span><b>Сбор опыта</b><small>из чата, если включён</small></li>
     <li><span data-icon="teacher" aria-hidden="true"></span><b>Учитель</b><small id="nl-teacher">выключен</small></li>
-    <li><span data-icon="zap" aria-hidden="true"></span><b>Обучение</b><small id="nl-hours">4 ч</small></li>
+    <li><span data-icon="globe" aria-hidden="true"></span><b>Мир задач</b><small id="nl-lives">300 жизней</small></li>
+    <li><span data-icon="code" aria-hidden="true"></span><b>Программы</b><small id="nl-programs">поиск</small></li>
+    <li><span data-icon="zap" aria-hidden="true"></span><b>Обучение</b><small id="nl-hours">сон</small></li>
     <li><span data-icon="exam" aria-hidden="true"></span><b>Экзамен</b><small>на невиданном</small></li>
     <li class="you"><span data-icon="check" aria-hidden="true"></span><b>Утро</b><small>включить или нет</small></li>
    </ol>
-   <label class="switch"><input type="checkbox" id="night-on"><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Учиться каждую ночь</strong><small id="night-note">Ноутбук должен быть включён и на зарядке.</small></span></label>
+   <label class="switch"><input type="checkbox" id="night-on"><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Учиться по расписанию</strong><small id="night-note">Ноутбук должен быть включён и на зарядке.</small></span></label>
    <div class="form-grid">
-    <div><label class="token-label" for="night-time">Начало</label><input id="night-time" class="field" type="time" value="02:00"></div>
-    <div><label class="token-label" for="night-hours">Обучение, часов</label><input id="night-hours" class="field" type="number" min="0.5" max="10" step="0.5" value="4"></div>
+    <div><label class="token-label" for="night-lives">Жизней в мире задач</label><input id="night-lives" class="field" type="number" min="0" max="5000" step="50" value="300"></div>
     <div><label class="token-label" for="night-tokens">Учителю за ночь, токенов</label><input id="night-tokens" class="field" type="number" min="0" step="1000" value="0"></div>
     <div><label class="token-label" for="night-play">Примеров самоигры</label><input id="night-play" class="field" type="number" min="5" max="500" step="5" value="20"></div>
     <div><span class="token-label">Размеры</span><div class="segmented night-sizes"><label><input type="checkbox" name="night-size" value="s"><span>S</span></label><label><input type="checkbox" name="night-size" value="m"><span>M</span></label><label><input type="checkbox" name="night-size" value="l"><span>L</span></label></div></div>
    </div>
-   <p class="hint">Два-три размера — ночная песочница: часы делятся между ними поровну.</p>
+   <p class="hint">Два-три размера в день «Новая версия» — песочница: часы делятся между ними поровну.</p>
    <div class="night-switches">
-    <label class="switch"><input type="checkbox" id="night-sleep" checked><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Сон</strong><small>Активная версия заново «переживает» день вместе со старым опытом и учится дальше, а не с нуля.</small></span></label>
+    <label class="switch"><input type="checkbox" id="night-programs" checked><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Искать программы-навыки</strong><small>Перебор формул по примерам; проверенные становятся инструментами.</small></span></label>
     <label class="switch"><input type="checkbox" id="night-curiosity" checked><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Любопытство</strong><small>Бесплатно решает логические задачи на краю своих сил, программа проверяет ответы.</small></span></label>
-    <div><label class="token-label" for="night-evolve">Эволюция в ночь на воскресенье</label><select id="night-evolve" class="field"><option value="0">Выключена</option><option value="3">3 варианта</option><option value="4">4 варианта</option><option value="5">5 вариантов</option><option value="6">6 вариантов</option></select></div>
+    <div><label class="token-label" for="night-evolve">Вариантов в день эволюции</label><select id="night-evolve" class="field"><option value="0">4 (по умолчанию)</option><option value="3">3 варианта</option><option value="4">4 варианта</option><option value="5">5 вариантов</option><option value="6">6 вариантов</option></select></div>
    </div>
    <p class="hint">0 токенов — учитель ночью не работает и ничего не тратит. Больше нуля — это ваше заранее данное согласие тратить не больше этого за ночь.</p>
    <div class="button-row"><button class="primary" id="night-save">Сохранить</button></div>
   </section>
   <section class="card" aria-labelledby="nlog-title">
-   <header class="card-head"><span class="card-ic" data-icon="list" aria-hidden="true"></span><div><h2 id="nlog-title">Прошлые ночи</h2></div></header>
+   <header class="card-head"><span class="card-ic" data-icon="list" aria-hidden="true"></span><div><h2 id="nlog-title">Журнал учёбы</h2></div></header>
    <ul id="night-log" class="night-log"></ul>
   </section>
  </div>

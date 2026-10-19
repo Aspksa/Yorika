@@ -1,7 +1,9 @@
-"""Night cycle: every night Yorika gathers experience, asks the teacher, trains, and takes the exam.
+"""Study cycle: in the hours the owner painted, Yorika gathers experience, plays, finds programs,
+asks the teacher, trains, and takes the exam.
 
-Off until the owner turns it on. On Windows it is a daily Task Scheduler task for the current
-user. The teacher step spends tokens only up to the nightly limit the owner set when turning
+Off until the owner turns it on. On Windows each painted block of the week (backend/schedule.py)
+is a Task Scheduler task for the current user. What a block trains is set per weekday: sleep,
+copies, branches, learning from her slower self, evolution, a fresh version or rest. The teacher step spends tokens only up to the nightly limit the owner set when turning
 it on (0 means no teacher at night). Nothing is activated: in the morning the page proposes
 the new version and the owner decides.
 """
@@ -19,7 +21,10 @@ from backend import training_center as tc
 TASK_NAME = "Yorika Night Training"
 TIME = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]\Z")
 DEFAULTS = {"enabled": False, "time": "02:00", "hours": 4.0, "teacher_tokens": 0, "selfplay": 20, "sizes": ["s"],
-            "sleep": True, "curiosity": True, "evolve": 0}
+            "sleep": True, "curiosity": True, "evolve": 0, "week": None, "lives": 300, "programs": True}
+ACTIVITIES = {"sleep": "Сон", "distill": "Учёба у себя будущей", "search": "Ветки времени", "swarm": "Копии",
+              "evolution": "Эволюция", "fresh": "Новая версия", "rest": "Отдых"}
+TASK_PREFIX = "Yorika Study"
 EVOLUTION_WEEKDAY = 5  # Saturday night: evolution; other nights: sleep that continues the active version
 
 
@@ -29,7 +34,16 @@ def _now():
 
 def settings():
     saved = tc._read(tc.folder() / "night.json", {}) or {}
-    return {k: saved.get(k, v) for k, v in DEFAULTS.items()}
+    plan = {k: saved.get(k, v) for k, v in DEFAULTS.items()}
+    if not _valid_week(plan["week"]):
+        # Before the week was planned: sleep every night, evolution on Saturday if it was on.
+        plan["week"] = ["evolution" if plan["evolve"] and d == EVOLUTION_WEEKDAY else "sleep" if plan["sleep"] else "fresh"
+                        for d in range(7)]
+    return plan
+
+
+def _valid_week(week):
+    return isinstance(week, list) and len(week) == 7 and all(a in ACTIVITIES for a in week)
 
 
 def log():
@@ -54,8 +68,31 @@ def schedule_command(enabled, time):
             "/TR", '"%s"' % _launcher()]
 
 
+def apply_schedule(enabled):
+    """Replaces Yorika's Task Scheduler tasks with one per painted block of the week."""
+    from backend import schedule
+    saved = tc._read(schedule._path(), {}) or {}
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    for name in saved.get("tasks", []) + [TASK_NAME]:
+        subprocess.run(["schtasks", "/Delete", "/F", "/TN", name], capture_output=True, creationflags=flags)
+    names = []
+    if enabled:
+        launcher = _launcher()
+        for k, item in enumerate(schedule.tasks()):
+            name = "%s %d" % (TASK_PREFIX, k + 1)
+            result = subprocess.run(["schtasks", "/Create", "/F", "/SC", "WEEKLY", "/D", ",".join(item["days"]),
+                                     "/ST", item["time"], "/TN", name, "/TR", '"%s"' % launcher],
+                                    capture_output=True, creationflags=flags)
+            if result.returncode:
+                raise ValueError("Планировщик Windows не принял задачу")
+            names.append(name)
+    saved["tasks"] = names
+    tc._write(schedule._path(), saved)
+    return names
+
+
 def set_settings(enabled, time="02:00", hours=4.0, teacher_tokens=0, selfplay=20, apply=True, sizes=None,
-                 sleep=True, curiosity=True, evolve=0):
+                 sleep=True, curiosity=True, evolve=0, week=None, lives=300, programs=True):
     if not isinstance(enabled, bool):
         raise ValueError("Неверное значение")
     if not isinstance(time, str) or not TIME.match(time):
@@ -74,16 +111,17 @@ def set_settings(enabled, time="02:00", hours=4.0, teacher_tokens=0, selfplay=20
         raise ValueError("Выберите от одного до трёх размеров модели")
     if not isinstance(sleep, bool) or not isinstance(curiosity, bool) or type(evolve) is not int or evolve not in (0, 3, 4, 5, 6):
         raise ValueError("Эволюция: 0 или от 3 до 6 вариантов")
+    if week is not None and not _valid_week(week):
+        raise ValueError("План недели: 7 занятий из списка")
+    if type(lives) is not int or not 0 <= lives <= 5000 or not isinstance(programs, bool):
+        raise ValueError("Жизней в мире задач от 0 до 5000")
     if apply:
         if os.name != "nt":
-            raise ValueError("Ночной цикл ставится в планировщик Windows")
-        result = subprocess.run(schedule_command(enabled, time), capture_output=True,
-                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        if result.returncode and enabled:
-            raise ValueError("Планировщик Windows не принял задачу")
+            raise ValueError("Учёба по расписанию ставится в планировщик Windows")
+        apply_schedule(enabled)
     value = {"enabled": enabled, "time": time, "hours": float(hours), "teacher_tokens": teacher_tokens,
              "selfplay": selfplay, "sizes": sizes, "sleep": sleep, "curiosity": curiosity, "evolve": evolve,
-             "changed": _now()}
+             "week": week, "lives": lives, "programs": programs, "changed": _now()}
     tc._write(tc.folder() / "night.json", value)
     return settings()
 
@@ -93,37 +131,55 @@ def _newest_experience():
     return files[-1]["name"] if files else None
 
 
-def _train(plan, name, launch):
-    """Sleep continues the active version; evolution night breeds variants; else a fresh run."""
+def activity(plan=None, moment=None):
+    plan = plan or settings()
+    return plan["week"][(moment or datetime.now()).weekday()]
+
+
+def _train(plan, name, launch, hours=None):
+    """Today's activity from the week plan: sleep, copies, branches, future self, evolution..."""
+    hours = hours or plan["hours"]
+    what = activity(plan)
+    if what == "rest":
+        return "сегодня отдых по плану недели"
+    current = tc.active()
+    if what in ("swarm", "search", "distill"):
+        from backend import plans
+        if not current:
+            raise ValueError("нет активной версии для «%s»" % ACTIVITIES[what])
+        rounds = 2 if what != "swarm" else 1
+        lessons = {"swarm": 5, "search": 3 * rounds, "distill": rounds}[what]
+        started = plans.start(what, minutes=max(5, round(hours * 60 / lessons)), rounds=rounds, launch=launch,
+                              scheduled=True)
+        return "%s: план %s, по %d мин на урок" % (ACTIVITIES[what], started["id"], max(5, round(hours * 60 / lessons)))
     if not name:
         raise ValueError("нет файла опыта")
-    current = tc.active()
-    evolution_night = plan["evolve"] and datetime.now().weekday() == EVOLUTION_WEEKDAY
-    if current and plan["sleep"] and not evolution_night:
+    if current and what == "sleep":
         # Sleep: the active version relives the day mixed with older examples and continues.
         from backend import continual
         records, mix = continual.sleep_set(name)
         config = dict(tc._read(tc._run_dir(current["run"]) / "run.json")["config"])
         started = tc.start("long", device=continual._device(current["run"]), total_steps=1000000,
-                           hours=plan["hours"], config=config, kind="sleep", init=current["checkpoint"],
-                           records=records, dataset=name, launch=launch)
+                           hours=hours, config=config, kind="sleep", init=current["checkpoint"],
+                           records=records, dataset=name, launch=launch, scheduled=True)
         return "сон %s: новых %d, повтор старого %d, всего %d" % (started["id"], mix["new"], mix["replay"], len(records))
     blocker = tc.long_gate(tc._load_records(name))
     if blocker:
         raise ValueError(blocker)
-    if evolution_night:
-        each = round(plan["hours"] / plan["evolve"], 2)
-        started = tc.start_evolution(name, plan["evolve"], device="cuda", total_steps=1000000, hours_each=each,
+    if what == "evolution":
+        population = plan["evolve"] or 4
+        each = round(hours / population, 2)
+        started = tc.start_evolution(name, population, device="cuda", total_steps=1000000, hours_each=each,
                                      launch=launch)
-        return "эволюция %s: %d вариантов по %s ч" % (started["series"], plan["evolve"], each)
+        return "эволюция %s: %d вариантов по %s ч" % (started["series"], population, each)
     sizes = plan["sizes"] if isinstance(plan["sizes"], list) and plan["sizes"] else ["s"]
     if len(sizes) > 1:
-        each = round(plan["hours"] / len(sizes), 2)
+        each = round(hours / len(sizes), 2)
         started = tc.start_series(name, sizes, device="cuda", total_steps=1000000, hours_each=each, launch=launch)
         return "песочница %s: размеры %s, по %s ч" % (started["series"], "/".join(sizes).upper(), each)
-    started = tc.start("long", dataset=name, device="cuda", total_steps=1000000, hours=plan["hours"],
-                       launch=launch, size=sizes[0])
-    return "запущено обучение %s на %s ч" % (started["id"], plan["hours"])
+    started = tc.start("long", dataset=name, device="cuda", total_steps=1000000, hours=hours,
+                       launch=launch, size=sizes[0], scheduled=True)
+    return "запущено обучение %s на %s ч" % (started["id"], hours)
 
 
 def run(launch=True, opener=None):
@@ -137,6 +193,14 @@ def run(launch=True, opener=None):
     if not plan["enabled"]:
         step("cycle", "выключен")
     else:
+        from backend import schedule
+        hours = min(10.0, schedule.hours_left()) or plan["hours"]
+        try:
+            resumed = tc.resume_scheduled()
+            if resumed:
+                step("resume", "продолжаю урок %s с места паузы" % resumed[0])
+        except Exception as error:  # noqa: BLE001
+            step("resume", str(error)[:160])
         try:
             step("collect", "добавлено %d" % sl.collect()["added"] if sl._settings()["collect"] else "сбор выключен")
         except Exception as error:  # noqa: BLE001 - the log shows each step's outcome
@@ -158,6 +222,16 @@ def run(launch=True, opener=None):
                 step("curiosity", curiosity.night_step())
             except Exception as error:  # noqa: BLE001
                 step("curiosity", str(error)[:160])
+        if plan["lives"]:
+            try:
+                step("sim", _sim_lives(plan["lives"]))
+            except Exception as error:  # noqa: BLE001
+                step("sim", str(error)[:160])
+        if plan["programs"]:
+            try:
+                step("programs", _programs())
+            except Exception as error:  # noqa: BLE001
+                step("programs", str(error)[:160])
         try:
             newest = _newest_experience()
             ready = sl.counts()["ready"]
@@ -168,15 +242,60 @@ def run(launch=True, opener=None):
         except Exception as error:  # noqa: BLE001
             step("export", str(error)[:160])
         try:
-            step("train", _train(plan, _newest_experience(), launch))
+            if tc._active_job():
+                raise ValueError("урок уже идёт")
+            step("train", _train(plan, _newest_experience(), launch, hours))
         except Exception as error:  # noqa: BLE001
             step("train", str(error)[:160])
+        try:
+            step("compress", _compress_active())
+        except Exception as error:  # noqa: BLE001
+            step("compress", str(error)[:160])
     entry["finished"] = _now()
     history = log() + [entry]
     tc._write(tc.folder() / "night-log.json", history[-14:])
     return entry
 
 
+def _sim_lives(lives):
+    """Free practice in the game world; verified own solutions and program hints join experience."""
+    from backend import curiosity, simworld
+    from backend.neural_language_benchmark import load_candidate
+    checkpoint = sl._scoring_checkpoint()
+    if checkpoint is None:
+        return "нет обученной версии: мир задач ждёт"
+    result = simworld.live(load_candidate(checkpoint), lives)
+    total = simworld.record(result["stats"])
+    added = curiosity._add(result["own"] + result["hints"][:max(20, lives // 5)], "sim")
+    wins = sum(s["wins"] for s in result["stats"].values())
+    return "прожито %d жизней, побед %d, всего жизней %d, в опыт добавлено %d" % (lives, wins, total["lives"], added)
+
+
+def _programs():
+    """New skills found by program search join the library; lessons teach how to call them."""
+    from backend import curiosity, programs
+    found = programs.learn()
+    if not found:
+        return "новых навыков нет, в библиотеке %d" % len(programs.library())
+    added = curiosity._add(programs.lessons(found), "programs")
+    return "найдены программы: %s; уроков %d" % (", ".join(found), added)
+
+
+def _compress_active():
+    """When the chat answers with the compressed copy, the active version is compressed for it."""
+    from backend import brain
+    current = tc.active()
+    if not current or not brain.engine()["compressed"]:
+        return "не нужно"
+    target = tc.folder() / current["checkpoint"]
+    if target.with_name(target.name[:-3] + ".q4.pt").is_file():
+        return "сжатая копия уже есть"
+    result = tc.compress(current["run"])
+    return "сжата активная версия: %d КБ" % (result["bytes"] // 1024)
+
+
 def status():
-    return {"settings": settings(), "log": log(), "windows": os.name == "nt",
+    from backend import schedule
+    return {"settings": settings(), "log": log(), "windows": os.name == "nt", "activities": ACTIVITIES,
+            "schedule": dict(schedule.settings(), **schedule.summary()), "today": activity(),
             "note": "Ноутбук должен быть включён и на зарядке; из сна он сам не просыпается"}

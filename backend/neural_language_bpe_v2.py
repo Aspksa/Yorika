@@ -88,6 +88,9 @@ def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
             # Balance term (Switch Transformer): keeps every expert in use instead of two winners.
             share = F.one_hot(chosen[..., 0], experts).float().reshape(-1, experts).mean(0)
             self.aux = experts * (share * logits.softmax(-1).reshape(-1, experts).mean(0)).sum()
+            if getattr(self, "trace", None) is not None:
+                # Introspection: how often each expert is picked.
+                self.trace += F.one_hot(chosen, experts).float().reshape(-1, experts).sum(0).detach().cpu()
             out = torch.zeros_like(x)
             for slot in range(2):
                 for e in range(experts):
@@ -123,8 +126,11 @@ def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
             self.values = nn.Parameter(torch.zeros(slots, width))
 
         def forward(self, x):
-            scores = self.norm(x) @ self.keys.t() * width ** -0.5
-            return x + scores.softmax(-1) @ self.values
+            scores = (self.norm(x) @ self.keys.t() * width ** -0.5).softmax(-1)
+            if getattr(self, "trace", None) is not None:
+                # Introspection: how much attention each memory slot receives.
+                self.trace += scores.reshape(-1, slots).sum(0).detach().cpu()
+            return x + scores @ self.values
 
     class LabBrain(nn.Module):
         def __init__(self):
@@ -140,6 +146,8 @@ def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
             self.norm = nn.LayerNorm(width)
             self.output = nn.Linear(width, vocab_size)
             self.passes = loops
+            # Introspection switches blocks off one at a time to measure what each one does.
+            self.skip = set()
 
         def forward(self, ids, passes=None):
             length = ids.shape[1]
@@ -154,7 +162,8 @@ def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
                 if loops > 1:
                     x = x + self.loop.weight[n]
                 for k, block in enumerate(self.blocks):
-                    x = block(x, mask)
+                    if k not in self.skip:
+                        x = block(x, mask)
                     # Memory is read right after the first block, so growing deeper never moves it.
                     if slots and k == 0:
                         x = self.memory(x)

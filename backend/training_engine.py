@@ -11,7 +11,7 @@ from pathlib import Path
 from backend.storage import Store
 
 
-def dataset(store, *, limit=5000):
+def dataset(store, *, limit=1000):
     if type(limit) is not int or not 1 <= limit <= 1000:
         raise ValueError("Invalid dataset limit")
     records = store.list_records("learning_examples", limit=limit)

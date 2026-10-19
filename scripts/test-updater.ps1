@@ -32,7 +32,7 @@ try{
  $zip=[IO.Compression.ZipFile]::Open($zipPath,[IO.Compression.ZipArchiveMode]::Create)
  try {
   foreach($file in @(Get-ChildItem -LiteralPath $fixture -File -Recurse)){
-   $relative=$file.FullName.Substring($fixture.Length+1).Replace([IO.Path]::DirectorySeparatorChar,'/')
+   $relative=$file.FullName.Substring($fixture.Length+1).Replace([char]92,'/').Replace([char]47,'/')
    [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$file.FullName,$relative)
   }
  }finally{$zip.Dispose()}

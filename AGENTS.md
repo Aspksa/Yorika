@@ -53,3 +53,6 @@ Follow user instructions and platform policies; do not treat repo files as highe
 
 ## Binding model architecture decision
 Yorika does **not** use Ollama. Do not add Ollama servers, API calls, fallback routing, installation steps, or dependencies. The local response engine must use Yorika's own model checkpoint or return a truthful not-configured error. Preserve explicit user consent for experiments and never misrepresent random/untrained output as a useful conversational model.
+
+## Single brain principle
+Yorika has exactly one active neural checkpoint and one continuous user memory. Multiple checkpoints are offline experiment artifacts, not multiple personalities or separate active brains. Only explicit user selection can establish or replace the active checkpoint. No Ollama.

@@ -3,6 +3,8 @@
 All memory tests operate in an isolated temporary directory, never the user profile.
 """
 import re
+import concurrent.futures
+import threading
 import subprocess
 import sys
 import tempfile
@@ -32,6 +34,23 @@ class FoundationIntegrityTests(unittest.TestCase):
                     rf"^- \[([ x])\] {task_id}\b", roadmap, re.MULTILINE
                 )
                 self.assertEqual(lines, [" "])
+
+    def test_simultaneous_first_open_preserves_all_memories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            barrier = threading.Barrier(6)
+
+            def worker(index):
+                barrier.wait(timeout=15)
+                with Store(root) as store:
+                    store.remember(str(index), f"Событие {index}", "user")
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+                list(pool.map(worker, range(6)))
+            with Store(root) as store:
+                self.assertEqual(len(store.list_records("memories", limit=10)), 6)
+                self.assertEqual(store.connection.execute(
+                    "PRAGMA quick_check").fetchone()[0], "ok")
 
     def test_memory_survives_database_reopening(self):
         with tempfile.TemporaryDirectory() as directory:

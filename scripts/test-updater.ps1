@@ -71,3 +71,4 @@ finally{
   if(Test-Path -LiteralPath $path){Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction SilentlyContinue}
  }
 }
+exit 0

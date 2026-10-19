@@ -29,6 +29,15 @@ class RussianReportTests(unittest.TestCase):
             self.assertFalse(passed)
             self.assertIn("ПРОПУЩЕНО", text)
 
+    def test_overall_failure_not_hidden_by_green_rows(self):
+        with tempfile.TemporaryDirectory() as directory:
+            file = Path(directory) / "mismatch.json"
+            file.write_text(json.dumps({"passed": False, "results": [
+                {"name": "plan", "status": "passed"}]}), encoding="utf-8")
+            text, passed = MODULE.build_report(file)
+            self.assertFalse(passed)
+            self.assertIn("Общий итог", text)
+
     def test_bad_status_is_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             file = Path(directory) / "bad.json"

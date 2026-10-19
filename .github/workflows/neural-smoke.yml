@@ -1,0 +1,23 @@
+name: Neural Engine real PyTorch smoke
+on:
+  pull_request:
+    paths:
+      - 'backend/neural_*.py'
+      - 'backend/training_engine.py'
+      - '.github/workflows/neural-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  train-infer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CPU PyTorch
+        run: python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+      - name: Run real training and inference
+        run: python -m backend.neural_smoke --steps 2

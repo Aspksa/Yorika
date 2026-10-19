@@ -8,12 +8,13 @@ from pathlib import Path
 from backend.neural_bpe_v1 import SPECIAL, OFFSET, train as train_bpe, encode as encode_bpe, decode as decode_bpe, validate as validate_bpe
 
 
-def make_model(torch, *, vocab_size, width=64, heads=4, context=128):
+def make_model(torch, *, vocab_size, width=64, heads=4, context=128, layers=2):
     if type(vocab_size) is not int or not 261 <= vocab_size <= 4357:
         raise ValueError("Invalid BPE vocabulary size")
     from torch import nn
     if (any(type(x) is not int for x in (width, heads, context)) or
-            not 16 <= width <= 256 or not 1 <= heads <= 8 or width % heads or
+            not 16 <= width <= 512 or not 1 <= heads <= 8 or width % heads or
+            type(layers) is not int or not 1 <= layers <= 8 or
             not 32 <= context <= 512):
         raise ValueError("Invalid model configuration")
     class LanguageBrain(nn.Module):
@@ -24,7 +25,7 @@ def make_model(torch, *, vocab_size, width=64, heads=4, context=128):
             layer = nn.TransformerEncoderLayer(
                 d_model=width, nhead=heads, dim_feedforward=width*4,
                 dropout=0.0, batch_first=True)
-            self.encoder = nn.TransformerEncoder(layer, num_layers=2)
+            self.encoder = nn.TransformerEncoder(layer, num_layers=layers)
             self.output = nn.Linear(width, vocab_size)
         def forward(self, ids):
             length = ids.shape[1]
@@ -36,7 +37,7 @@ def make_model(torch, *, vocab_size, width=64, heads=4, context=128):
     return LanguageBrain()
 
 
-def train_language(pairs, output, *, steps=10, seed=42, width=64, heads=4, context=128, max_merges=64):
+def train_language(pairs, output, *, steps=10, seed=42, width=64, heads=4, context=128, max_merges=64, layers=2):
     if type(steps) is not int or not 1 <= steps <= 10000 or type(seed) is not int:
         raise ValueError("Invalid training budget")
     if not isinstance(pairs, (list, tuple)) or not pairs:
@@ -54,7 +55,7 @@ def train_language(pairs, output, *, steps=10, seed=42, width=64, heads=4, conte
     tokenizer = train_bpe([text for prompt, answer in pairs for text in (prompt, answer)], max_merges=max_merges)
     vocab_size = OFFSET + 256 + len(tokenizer["merges"])
     torch.manual_seed(seed)
-    model = make_model(torch, vocab_size=vocab_size, width=width, heads=heads, context=context)
+    model = make_model(torch, vocab_size=vocab_size, width=width, heads=heads, context=context, layers=layers)
     optim = torch.optim.AdamW(model.parameters(), lr=0.001)
     losses = []
     for step in range(steps):
@@ -76,7 +77,7 @@ def train_language(pairs, output, *, steps=10, seed=42, width=64, heads=4, conte
         losses.append(float(loss.detach()))
     output.parent.mkdir(parents=True, exist_ok=True)
     torch.save({"schema": "yorika-language-bpe-v2", "weights": model.state_dict(),
-                "width": width, "heads": heads, "context": context,
+                "width": width, "heads": heads, "context": context, "layers": layers,
                 "tokenizer": tokenizer, "vocab_size": vocab_size, "steps": steps}, output)
     return {"steps": steps, "train_initial_loss": losses[0], "train_final_loss": losses[-1],
             "parameters": sum(p.numel() for p in model.parameters())}
@@ -94,7 +95,7 @@ def load_language(checkpoint):
     expected_vocab = OFFSET + 256 + len(data["tokenizer"]["merges"])
     if data.get("vocab_size") != expected_vocab:
         raise ValueError("Checkpoint/tokenizer vocabulary mismatch")
-    model = make_model(torch, vocab_size=expected_vocab, width=data["width"], heads=data["heads"], context=data["context"])
+    model = make_model(torch, vocab_size=expected_vocab, width=data["width"], heads=data["heads"], context=data["context"], layers=data.get("layers", 2))
     model.load_state_dict(data["weights"], strict=True)
     model.eval()
     return model, data

@@ -30,6 +30,21 @@ jobs:
         with:
           persist-credentials: false
           clean: true
+      - name: 'Диагностика Windows: PowerShell, Node и Python'
+        run: |
+          Write-Host '== Диагностика Windows runner ==' -ForegroundColor Cyan
+          Write-Host ('PowerShell: ' + $PSVersionTable.PSVersion.ToString())
+          if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Нужен PowerShell 7 (pwsh).' }
+          $node = Get-Command node -ErrorAction SilentlyContinue
+          if (-not $node) { throw 'Node.js отсутствует в PATH. Установите Node.js LTS и перезапустите runner.' }
+          & node --version
+          $python = Join-Path $PWD 'ЦЕНТР_YORIKA/python312-runtime/python.exe'
+          if (Test-Path $python) { & $python --version }
+          else { Write-Warning 'Встроенный Python ещё не установлен. Следующий этап попробует подготовить его.' }
+      - name: 'Удалить прошлый отчёт перед проверками'
+        run: |
+          $old = Join-Path $env:LOCALAPPDATA 'YorikaTestReports/yorika-portable-acceptance.json'
+          if (Test-Path $old) { Remove-Item -LiteralPath $old -Force }
       - name: Check changed files
         run: |
           & './ЦЕНТР_YORIKA/check-changes.ps1'
@@ -57,11 +72,27 @@ jobs:
         run: |
           $f = Join-Path $env:LOCALAPPDATA 'YorikaTestReports/yorika-portable-acceptance.json'
           if (Test-Path $f) { Copy-Item $f 'yorika-acceptance.json' -Force }
+      - name: 'Русский итог в GitHub'
+        if: always()
+        run: |
+          $f = Join-Path $env:LOCALAPPDATA 'YorikaTestReports/yorika-portable-acceptance.json'
+          $report = 'ОТЧЁТ_YORIKA.md'
+          $python = Join-Path $PWD 'ЦЕНТР_YORIKA/python312-runtime/python.exe'
+          if (Test-Path $python) {
+            & $python scripts/ci-report-ru.py --input $f --output $report
+            if ($LASTEXITCODE -ne 0) { Write-Warning 'Есть непройденные проверки (см. русский отчёт).' }
+          } else {
+            '# Отчёт Yorika' | Set-Content $report -Encoding UTF8
+            '❌ Python не был подготовлен; приёмка не выполнена.' | Add-Content $report -Encoding UTF8
+            if ($env:GITHUB_STEP_SUMMARY) { Get-Content $report | Add-Content $env:GITHUB_STEP_SUMMARY -Encoding UTF8 }
+          }
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: yorika-selfhosted-acceptance
-          path: yorika-acceptance.json
+          path: |
+            yorika-acceptance.json
+            ОТЧЁТ_YORIKA.md
           if-no-files-found: ignore
           retention-days: 7

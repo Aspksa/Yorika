@@ -19,7 +19,6 @@ function Get-Token {
 function Request($uri,[switch]$Binary,[string]$CandidateToken='', [switch]$StrictCandidate){
  $headers=@{'User-Agent'='Yorika-Updater';'Accept'='application/vnd.github+json';'X-GitHub-Api-Version'='2022-11-28'}
  $t=if($StrictCandidate){$CandidateToken}else{Get-Token}
- if(-not $t){throw 'Токен отсутствует. Создайте Fine-grained token с доступом к Aspksa/Yorika и Contents: Read.'}
  if($t){$headers.Authorization="Bearer $t"}
  if($Binary){return $headers}
  try {
@@ -29,10 +28,10 @@ function Request($uri,[switch]$Binary,[string]$CandidateToken='', [switch]$Stric
   try { $statusCode=[int]$_.Exception.Response.StatusCode } catch {}
   if($statusCode -eq 404) {
    if($uri.EndsWith('/releases/latest')) { throw 'Стабильный выпуск не найден. Если доступ к репозиторию есть, выберите Свежий.' }
-   throw 'GitHub вернул 404. Проверьте Resource owner: Aspksa, Only select repositories: Yorika, Contents: Read и одобрение токена (если требуется).'
+   throw 'GitHub вернул 404. Проверьте адрес репозитория и наличие публикации.'
   }
-  if($statusCode -eq 401) { throw 'GitHub отклонил токен доступа. Укажите действующий токен.' }
-  if($statusCode -eq 403) { throw 'GitHub запретил запрос. Проверьте разрешения токена или лимит API.' }
+  if($statusCode -eq 401) { throw 'GitHub отклонил токен доступа. Удалите устаревший токен для публичного репозитория.' }
+  if($statusCode -eq 403) { throw 'GitHub запретил запрос. Проверьте лимит API либо удалите неработающий токен.' }
   throw ('Ошибка соединения с GitHub: ' + $_.Exception.Message)
  }
 }

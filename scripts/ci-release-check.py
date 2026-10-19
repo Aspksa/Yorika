@@ -59,6 +59,20 @@ def main():
     except (OSError, subprocess.CalledProcessError):
         print("НЕ ГОТОВО: для сборки необходим проверенный Git checkout")
         return 1
+    # Prevent a green report for one revision packaging modified tracked files.
+    try:
+        dirty = subprocess.check_output(
+            ["git", "diff", "--name-only", "HEAD", "--"],
+            cwd=ROOT, stderr=subprocess.DEVNULL)
+        staged = subprocess.check_output(
+            ["git", "diff", "--cached", "--name-only", "--"],
+            cwd=ROOT, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.CalledProcessError):
+        print("НЕ ГОТОВО: не удалось проверить чистоту Git checkout")
+        return 1
+    if dirty or staged:
+        print("НЕ ГОТОВО: отслеживаемые файлы изменены относительно HEAD. Нельзя выдавать проверенный архив.")
+        return 1
     paths = sorted(ROOT / name for name in tracked.decode("utf-8", "surrogateescape").split("\0")
                    if name and eligible(Path(name)) and (ROOT / name).is_file()
                    and not (ROOT / name).is_symlink())

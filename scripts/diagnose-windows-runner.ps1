@@ -1,4 +1,4 @@
-# Windows runner diagnostics. Does not install software or change execution policy.
+﻿# Windows runner diagnostics. Does not install software or change execution policy.
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $report = Join-Path $root 'yorika-windows-diagnostics.json'

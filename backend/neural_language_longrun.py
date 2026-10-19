@@ -1,6 +1,7 @@
 """Bounded resumable training of one BPE dialogue model; no auto-promotion."""
 import hashlib
 import json
+import time
 from pathlib import Path
 from backend.neural_bpe_v1 import OFFSET, train as fit_bpe, encode as bpe_encode, validate as check_bpe
 from backend.neural_language_bpe_v2 import make_model
@@ -11,9 +12,14 @@ def digest(pairs):
 
 
 def run(train, validation, output, *, total_steps, checkpoint_every=20,
-        width=320, heads=8, layers=4, context=256, max_merges=128, seed=42):
+        width=320, heads=8, layers=4, context=256, max_merges=128, seed=42,
+        max_run_seconds=None):
     import torch
     from torch.nn import functional as F
+    if max_run_seconds is not None and (type(max_run_seconds) not in (int, float) or
+            not 0 < max_run_seconds <= 86400):
+        raise ValueError("Invalid run time budget")
+    started_at = time.monotonic()
     if (not isinstance(train, (list, tuple)) or not train or
             not isinstance(validation, (list, tuple)) or not validation):
         raise ValueError("Disjoint train and validation splits required")
@@ -83,14 +89,20 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
         model.train()
         return score
     final_score = None
+    actual_steps = start
+    stopped_for_budget = False
     for i in range(start, total_steps):
+        if max_run_seconds is not None and i > start and time.monotonic() - started_at >= max_run_seconds:
+            stopped_for_budget = True
+            break
         model.train()
         opt.zero_grad(set_to_none=True)
         l = loss(train[i % len(train)])
         l.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.)
         opt.step()
-        if (i + 1) % checkpoint_every == 0 or i + 1 == total_steps:
+        actual_steps = i + 1
+        if (i + 1) % checkpoint_every == 0 or i + 1 == total_steps or (max_run_seconds is not None and time.monotonic() - started_at >= max_run_seconds):
             final_score = evaluate()
             improved = final_score < best_nll
             if improved:
@@ -118,7 +130,12 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
             finally:
                 if temp.exists():
                     temp.unlink()
-    return {"steps": total_steps, "parameters": count, "validation_nll": final_score,
+    elapsed = time.monotonic() - started_at
+    return {"steps": actual_steps, "requested_steps": total_steps,
+            "stopped_for_budget": stopped_for_budget or actual_steps < total_steps,
+            "elapsed_seconds": elapsed,
+            "steps_per_second": (actual_steps - start) / elapsed if elapsed > 0 else 0.0,
+            "parameters": count, "validation_nll": final_score,
             "train_sha256": fingerprint, "tokenizer_sha256": tokenizer["sha256"],
             "checkpoint": str(path), "best_checkpoint": str(best_path),
             "best_validation_nll": best_nll, "best_step": best_step,

@@ -620,6 +620,65 @@ class Store:
             db.rollback()
             raise
 
+
+    def link_memories(self, left_id: str, right_id: str, relation: str) -> dict:
+        """Create a sourced, non-inferential association between existing memories."""
+        if (not all(isinstance(x, str) and x.strip() for x in (left_id, right_id, relation))
+                or left_id == right_id or max(map(len, (left_id, right_id))) > 512
+                or len(relation) > 80 or relation not in ("related", "supports", "contradicts")):
+            raise ValueError("Invalid memory association")
+        db = self.connection
+        if db.in_transaction:
+            raise RuntimeError("Finish current transaction before linking")
+        db.execute("BEGIN IMMEDIATE")
+        try:
+            present = db.execute(
+                "SELECT record_id FROM records WHERE namespace='memories' "
+                "AND record_id IN (?, ?)", (left_id, right_id)
+            ).fetchall()
+            if len(present) != 2:
+                raise ValueError("Both memories must exist")
+            import hashlib
+            key = hashlib.sha256(json.dumps([left_id, right_id, relation],
+                                              ensure_ascii=False).encode("utf-8")).hexdigest()
+            value = {"from": left_id, "to": right_id, "relation": relation,
+                     "source": "explicit-memory-link"}
+            db.execute(
+                "INSERT INTO records(namespace,record_id,payload,updated_at) VALUES(?,?,?,?) "
+                "ON CONFLICT(namespace,record_id) DO NOTHING",
+                ("memory_links", key, json.dumps(value, ensure_ascii=False), utc_now()))
+            db.commit()
+            return {"link_id": key, **value}
+        except BaseException:
+            db.rollback()
+            raise
+
+    def list_memory_links(self, record_id: str, limit: int = 100) -> list[dict]:
+        """Return associations only while both endpoints remain in memory."""
+        if not isinstance(record_id, str) or not record_id or len(record_id) > 512:
+            raise ValueError("Invalid memory ID")
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        rows = self.connection.execute(
+            "SELECT l.record_id,l.payload FROM records AS l "
+            "WHERE l.namespace='memory_links' ORDER BY l.record_id"
+        )
+        found = []
+        for link_id, raw in rows:
+            try:
+                link = json.loads(raw)
+                if not isinstance(link, dict) or record_id not in (link.get("from"), link.get("to")):
+                    continue
+                endpoints = (link["from"], link["to"])
+                if not all(self.get("memories", endpoint) is not None for endpoint in endpoints):
+                    continue
+                found.append({"link_id": link_id, **link})
+                if len(found) >= limit:
+                    break
+            except (ValueError, TypeError, KeyError):
+                continue
+        return found
+
     def append_event(self, event_type: str, value: dict) -> int:
         if not event_type or not isinstance(value, dict):
             raise ValueError("event_type must be non-empty and value must be an object")

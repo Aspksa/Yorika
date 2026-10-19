@@ -33,6 +33,8 @@ jobs:
         run: PYTHONPATH=. python scripts/verify-neural-longrun.py
       - name: Verify deterministic Russian BPE tokenizer
         run: PYTHONPATH=. python -m unittest discover -s tests -p 'test_neural_bpe_v1.py' -v
+      - name: Verify review-gated multi-session GPU campaign on CPU fixture
+        run: PYTHONPATH=. python -m unittest discover -s tests -p 'test_long_cuda_campaign.py' -v
       - name: Guard cross-device checkpoint resume
         run: PYTHONPATH=. python -m unittest discover -s tests -p 'test_neural_device_resume.py' -v
       - name: Test explicit GPU training path and CPU regression

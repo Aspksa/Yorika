@@ -31,12 +31,12 @@ try{
  $zipPath=Join-Path $staging ($sha+'.zip')
  $zip=[IO.Compression.ZipFile]::Open($zipPath,[IO.Compression.ZipArchiveMode]::Create)
  try {
-  foreach($file in @(Get-ChildItem -LiteralPath $fixture -File -Recurse)){
-   $relative=$file.FullName.Substring($fixture.Length+1).Replace([char]92,'/').Replace([char]47,'/')
+  foreach($name in @('Yorika.bat','www\\index.html','scripts\\start.ps1','scripts\\yorika-tray.ps1')){
+   $relative='yorika-release/'+$name.Replace([char]92,'/')
    $entry=$zip.CreateEntry($relative)
    $target=$entry.Open()
    try {
-    $inputFile=[IO.File]::OpenRead($file.FullName)
+    $inputFile=[IO.File]::OpenRead((Join-Path $source $name))
     try { $inputFile.CopyTo($target) } finally { $inputFile.Dispose() }
    } finally { $target.Dispose() }
   }

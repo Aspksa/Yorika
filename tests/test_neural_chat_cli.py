@@ -1,4 +1,4 @@
-"""The CLI preserves its production default and has explicit experimental opt-in."""
+"""Yorika CLI uses only an explicitly configured own checkpoint."""
 import importlib.util
 import io
 import json
@@ -14,34 +14,23 @@ SPEC.loader.exec_module(MODULE)
 
 
 class NeuralChatCliTests(TestCase):
-    def test_default_stays_on_existing_provider(self):
-        with patch.object(MODULE.sys, "stdin", io.StringIO("Привет")), patch.object(
-            MODULE, "answer", return_value={"answer": "основной", "provider": "local-ollama"}
-        ) as original, patch.dict(os.environ, {"YORIKA_EXPERIMENTAL_NEURAL": "0"}, clear=False), patch(
-            "sys.stdout", new_callable=io.StringIO
-        ) as output:
-            MODULE.main()
-        self.assertEqual(json.loads(output.getvalue())["provider"], "local-ollama")
-        original.assert_called_once_with("Привет")
-
-    def test_experimental_mode_requires_checkpoint(self):
+    def test_requires_checkpoint_without_network_fallback(self):
         with patch.object(MODULE.sys, "stdin", io.StringIO("Привет")), patch.dict(
-            os.environ, {"YORIKA_EXPERIMENTAL_NEURAL": "1", "YORIKA_EXPERIMENTAL_CHECKPOINT": ""}
+            os.environ, {"YORIKA_NEURAL_CHECKPOINT": ""}
         ):
             with self.assertRaises(RuntimeError):
                 MODULE.main()
 
-    def test_experimental_mode_routes_explicitly(self):
+    def test_routes_only_to_own_checkpoint(self):
         expected = {"answer": "проба", "provider": "experimental-local-transformer"}
         with patch.object(MODULE.sys, "stdin", io.StringIO("Привет")), patch.dict(
-            os.environ, {"YORIKA_EXPERIMENTAL_NEURAL": "1", "YORIKA_EXPERIMENTAL_CHECKPOINT": "model.pt"}
-        ), patch.object(MODULE, "route_answer", return_value=expected) as route, patch(
+            os.environ, {"YORIKA_NEURAL_CHECKPOINT": "own-model.pt"}
+        ), patch.object(MODULE, "answer", return_value=expected) as responder, patch(
             "sys.stdout", new_callable=io.StringIO
         ) as output:
             MODULE.main()
         self.assertEqual(json.loads(output.getvalue()), expected)
-        self.assertTrue(route.call_args.kwargs["experimental"])
-        self.assertEqual(route.call_args.kwargs["checkpoint"], "model.pt")
+        responder.assert_called_once_with("Привет")
 
 
 if __name__ == "__main__":

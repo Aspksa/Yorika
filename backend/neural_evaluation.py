@@ -51,10 +51,10 @@ def evaluate_heldout(examples, predict, *, max_tokens=64):
             "metric": "heldout_exact_match_only"}
 
 
-def evaluate_checkpoint(checkpoint, train_pairs, *, holdout_percent=20, max_tokens=64):
+def evaluate_checkpoint(checkpoint, heldout_pairs, *, max_tokens=64):
     from backend.neural_inference import generate
-    _, test_pairs = split_examples(train_pairs, holdout_percent=holdout_percent)
-    result = evaluate_heldout(test_pairs, lambda prompt, **kw: generate(checkpoint, prompt, **kw),
+    # Caller must provide examples excluded from checkpoint training.
+    result = evaluate_heldout(heldout_pairs, lambda prompt, **kw: generate(checkpoint, prompt, **kw),
                               max_tokens=max_tokens)
     result["checkpoint_sha256"] = hashlib.sha256(Path(checkpoint).read_bytes()).hexdigest()
     return result

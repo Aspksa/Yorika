@@ -17,7 +17,7 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
     if (not isinstance(train, (list, tuple)) or not train or
             not isinstance(validation, (list, tuple)) or not validation):
         raise ValueError("Disjoint train and validation splits required")
-    if set(p for p, _ in train) & set(p for p, _ in validation):
+    if set(p.casefold().strip() for p, _ in train) & set(p.casefold().strip() for p, _ in validation):
         raise ValueError("Train/validation prompt leakage")
     if (type(total_steps) is not int or not 1 <= total_steps <= 1000000 or
             type(checkpoint_every) is not int or not 1 <= checkpoint_every <= 10000):
@@ -32,6 +32,7 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
             raise ValueError("Invalid checkpoint size")
         state = torch.load(path, map_location="cpu", weights_only=True)
         if (state.get("schema") != "yorika-language-longrun-v1" or
+                state.get('validation_sha256', digest(validation)) != digest(validation) or
                 state.get("train_sha256") != fingerprint or state.get("config") !=
                 [width, heads, layers, context, max_merges, seed]):
             raise ValueError("Checkpoint incompatible with current experiment")
@@ -46,6 +47,9 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
     count = sum(p.numel() for p in model.parameters())
     opt = torch.optim.AdamW(model.parameters(), lr=0.0003)
     start = 0
+    best_nll = float('inf')
+    best_step = 0
+    best_path = path.with_name(path.name + '.best.pt')
     if state:
         if state.get("vocab_size") != vocab:
             raise ValueError("Vocab mismatch")
@@ -53,6 +57,12 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
         opt.load_state_dict(state["optimizer"])
         torch.set_rng_state(state["rng"])
         start = state["step"]
+        best_nll = float(state.get('best_validation_nll', float('inf')))
+        best_step = state.get('best_step', 0)
+        if best_step and (not best_path.exists() or best_step > start):
+            raise ValueError('Best checkpoint missing or inconsistent')
+        if best_nll != best_nll or best_nll == float('-inf'):
+            raise ValueError('Invalid best score')
         if type(start) is not int or start < 0 or start > total_steps:
             raise ValueError("Invalid checkpoint step")
     def loss(pair):
@@ -82,20 +92,34 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
         opt.step()
         if (i + 1) % checkpoint_every == 0 or i + 1 == total_steps:
             final_score = evaluate()
+            improved = final_score < best_nll
+            if improved:
+                best_nll, best_step = final_score, i + 1
             payload = {"schema": "yorika-language-longrun-v1", "weights": model.state_dict(),
                        "optimizer": opt.state_dict(), "rng": torch.get_rng_state(),
                        "step": i + 1, "tokenizer": tokenizer, "vocab_size": vocab,
-                       "train_sha256": fingerprint,
+                       "train_sha256": fingerprint, "validation_sha256": digest(validation),
+                       "best_validation_nll": best_nll, "best_step": best_step,
                        "config": [width, heads, layers, context, max_merges, seed]}
             temp = path.with_name(path.name + ".incomplete")
             if temp.exists():
                 temp.unlink()
             try:
                 torch.save(payload, temp)
+                if improved:
+                    best_temp = best_path.with_name(best_path.name + '.incomplete')
+                    try:
+                        torch.save(payload, best_temp)
+                        best_temp.replace(best_path)
+                    finally:
+                        if best_temp.exists():
+                            best_temp.unlink()
                 temp.replace(path)
             finally:
                 if temp.exists():
                     temp.unlink()
     return {"steps": total_steps, "parameters": count, "validation_nll": final_score,
             "train_sha256": fingerprint, "tokenizer_sha256": tokenizer["sha256"],
-            "checkpoint": str(path), "resumed_from": start}
+            "checkpoint": str(path), "best_checkpoint": str(best_path),
+            "best_validation_nll": best_nll, "best_step": best_step,
+            "resumed_from": start}

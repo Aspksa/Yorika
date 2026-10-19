@@ -1,3 +1,4 @@
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -18,7 +19,7 @@ class RestoreCopyTests(unittest.TestCase):
                 report = create_verified_backup(db.path, root / "source.sqlite3")
             result = restore_copy(root / "source.sqlite3", root / "restored.sqlite3", report["sha256"])
             self.assertEqual(result["counts"]["records"], 1)
-            with sqlite3.connect(root / "restored.sqlite3") as db:
+            with closing(sqlite3.connect(root / "restored.sqlite3")) as db, db:
                 row = db.execute("SELECT payload FROM records").fetchone()
                 self.assertIn("Ёрика", row[0])
             with Store(root / "live") as db:

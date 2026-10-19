@@ -485,7 +485,7 @@ class Store:
         namespace = bundle["namespace"]
         if not isinstance(namespace, str) or not namespace or len(namespace) > 256:
             raise ValueError("Invalid export namespace")
-        if any(ord(c) < 32 for c in namespace):
+        if any(ord(c) < 32 or c == "\\" for c in namespace):
             raise ValueError("Control character in namespace")
         entries = bundle["records"]
         if not isinstance(entries, list) or len(entries) > 100000:
@@ -503,7 +503,7 @@ class Store:
             record_id, value, updated_at = item["record_id"], item["value"], item["updated_at"]
             if not isinstance(record_id, str) or not record_id or len(record_id) > 512:
                 raise ValueError("Invalid memory record ID")
-            if any(ord(c) < 32 for c in record_id):
+            if any(ord(c) < 32 or c == "\\" for c in record_id):
                 raise ValueError("Control character in memory record ID")
             if record_id in seen:
                 raise ValueError("Duplicate memory record ID")

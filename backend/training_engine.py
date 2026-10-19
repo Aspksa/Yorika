@@ -25,7 +25,7 @@ def dataset(store, *, limit=1000):
     return sorted(set(examples))
 
 
-def train(examples, output, *, steps=10, seed=42, context=64, width=64, heads=4):
+def train(examples, output, *, steps=10, seed=42, context=64, width=64, heads=4, source_checkpoint=None):
     if not examples:
         raise ValueError("No consented examples available")
     if any(type(x) is not int for x in (steps, seed, context, width, heads)):
@@ -67,6 +67,20 @@ def train(examples, output, *, steps=10, seed=42, context=64, width=64, heads=4)
             mask = torch.triu(torch.ones(length, length, dtype=torch.bool, device=tokens.device), diagonal=1)
             return self.output(self.encoder(hidden, mask=mask))
     model = TinyTransformer()
+    previous_steps = 0
+    if source_checkpoint is not None:
+        from backend.neural_inference import validate_checkpoint
+        previous = Path(source_checkpoint)
+        if not previous.is_file() or previous.stat().st_size > 100 * 1024 * 1024:
+            raise ValueError("Missing or oversized source checkpoint")
+        if previous.resolve() == Path(output).resolve():
+            raise ValueError("Source checkpoint must not be overwritten")
+        saved = torch.load(previous, map_location="cpu", weights_only=True)
+        old_config, old_vocab = validate_checkpoint(saved)
+        if old_vocab != vocab or old_config != {"width": width, "heads": heads, "context": context, "seed": seed}:
+            raise ValueError("Checkpoint vocabulary or architecture mismatch")
+        model.load_state_dict(saved["state_dict"], strict=True)
+        previous_steps = saved["steps"]
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
     losses = []
     for step in range(steps):
@@ -86,9 +100,9 @@ def train(examples, output, *, steps=10, seed=42, context=64, width=64, heads=4)
     output.parent.mkdir(parents=True, exist_ok=True)
     torch.save({"state_dict": model.state_dict(), "vocab": vocab,
                 "config": {"width": width, "heads": heads, "context": context, "seed": seed},
-                "steps": steps, "examples": len(examples)}, output)
+                "steps": previous_steps + steps, "examples": len(examples)}, output)
     return {"checkpoint": str(output), "examples": len(examples),
-            "steps": steps, "initial_loss": losses[0], "final_loss": losses[-1]}
+            "steps": previous_steps + steps, "optimizer_reinitialized": source_checkpoint is not None, "initial_loss": losses[0], "final_loss": losses[-1]}
 
 
 def main(argv=None):

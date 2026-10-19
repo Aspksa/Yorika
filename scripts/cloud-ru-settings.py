@@ -40,6 +40,30 @@ def run(action, data=None, *, test_call=None):
             raise ValueError("Missing reply ID")
         with Store() as store:
             return remove_reply(store, data.get("id"))
+    if action == "models":
+        credential = read_credentials()
+        if credential is None:
+            raise ValueError("Cloud.ru key not configured")
+        import urllib.request
+        import urllib.error
+        request = urllib.request.Request(
+            "https://foundation-models.api.cloud.ru/v1/models",
+            headers={"Authorization": "Bearer " + credential["key"]})
+        try:
+            with urllib.request.urlopen(request, timeout=12) as response:
+                raw = response.read(256 * 1024 + 1)
+        except (urllib.error.URLError, TimeoutError):
+            raise RuntimeError("Cloud.ru catalog unavailable") from None
+        if len(raw) > 256 * 1024:
+            raise ValueError("Cloud.ru catalog too large")
+        payload = json.loads(raw.decode("utf-8"))
+        if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+            raise ValueError("Invalid Cloud.ru model catalog")
+        from backend.cloud_ru_vault import MODEL_PATTERN
+        ids = sorted({m["id"] for m in payload["data"]
+                      if isinstance(m, dict) and isinstance(m.get("id"), str)
+                      and MODEL_PATTERN.fullmatch(m["id"])})[:200]
+        return {"models": ids, "selected": credential["model"]}
     if action == "status":
         return public_status()
     if action == "save":

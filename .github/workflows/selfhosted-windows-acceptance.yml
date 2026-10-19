@@ -30,16 +30,14 @@ jobs:
         with:
           persist-credentials: false
           clean: true
-      - name: Verify local toolchain
+      - name: Check changed files
         run: |
-          python --version
-          if ($LASTEXITCODE -ne 0) { throw 'Python is required on the runner' }
-          node --version
-          if ($LASTEXITCODE -ne 0) { throw 'Node.js is required on the runner' }
-      - name: Python and SQLite acceptance
+          & './ПРОВЕРКА_YORIKA/check-changes.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Changed-file check failed' }
+      - name: Portable Python and SQLite acceptance
         run: |
-          python scripts/run-acceptance.py --report yorika-acceptance.json
-          if ($LASTEXITCODE -ne 0) { throw 'Python and SQLite acceptance failed' }
+          & './ПРОВЕРКА_YORIKA/test-yorika.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Acceptance failed' }
       - name: PowerShell syntax validation
         run: |
           & ./scripts/check-powershell.ps1
@@ -50,10 +48,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'JavaScript syntax failed' }
       - name: DPAPI and updater tests
         run: |
-          python -m unittest discover -s tests -p 'test_windows_dpapi.py' -v
+          & './ПРОВЕРКА_YORIKA/python312-runtime/python.exe' -m unittest discover -s tests -p 'test_windows_dpapi.py' -v
           if ($LASTEXITCODE -ne 0) { throw 'DPAPI tests failed' }
           & ./scripts/test-updater.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Updater tests failed' }
+      - name: Copy acceptance report
+        if: always()
+        run: |
+          $f = Join-Path $env:LOCALAPPDATA 'YorikaTestReports/yorika-portable-acceptance.json'
+          if (Test-Path $f) { Copy-Item $f 'yorika-acceptance.json' -Force }
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4

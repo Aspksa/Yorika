@@ -8,6 +8,13 @@ $work=Join-Path $root '.yorika'
 [IO.Directory]::CreateDirectory($work)|Out-Null
 $log=Join-Path $work 'yorika.log'
 $ready=Join-Path $work 'ready.url'
+# .NET Framework used by Windows PowerShell 5.1 does not expose
+# ProcessStartInfo.StandardInputEncoding. Write explicit UTF-8 bytes instead.
+function Write-ChildUtf8($process, [string]$value){
+ $data=[Text.Encoding]::UTF8.GetBytes($value)
+ $process.StandardInput.BaseStream.Write($data,0,$data.Length)
+ $process.StandardInput.BaseStream.Flush()
+}
 function Log($msg){try{[IO.File]::AppendAllText($log,("["+(Get-Date -Format o)+"] "+$msg+"`r`n"),[Text.Encoding]::UTF8)}catch{}}
 $key=[BitConverter]::ToString(([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($root.ToLowerInvariant()))),0,12).Replace('-','')
 $mutex=[Threading.Mutex]::new($false,('Local\Yorika-'+$key))
@@ -95,11 +102,10 @@ try{
        $psi.RedirectStandardInput=$true
        $psi.RedirectStandardOutput=$true
        $psi.RedirectStandardError=$true
-       $psi.StandardInputEncoding=[Text.Encoding]::UTF8
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
        $proc=[Diagnostics.Process]::Start($psi)
        try{
-        if($method -eq 'POST'){$proc.StandardInput.Write($body)}
+        if($method -eq 'POST'){Write-ChildUtf8 $proc $body}
         $proc.StandardInput.Close()
         $output=$proc.StandardOutput.ReadToEnd()
         $errorOutput=$proc.StandardError.ReadToEnd()
@@ -144,7 +150,6 @@ try{
        $psi.Arguments=('"' + (Join-Path $root 'scripts\cloud-ru-settings.py') + '" ' + $action)
        $psi.UseShellExecute=$false;$psi.CreateNoWindow=$true
        $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
-       $psi.StandardInputEncoding=[Text.Encoding]::UTF8
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
        $proc=[Diagnostics.Process]::Start($psi)
        try{
@@ -193,11 +198,10 @@ try{
        $psi.Arguments=('"' + (Join-Path $root 'scripts\cloud-ru-stream.py') + '"')
        $psi.UseShellExecute=$false;$psi.CreateNoWindow=$true
        $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
-       $psi.StandardInputEncoding=[Text.Encoding]::UTF8
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
        $proc=[Diagnostics.Process]::Start($psi)
        try{
-        $proc.StandardInput.Write($builder.ToString());$proc.StandardInput.Close()
+        Write-ChildUtf8 $proc ($builder.ToString());$proc.StandardInput.Close()
         $stderrTask=$proc.StandardError.ReadToEndAsync()
         $head="HTTP/1.1 200 OK"+"`r`n"+"Content-Type: application/x-ndjson; charset=utf-8"+"`r`n"+"Transfer-Encoding: chunked"+"`r`n"+"Connection: close"+"`r`n"+"Cache-Control: no-store"+"`r`n"+"X-Content-Type-Options: nosniff"+"`r`n`r`n"
         $headBytes=[Text.Encoding]::ASCII.GetBytes($head)
@@ -251,7 +255,6 @@ try{
        $psi.UseShellExecute=$false
        $psi.CreateNoWindow=$true
        $psi.RedirectStandardInput=$true;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
-       $psi.StandardInputEncoding=[Text.Encoding]::UTF8
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
        $proc=[Diagnostics.Process]::Start($psi)
        try{
@@ -297,11 +300,10 @@ try{
        $psi.RedirectStandardInput=$true
        $psi.RedirectStandardOutput=$true
        $psi.RedirectStandardError=$true
-       $psi.StandardInputEncoding=[Text.Encoding]::UTF8
        $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
        $proc=[Diagnostics.Process]::Start($psi)
        try{
-        $proc.StandardInput.Write($text)
+        Write-ChildUtf8 $proc $text
         $proc.StandardInput.Close()
         $output=$proc.StandardOutput.ReadToEnd()
         $errorOutput=$proc.StandardError.ReadToEnd()

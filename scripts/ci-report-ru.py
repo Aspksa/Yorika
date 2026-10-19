@@ -30,6 +30,8 @@ def build_report(report_path, *, extra=None):
             if status not in LABELS:
                 raise ValueError("Неизвестный статус: " + str(status))
             rows.append((NAMES.get(name, name), status))
+        if obj.get("passed") is not True:
+            rows.append(("Общий итог приёмочных тестов", "failed"))
         platform = str(obj.get("platform", "не указана"))
         date = str(obj.get("executed_at_utc", "не указана"))
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):

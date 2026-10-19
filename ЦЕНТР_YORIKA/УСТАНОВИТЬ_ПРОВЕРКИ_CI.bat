@@ -47,6 +47,14 @@ if errorlevel 1 (
  pause
  exit /b 1
 )
+where zizmor >nul 2>nul
+if errorlevel 1 (
+ echo [ACTION] zizmor is installed but not visible in this CMD PATH yet.
+ echo [ACTION] Close CMD and open a new window before running checks.
+) else (
+ zizmor --version
+ if errorlevel 1 echo [WARNING] Could not verify zizmor version.
+)
 echo.
 echo [ACTION] Open a NEW CMD window and run PROVERIT_GITHUB_CI.bat in this folder.
 pause

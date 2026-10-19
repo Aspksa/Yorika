@@ -29,8 +29,14 @@ STALE_SECONDS = 90
 STARTING_GRACE = 180
 PILOT_SECONDS = 300
 DEFAULT_CONFIG = {"width": 320, "heads": 8, "layers": 4, "context": 256,
-                  "max_merges": 128, "seed": 42, "checkpoint_every": 100}
-RUN_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-(pilot|long)\Z")
+                  "max_merges": 128, "seed": 42, "checkpoint_every": 100,
+                  # 16 examples per step and half precision on the GPU: same model, many times more examples per hour.
+                  "batch_size": 16, "accumulate": 1, "precision": "auto"}
+RUN_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-(pilot|long|pretrain)\Z")
+TEXT_NAME = re.compile(r"^[^\\/:*?\"<>|]{1,120}\.txt\Z")
+TEXT_LICENSES = ("public-domain", "user-consent")
+MAX_TEXT_BYTES = 50_000_000
+MIN_TEXT_CHUNKS = 20
 DATA_NAME = re.compile(r"^[^\\/:*?\"<>|]{1,120}\.json\Z")
 
 ERRORS = {
@@ -243,6 +249,92 @@ def check_data(name):
             "long_ready": blocker is None, "long_blocker": blocker}
 
 
+# ---- open texts for pretraining ---------------------------------------------
+
+def _texts_dir():
+    return folder() / "data" / "тексты"
+
+
+def _approvals():
+    return _read(folder() / "texts.json", {}) or {}
+
+
+def texts():
+    directory = _texts_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    approvals, items = _approvals(), []
+    for path in sorted(directory.glob("*.txt"))[:200]:
+        if not path.is_file():
+            continue
+        approval = approvals.get(path.name) or {}
+        # An edited file loses its approval: the owner checked a different text.
+        approved = bool(approval) and approval.get("size") == path.stat().st_size and approval.get("sha256") == _sha256(path)
+        items.append({"name": path.name, "bytes": path.stat().st_size, "approved": approved,
+                      "license": approval.get("license") if approved else None})
+    return {"folder": str(directory), "files": items}
+
+
+def approve_text(name, license, approved=True):
+    if not isinstance(name, str) or not TEXT_NAME.match(name):
+        raise ValueError("Выберите .txt файл из папки текстов")
+    path = _texts_dir() / name
+    if not path.is_file():
+        raise ValueError("Файл не найден в папке текстов")
+    approvals = _approvals()
+    if approved:
+        if license not in TEXT_LICENSES:
+            raise ValueError("Укажите права: общественное достояние или ваш собственный текст")
+        approvals[name] = {"license": license, "sha256": _sha256(path), "size": path.stat().st_size,
+                           "rights_reviewed_by": "владелец Yorika", "approved": _now()}
+    else:
+        approvals.pop(name, None)
+    _write(folder() / "texts.json", approvals)
+    return texts()
+
+
+def _chunks(text, size=1000):
+    out, current = [], ""
+    for paragraph in re.split(r"\n\s*\n", text):
+        paragraph = " ".join(paragraph.split())
+        while len(paragraph) > size:
+            out.append(paragraph[:size])
+            paragraph = paragraph[size:]
+        if current and len(current) + len(paragraph) + 1 > size:
+            out.append(current)
+            current = ""
+        current = (current + "\n" + paragraph).strip() if paragraph else current
+    if current:
+        out.append(current)
+    return out
+
+
+def pretrain_corpus():
+    """Approved texts cut into chunks; every 10th chunk (by content hash) is validation, another the exam."""
+    listing = [f for f in texts()["files"] if f["approved"]]
+    if not listing:
+        raise ValueError("Отметьте хотя бы один текст: права проверены")
+    if sum(f["bytes"] for f in listing) > MAX_TEXT_BYTES:
+        raise ValueError("Тексты вместе больше 50 МБ")
+    train, validation, test, manifest = [], [], [], []
+    for item in listing:
+        path = _texts_dir() / item["name"]
+        try:
+            text = path.read_text(encoding="utf-8-sig")
+        except UnicodeDecodeError:
+            raise ValueError("Файл %s не в кодировке UTF-8" % item["name"])
+        manifest.append({"name": item["name"], "sha256": _sha256(path), "license": item["license"]})
+        for chunk in _chunks(text):
+            if len(chunk) < 40:
+                continue
+            bucket = int(hashlib.sha256(chunk.encode("utf-8")).hexdigest()[:8], 16) % 10
+            (validation if bucket == 0 else test if bucket == 1 else train).append(chunk)
+    if len(train) < MIN_TEXT_CHUNKS or not validation or not test:
+        raise ValueError("Текстов мало: нужно хотя бы около 100 КБ")
+    return {"train": train, "validation": validation, "test": test,
+            "manifest": {"schema": "yorika-pretrain-texts-v1", "texts": manifest,
+                         "train": len(train), "validation": len(validation), "test": len(test)}}
+
+
 # ---- runs -----------------------------------------------------------------
 
 def _run_dir(run_id):
@@ -278,8 +370,12 @@ def _summary(path):
             "best_step": progress.get("best_step"), "gpu_name": progress.get("gpu_name"),
             "peak_vram": progress.get("peak_vram"), "speed": progress.get("speed"),
             "parameters": progress.get("parameters"), "error": progress.get("error"),
+            "examples_speed": progress.get("examples_speed"), "exam_nll": progress.get("exam_nll"),
+            "exam_count": progress.get("exam_count"), "base": run.get("base"),
+            "batch_size": (run.get("config") or {}).get("batch_size", 1),
+            "precision": (run.get("config") or {}).get("precision", "fp32"),
             "history": progress.get("history", []), "has_best": best.is_file(),
-            "resumable": progress.get("state") in ("paused", "interrupted") and run.get("mode") == "long"}
+            "resumable": progress.get("state") in ("paused", "interrupted") and run.get("mode") in ("long", "pretrain")}
 
 
 def runs():
@@ -298,22 +394,30 @@ def _active_job():
     return None
 
 
-def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, config=None, launch=True):
-    if mode not in ("pilot", "long"):
+def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, config=None, launch=True, base=None):
+    if mode not in ("pilot", "long", "pretrain"):
         raise ValueError("Неизвестный режим")
     if device not in ("cpu", "cuda"):
         raise ValueError("Выберите видеокарту или процессор")
     if _active_job():
         raise ValueError("Обучение уже идёт")
+    if mode != "pilot" and (type(total_steps) is not int or not 100 <= total_steps <= 1000000 or
+                            type(hours) not in (int, float) or not 0.1 <= hours <= 72):
+        raise ValueError("Шагов от 100 до 1 000 000, времени от 0,1 до 72 часов")
+    if base is not None:
+        if mode != "long":
+            raise ValueError("Основу из предобучения можно взять только для долгого обучения")
+        base_item = _summary(_run_dir(base))
+        if base_item["mode"] != "pretrain" or not base_item["has_best"]:
+            raise ValueError("Основой может быть только предобучение с сохранённой лучшей точкой")
     if mode == "pilot":
         records, dataset, total_steps, limit = pilot_records(), None, 1000000, PILOT_SECONDS
+    elif mode == "pretrain":
+        records, dataset, limit = None, None, int(hours * 3600)
     else:
         records = _load_records(dataset)
-        if (type(total_steps) is not int or not 100 <= total_steps <= 1000000 or
-                type(hours) not in (int, float) or not 0.1 <= hours <= 72):
-            raise ValueError("Шагов от 100 до 1 000 000, времени от 0,1 до 72 часов")
         limit = int(hours * 3600)
-    data = _prepare(records)
+    data = pretrain_corpus() if mode == "pretrain" else _prepare(records)
     if mode == "long":
         blocker = long_gate(records)
         if blocker:
@@ -328,7 +432,7 @@ def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, c
     _write(path / "run.json", {"schema": "yorika-training-run-v1", "id": run_id, "mode": mode,
                                "dataset": dataset, "manifest": data["manifest"], "device": device,
                                "config": dict(config or DEFAULT_CONFIG), "total_steps": total_steps,
-                               "time_limit": limit, "created": _now()})
+                               "time_limit": limit, "created": _now(), "base": base})
     _write(path / "progress.json", {"state": "starting", "t": time.time(), "steps": 0, "history": []})
     if launch:
         _spawn([sys.executable, str(CLI), "worker", run_id], path / "worker.log")
@@ -367,6 +471,19 @@ def stop_all():
     return {"stopped": stopped}
 
 
+def _exam(path, data, lm, save):
+    """Scores the best checkpoint on the test split no training step has seen."""
+    best = path / "language-longrun.pt.best.pt"
+    if not best.is_file():
+        return
+    from backend.neural_language_longrun import score_checkpoint
+    try:
+        score, count = score_checkpoint(best, data["test"], objective="lm" if lm else "dialogue")
+    except ValueError:
+        return
+    save(exam_nll=round(score, 4), exam_count=count)
+
+
 def _heartbeat(path, stop):
     while not stop.wait(5):
         try:
@@ -393,23 +510,38 @@ def worker(run_id):
     try:
         import torch
         from backend.neural_language_longrun import run
-        records = pilot_records() if run_info["mode"] == "pilot" else _load_records(run_info["dataset"])
-        data = _prepare(records)
+        lm = run_info["mode"] == "pretrain"
+        if lm:
+            data = pretrain_corpus()
+        else:
+            records = pilot_records() if run_info["mode"] == "pilot" else _load_records(run_info["dataset"])
+            data = _prepare(records)
         if data["manifest"] != run_info["manifest"]:
-            raise ValueError("Файл данных изменился после запуска; начните новое обучение")
+            raise ValueError("Данные изменились после запуска; начните новое обучение")
         device = run_info["device"]
         if device == "cuda" and not torch.cuda.is_available():
             raise ValueError("Видеокарта недоступна для PyTorch; переход на процессор не делается сам")
         gpu = torch.cuda.get_device_name(0) if device == "cuda" else None
         cfg = run_info["config"]
+        precision = cfg.get("precision", "fp32")
+        if precision == "auto":
+            # Resolved once and saved, so every resumed chunk uses the same precision.
+            precision = ("bf16" if torch.cuda.is_bf16_supported() else "fp16") if device == "cuda" else "fp32"
+            cfg["precision"] = precision
+            _write(path / "run.json", run_info)
+        init_from = None
+        if run_info.get("base"):
+            init_from = _run_dir(run_info["base"]) / "language-longrun.pt.best.pt"
         save(state="running", gpu_name=gpu, error=None)
         while True:
             request = (_read(path / "control.json", {}) or {}).get("request")
             if request in ("pause", "stop"):
                 (path / "control.json").unlink(missing_ok=True)
-                save(state="paused" if request == "pause" and run_info["mode"] == "long" else "stopped")
+                _exam(path, data, lm, save)
+                save(state="paused" if request == "pause" and run_info["mode"] != "pilot" else "stopped")
                 return 0
             if progress.get("steps", 0) >= run_info["total_steps"] or elapsed >= run_info["time_limit"]:
+                _exam(path, data, lm, save)
                 save(state="finished")
                 return 0
             chunk = max(1.0, min(CHUNK_SECONDS, run_info["time_limit"] - elapsed))
@@ -418,7 +550,9 @@ def worker(run_id):
                          total_steps=run_info["total_steps"], checkpoint_every=cfg["checkpoint_every"],
                          width=cfg["width"], heads=cfg["heads"], layers=cfg["layers"],
                          context=cfg["context"], max_merges=cfg["max_merges"], seed=cfg["seed"],
-                         max_run_seconds=chunk, device=device)
+                         max_run_seconds=chunk, device=device, batch_size=cfg.get("batch_size", 1),
+                         accumulate=cfg.get("accumulate", 1), precision=precision,
+                         objective="lm" if lm else "dialogue", init_from=init_from)
             elapsed += time.monotonic() - began
             if status["steps"] <= status["resumed_from"] and status["steps"] < run_info["total_steps"]:
                 raise RuntimeError("Обучение не продвигается")
@@ -428,6 +562,7 @@ def worker(run_id):
             peak = status.get("peak_cuda_allocated_bytes")
             save(steps=status["steps"], best_nll=status["best_validation_nll"], best_step=status["best_step"],
                  speed=round(status["steps_per_second"], 2), parameters=status["parameters"],
+                 examples_speed=round(status["examples_per_second"], 1),
                  peak_vram=max(peak or 0, progress.get("peak_vram") or 0) or None)
     except Exception as error:  # the page must see why the worker ended
         message = str(error) if re.search("[а-яА-Я]", str(error)) else "Обучение остановилось с ошибкой: %s" % type(error).__name__
@@ -468,6 +603,8 @@ def _point_to(relative, meta):
 def activate(run_id):
     path = _run_dir(run_id)
     item = _summary(path)
+    if item["mode"] == "pretrain":
+        raise ValueError("Предобучение знает язык, но не умеет отвечать: возьмите его основой для долгого обучения")
     if item["mode"] != "long":
         raise ValueError("Пробная версия обучена на тестовых данных и не может стать активной")
     if item["state"] in ("starting", "running"):
@@ -551,4 +688,4 @@ def status():
     return {"folder": str(where), "onedrive": "onedrive" in str(where).lower(),
             "data_folder": str(where / "data"), "torch": torch_state(),
             "probe": _read(_system() / "probe.json"), "data": data_files(), "runs": runs(),
-            "active": active(), "min_long_records": MIN_LONG_RECORDS}
+            "active": active(), "min_long_records": MIN_LONG_RECORDS, "texts": texts()}

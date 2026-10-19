@@ -18,6 +18,8 @@ NOT_AN_ANSWER = re.compile(r"^(?:Cloud\.ru:|Python 3 не найден|Ошиб�
 MAX_TEXT = 2000
 MAX_ITEMS = 100000
 RATINGS = (None, "up", "down")
+SOURCES = {"yorika-chat": "user-consent", "teacher": "synthetic", "selfplay": "synthetic"}
+MAX_SCORED = 400
 
 
 def _store_path():
@@ -113,17 +115,75 @@ def counts(store=None):
     down = sum(1 for i in items if i["rating"] == "down" and not i.get("correction"))
     return {"total": len(items), "up": up, "fixed": fixed, "down": down,
             "unrated": sum(1 for i in items if i["rating"] is None), "ready": up + fixed,
-            "needed": tc.MIN_LONG_RECORDS}
+            "needed": tc.MIN_LONG_RECORDS,
+            "teacher": sum(1 for i in items if i.get("source") in ("teacher", "selfplay")),
+            "verdicts": sum(1 for i in items if i["rating"] is None and i.get("teacher"))}
+
+
+def _scoring_checkpoint():
+    """The model whose doubt orders the queue: the active version, else the newest trained one."""
+    current = tc.active()
+    if current and current.get("checkpoint"):
+        path = tc.folder() / current["checkpoint"]
+        if path.is_file():
+            return path
+    for item in tc.runs():
+        best = tc.folder() / "runs" / item["id"] / "language-longrun.pt.best.pt"
+        if item["has_best"] and item["mode"] in ("long", "pilot") and best.is_file():
+            return best
+    return None
+
+
+def uncertainty(items):
+    """Per-answer loss under the current model: higher means Yorika is less sure of this answer."""
+    checkpoint = _scoring_checkpoint()
+    if checkpoint is None:
+        raise ValueError("Сначала обучите хотя бы одну версию: умному порядку нужна модель")
+    stamp = "%s:%d" % (checkpoint.name, int(checkpoint.stat().st_mtime))
+    cache = tc._read(tc.folder() / "uncertainty.json", {}) or {}
+    scores = cache.get("scores", {}) if cache.get("checkpoint") == stamp else {}
+    missing = [i for i in items if i["id"] not in scores][:MAX_SCORED]
+    if missing:
+        import torch
+        from torch.nn import functional as F
+        from backend.neural_bpe_v1 import encode
+        from backend.neural_language_benchmark import load_candidate
+        model, state = load_candidate(checkpoint)
+        tokenizer, context = state["tokenizer"], state["config"][3]
+        with torch.inference_mode():
+            for item in missing:
+                prefix = [1, 3] + encode(item["prompt"], tokenizer) + [4]
+                ids = prefix + encode(item["answer"], tokenizer) + [2]
+                if len(ids) > context + 1:
+                    scores[item["id"]] = None
+                    continue
+                y = torch.tensor([ids[1:]])
+                y[:, :len(prefix) - 1] = -100
+                logits = model(torch.tensor([ids[:-1]]))
+                scores[item["id"]] = round(float(F.cross_entropy(logits.reshape(-1, logits.shape[-1]),
+                                                                 y.reshape(-1), ignore_index=-100)), 4)
+        tc._write(tc.folder() / "uncertainty.json", {"checkpoint": stamp, "scores": scores})
+    return scores
 
 
 def list_items(view="unrated", offset=0, limit=20):
-    if view not in ("unrated", "up", "down", "all"):
+    if view not in ("unrated", "uncertain", "teacher", "up", "down", "all"):
         raise ValueError("Неизвестный фильтр")
     if type(offset) is not int or type(limit) is not int or offset < 0 or not 1 <= limit <= 50:
         raise ValueError("Неверная страница")
     items = list(reversed(_load()["items"]))
-    if view != "all":
-        items = [i for i in items if i["rating"] == (None if view == "unrated" else view)]
+    if view in ("unrated", "uncertain"):
+        items = [i for i in items if i["rating"] is None]
+    elif view == "teacher":
+        items = [i for i in items if i["rating"] is None and i.get("teacher")]
+    elif view != "all":
+        items = [i for i in items if i["rating"] == view]
+    if view == "uncertain":
+        scores = uncertainty(items)
+        for item in items:
+            item["doubt"] = scores.get(item["id"])
+        scored = [i for i in items if i["doubt"] is not None]
+        items = sorted(scored, key=lambda i: -i["doubt"]) + [i for i in items if i["doubt"] is None]
     return {"items": items[offset:offset + limit], "matching": len(items), "counts": counts()}
 
 
@@ -166,9 +226,11 @@ def export():
         if not answer or key in seen:
             continue
         seen.add(key)
-        records.append({"prompt": item["prompt"], "answer": answer, "source": "yorika-chat",
-                        "license": "user-consent", "consent": True,
-                        "rights_reviewed_by": "владелец Yorika", "quality_reviewed": True})
+        source = item.get("source", "yorika-chat")
+        records.append({"prompt": item["prompt"], "answer": answer, "source": source,
+                        "license": SOURCES.get(source, "user-consent"), "consent": True,
+                        "rights_reviewed_by": "владелец Yorika", "quality_reviewed": True,
+                        "teacher_reviewed": bool(item.get("confirmed_teacher"))})
     if len(records) < 10:
         raise ValueError("Нужно хотя бы 10 оценённых примеров (👍 или исправленных)")
     name = "опыт-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + ".json"

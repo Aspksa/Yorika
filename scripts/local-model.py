@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from backend.storage import Store
+from backend.neural_router import route_answer
 
 MAX_QUERY = 4000
 MODEL_NAME = os.environ.get("YORIKA_LOCAL_MODEL", "").strip()
@@ -86,7 +87,13 @@ def answer(query: str, directory=None, model: str | None = None, opener=None) ->
 
 def main():
     raw = sys.stdin.read(MAX_QUERY + 1)
-    print(json.dumps(answer(raw), ensure_ascii=False))
+    enabled = os.environ.get("YORIKA_EXPERIMENTAL_NEURAL", "") == "1"
+    checkpoint = os.environ.get("YORIKA_EXPERIMENTAL_CHECKPOINT", "")
+    if enabled and not checkpoint:
+        raise RuntimeError("Experimental checkpoint is not configured")
+    result = route_answer(raw, experimental=enabled, checkpoint=checkpoint or None,
+                          fallback=answer)
+    print(json.dumps(result, ensure_ascii=False))
 
 
 if __name__ == "__main__":

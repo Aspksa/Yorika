@@ -11,21 +11,31 @@
  <a class="back-link" href="./index.html"><span aria-hidden="true">←</span> Yorika</a>
 </header>
 <main class="page" aria-labelledby="page-title">
- <div class="page-intro">
-  <h1 id="page-title">Обучение</h1>
-  <p>Собственная нейросеть Yorika учится на вашем компьютере. Ваши данные никуда не отправляются, а новая версия становится активной только по вашему выбору.</p>
+ <div class="hero">
+  <span class="hero-badge" data-icon="cap" aria-hidden="true"></span>
+  <div class="page-intro">
+   <h1 id="page-title">Обучение</h1>
+   <p>Собственная нейросеть Yorika учится на вашем компьютере. Ваши данные никуда не отправляются, а новая версия становится активной только по вашему выбору.</p>
+  </div>
  </div>
  <p id="page-error" class="banner banner-err" role="alert" hidden></p>
+ <nav class="summary" aria-label="Коротко о состоянии">
+  <a class="sum" href="#train" data-go="train"><span class="sum-ic" data-icon="gpu" aria-hidden="true"></span><span><small>Видеокарта</small><strong id="sum-gpu">не проверялась</strong></span></a>
+  <a class="sum" href="#train" data-go="train"><span class="sum-ic" data-icon="zap" aria-hidden="true"></span><span><small>Обучение</small><strong id="sum-job">не идёт</strong></span></a>
+  <a class="sum" href="#train" data-go="train"><span class="sum-ic" data-icon="layers" aria-hidden="true"></span><span><small>Активная версия</small><strong id="sum-active">Cloud.ru</strong></span></a>
+  <a class="sum" href="#self" data-go="self"><span class="sum-ic" data-icon="loop" aria-hidden="true"></span><span><small>Опыт для обучения</small><strong id="sum-exp">0 из 10 000</strong></span></a>
+ </nav>
  <div class="tabs" role="tablist" aria-label="Разделы обучения">
-  <button class="tab" role="tab" id="tab-train" aria-controls="pane-train" aria-selected="true" data-tab="train"><span class="tab-num">01–05</span>Обучение</button>
-  <button class="tab" role="tab" id="tab-self" aria-controls="pane-self" aria-selected="false" data-tab="self" tabindex="-1"><span class="tab-num">1 · 2 · 6</span>Самообучение</button>
-  <button class="tab" role="tab" id="tab-grow" aria-controls="pane-grow" aria-selected="false" data-tab="grow" tabindex="-1"><span class="tab-num">07–19</span>Развитие</button>
+  <button class="tab" role="tab" id="tab-train" aria-controls="pane-train" aria-selected="true" data-tab="train"><span class="tab-ic" data-icon="cap" aria-hidden="true"></span><span class="tab-text">Обучение<span class="tab-num">01–05</span></span></button>
+  <button class="tab" role="tab" id="tab-self" aria-controls="pane-self" aria-selected="false" data-tab="self" tabindex="-1"><span class="tab-ic" data-icon="loop" aria-hidden="true"></span><span class="tab-text">Самообучение<span class="tab-num">1 · 2 · 6</span></span></button>
+  <button class="tab" role="tab" id="tab-grow" aria-controls="pane-grow" aria-selected="false" data-tab="grow" tabindex="-1"><span class="tab-ic" data-icon="rocket" aria-hidden="true"></span><span class="tab-text">Развитие<span class="tab-num">сила · 07–19</span></span></button>
+  <button class="tab" role="tab" id="tab-future" aria-controls="pane-future" aria-selected="false" data-tab="future" tabindex="-1"><span class="tab-ic" data-icon="sparkles" aria-hidden="true"></span><span class="tab-text">Будущее<span class="tab-num">5 · 15 · 50 лет</span></span></button>
  </div>
 
  <div class="pane" role="tabpanel" id="pane-train" aria-labelledby="tab-train">
 
  <section class="panel" aria-labelledby="gpu-title">
-  <header class="panel-head"><span class="panel-index">01</span><h2 id="gpu-title">Видеокарта</h2></header>
+  <header class="panel-head"><span class="panel-index">01</span><h2 id="gpu-title">Видеокарта</h2><span class="head-ic" data-icon="gpu" aria-hidden="true"></span></header>
   <dl class="facts">
    <div><dt>PyTorch</dt><dd id="torch-state">—</dd></div>
    <div><dt>Видеокарта</dt><dd id="gpu-name">не проверялась</dd></div>
@@ -37,7 +47,7 @@
  </section>
 
  <section class="panel" aria-labelledby="data-title">
-  <header class="panel-head"><span class="panel-index">02</span><h2 id="data-title">Данные</h2></header>
+  <header class="panel-head"><span class="panel-index">02</span><h2 id="data-title">Данные</h2><span class="head-ic" data-icon="database" aria-hidden="true"></span></header>
   <p class="support-text">Положите JSON-файл с диалогами в папку данных: <code id="data-folder">—</code></p>
   <label class="token-label" for="data-file">Файл</label>
   <select id="data-file" class="field"><option value="">Файлов пока нет</option></select>
@@ -54,7 +64,7 @@
  </section>
 
  <section class="panel" aria-labelledby="train-title">
-  <header class="panel-head"><span class="panel-index">03</span><h2 id="train-title">Обучение</h2></header>
+  <header class="panel-head"><span class="panel-index">03</span><h2 id="train-title">Обучение</h2><span class="head-ic" data-icon="zap" aria-hidden="true"></span></header>
   <div class="train-form">
    <fieldset class="choice-group"><legend>Режим</legend>
     <div class="segmented">
@@ -101,14 +111,14 @@
  </section>
 
  <section class="panel" aria-labelledby="versions-title">
-  <header class="panel-head"><span class="panel-index">04</span><h2 id="versions-title">Версии модели</h2></header>
+  <header class="panel-head"><span class="panel-index">04</span><h2 id="versions-title">Версии модели</h2><span class="head-ic" data-icon="layers" aria-hidden="true"></span></header>
   <p id="active-line" class="support-text">Активной версии нет: в чате отвечает Cloud.ru.</p>
   <ul id="versions" class="versions-list"><li class="empty">Обучений ещё не было.</li></ul>
   <div class="button-row"><button class="ghost" id="rollback" hidden>Вернуть прошлую версию</button></div>
  </section>
 
  <section class="panel" aria-labelledby="quality-title">
-  <header class="panel-head"><span class="panel-index">05</span><h2 id="quality-title">Проверка качества</h2></header>
+  <header class="panel-head"><span class="panel-index">05</span><h2 id="quality-title">Проверка качества</h2><span class="head-ic" data-icon="scale" aria-hidden="true"></span></header>
   <p class="support-text">Задайте одинаковые вопросы двум версиям и сравните ответы сами.</p>
   <div class="pair">
    <div><label class="token-label" for="cmp-a">Версия 1</label><select id="cmp-a" class="field"></select></div>
@@ -130,7 +140,7 @@
   </div>
 
   <section class="panel" aria-labelledby="exp-title">
-   <header class="panel-head"><span class="panel-index">1</span><h2 id="exp-title">Сбор опыта</h2></header>
+   <header class="panel-head"><span class="panel-index">1</span><h2 id="exp-title">Сбор опыта</h2><span class="head-ic" data-icon="chat" aria-hidden="true"></span></header>
    <label class="switch"><input type="checkbox" id="collect-toggle"><span class="switch-track" aria-hidden="true"></span><span class="switch-text"><strong>Собирать примеры из чата</strong><small>Пары «ваш вопрос → ответ Yorika». Почта, пароли, ключи и ошибки отбрасываются. Без вашей оценки в обучение ничего не попадает.</small></span></label>
    <dl class="facts facts-4">
     <div><dt>Собрано</dt><dd id="exp-total">0</dd></div>
@@ -145,7 +155,7 @@
   </section>
 
   <section class="panel" aria-labelledby="rate-title">
-   <header class="panel-head"><span class="panel-index">2</span><h2 id="rate-title">Оценка ответов</h2></header>
+   <header class="panel-head"><span class="panel-index">2</span><h2 id="rate-title">Оценка ответов</h2><span class="head-ic" data-icon="thumb" aria-hidden="true"></span></header>
    <p class="support-text">👍 — ответ хороший, учиться на нём. 👎 — плохой: напишите, как надо было ответить, и Yorika будет учиться на вашем варианте.</p>
    <div class="segmented filter" role="radiogroup" aria-label="Какие примеры показать">
     <label><input type="radio" name="view" value="unrated" checked><span>Без оценки</span></label>
@@ -158,7 +168,7 @@
   </section>
 
   <section class="panel" aria-labelledby="decide-title">
-   <header class="panel-head"><span class="panel-index">6</span><h2 id="decide-title">Решение о новой версии</h2></header>
+   <header class="panel-head"><span class="panel-index">6</span><h2 id="decide-title">Решение о новой версии</h2><span class="head-ic" data-icon="check" aria-hidden="true"></span></header>
    <div id="proposal-empty" class="empty-state">Новых версий пока нет. Когда долгое обучение закончится, здесь появится предложение, а сама версия не включится.</div>
    <div id="proposal" class="proposal" hidden>
     <p class="proposal-title">Есть новая версия. Включить её?</p>
@@ -174,9 +184,36 @@
  </div>
 
  <div class="pane" role="tabpanel" id="pane-grow" aria-labelledby="tab-grow" hidden>
+  <section class="power" aria-labelledby="power-title">
+   <div class="power-intro">
+    <div>
+     <span class="eyebrow">Следующий большой шаг</span>
+     <h2 id="power-title">Мощное самообучение</h2>
+     <p class="support-text">Семь шагов, которые превращают Yorika в модель, которая учится каждую ночь. Учитель — большая модель на Cloud.ru, ученик — своя маленькая нейросеть Yorika. Решение о новой версии всегда за вами.</p>
+     <ol class="order"><li><b>3</b> ускорение</li><li><b>1</b> учитель</li><li><b>7</b> ночной цикл</li></ol>
+    </div>
+    <figure class="cycle-figure"><svg id="night-cycle" viewBox="0 0 320 320" role="img" aria-label="Ночной цикл: опыт, учитель, дообучение, экзамен, ваше решение"></svg></figure>
+   </div>
+   <div id="power-cards" class="power-grid"></div>
+  </section>
+  <h2 class="section-title">Ступени развития <span>07–19</span></h2>
   <p class="support-text grow-intro">Следующие ступени развития. Статус честный: что уже работает, что в планах, а что пока исследование. Каждая ступень измеряется и включается только вами.</p>
   <div class="legend"><span class="chip chip-ok">Работает частично</span><span class="chip">В планах</span><span class="chip chip-research">Исследование</span></div>
   <div id="grow-cards" class="grow"></div>
+ </div>
+
+ <div class="pane" role="tabpanel" id="pane-future" aria-labelledby="tab-future" hidden>
+  <section class="future" aria-labelledby="future-title">
+   <span class="eyebrow">Горизонт на 50 лет</span>
+   <h2 id="future-title">Куда может вырасти Yorika</h2>
+   <p class="support-text grow-intro">Это не план на неделю, а направление. Чем дальше по шкале, тем больше там открытых научных вопросов, которые сегодня никто в мире не умеет решать. Но путь к ним начинается с того, что уже есть на вкладках слева.</p>
+   <div class="legend"><span class="chip chip-ok">Уже есть</span><span class="chip">В планах</span><span class="chip chip-research">Исследование</span><span class="chip chip-dream">Открытый вопрос науки</span></div>
+   <ol id="timeline" class="timeline"></ol>
+  </section>
+  <section class="guard" aria-labelledby="guard-title">
+   <h2 id="guard-title" class="section-title"><span class="title-ic" data-icon="shield" aria-hidden="true"></span>Что держит всё это безопасным</h2>
+   <div id="guard-cards" class="guard-grid"></div>
+  </section>
  </div>
 </main>
 </body></html>

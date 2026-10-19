@@ -44,7 +44,8 @@ def campaign(records_path, output_dir, *, total_steps=100000, session_seconds=36
     checkpoint = out / "language-longrun.pt"
     summary = {"schema": "yorika-campaign-v1", "device": device,
                "gpu_name": torch.cuda.get_device_name(0) if device == "cuda" else None,
-               "corpus": data["manifest"], "target_steps": total_steps}
+               "corpus": data["manifest"], "target_steps": total_steps,
+               "architecture": [width, heads, layers, context, max_merges, checkpoint_every, seed]}
     manifest = out / "campaign-manifest.json"
     if manifest.exists():
         if json.loads(manifest.read_text(encoding="utf-8")) != summary:
@@ -53,7 +54,14 @@ def campaign(records_path, output_dir, *, total_steps=100000, session_seconds=36
         with manifest.open("x", encoding="utf-8") as stream:
             json.dump(summary, stream, ensure_ascii=False, sort_keys=True, indent=2)
     sessions = []
-    for index in range(max_sessions):
+    existing = sorted(out.glob("session-*.json"))
+    if existing:
+        for receipt_path in existing:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            if receipt.get("schema") != "yorika-campaign-session-v1" or receipt.get("device") != device:
+                raise ValueError("Invalid prior session receipt")
+    next_index = max((int(p.name.split("-")[1]) for p in existing), default=-1) + 1
+    for index in range(next_index, next_index + max_sessions):
         # Preexisting checkpoint is validated by the trainer before any updates.
         elapsed_start = time.monotonic()
         status = run(data["train"], data["validation"], checkpoint,

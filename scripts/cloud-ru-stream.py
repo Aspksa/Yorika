@@ -22,7 +22,8 @@ def read_request(source):
     if not isinstance(data, dict):
         raise ValueError("Invalid request")
     query = data.get("query")
-    if not isinstance(query, str) or not query.strip() or len(query) > 3000:
+    if (not isinstance(query, str) or not query.strip() or
+            len(query) > 3000 or len(query.encode("utf-8")) > 2048):
         raise ValueError("Invalid query")
     conversation_id = data.get("conversation_id")
     if conversation_id is not None and (

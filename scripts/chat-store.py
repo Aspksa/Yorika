@@ -115,6 +115,12 @@ def run(action, payload=None, directory=None):
 
 
 def main():
+    # Browser bridge sends JSON as UTF-8 on every supported OS, including
+    # Windows consoles whose default stdin/stdout code page is not UTF-8.
+    if hasattr(sys.stdin, "reconfigure"):
+        sys.stdin.reconfigure(encoding="utf-8", errors="strict")
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="strict")
     action = sys.argv[1] if len(sys.argv) == 2 else ""
     payload = json.load(sys.stdin) if action in ("put", "clear") else None
     print(json.dumps(run(action, payload), ensure_ascii=False))

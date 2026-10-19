@@ -26,9 +26,28 @@ try{
   [IO.File]::WriteAllText((Join-Path $source $name),'new version',[Text.Encoding]::UTF8)
  }
  SeedOld
+ Add-Type -AssemblyName System.IO.Compression
  Add-Type -AssemblyName System.IO.Compression.FileSystem
  $zipPath=Join-Path $staging ($sha+'.zip')
- [IO.Compression.ZipFile]::CreateFromDirectory($fixture,$zipPath)
+ $zip=[IO.Compression.ZipFile]::Open($zipPath,[IO.Compression.ZipArchiveMode]::Create)
+ try {
+  foreach($name in @('Yorika.bat','www\\index.html','scripts\\start.ps1','scripts\\yorika-tray.ps1')){
+   $relative='yorika-release/'+$name.Replace([char]92,'/')
+   $entry=$zip.CreateEntry($relative)
+   $target=$entry.Open()
+   try {
+    $inputFile=[IO.File]::OpenRead((Join-Path $source $name))
+    try { $inputFile.CopyTo($target) } finally { $inputFile.Dispose() }
+   } finally { $target.Dispose() }
+  }
+ }finally{$zip.Dispose()}
+ $inspect=[IO.Compression.ZipFile]::OpenRead($zipPath)
+ try {
+  $names=@($inspect.Entries | ForEach-Object { $_.FullName })
+  if($names -notcontains 'yorika-release/Yorika.bat'){
+   throw ('Invalid test ZIP entries: '+($names -join ', '))
+  }
+ }finally{$inspect.Dispose()}
  $hash=(Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
  [IO.File]::WriteAllText((Join-Path $staging ($sha+'.json')),(@{sha=$sha;hash=$hash}|ConvertTo-Json -Compress))
  & $installer -Root $root -Sha $sha -ServerPid 0 -TestOnly
@@ -52,3 +71,4 @@ finally{
   if(Test-Path -LiteralPath $path){Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction SilentlyContinue}
  }
 }
+exit 0

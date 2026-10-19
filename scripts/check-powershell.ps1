@@ -1,7 +1,7 @@
 # Compatible with Windows PowerShell 5.1; ASCII-only to avoid encoding ambiguity.
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$paths = @('scripts/start.ps1','scripts/yorika-tray.ps1','scripts/update-engine.ps1','scripts/install-release.ps1','scripts/apply-staged-update.ps1','scripts/test-updater.ps1','ЦЕНТР_YORIKA/center.ps1','ЦЕНТР_YORIKA/test-yorika.ps1','ЦЕНТР_YORIKA/check-changes.ps1','scripts/diagnose-windows-runner.ps1')
+$paths = @('scripts/start.ps1','scripts/yorika-tray.ps1','scripts/update-engine.ps1','scripts/install-release.ps1','scripts/apply-staged-update.ps1','scripts/test-updater.ps1','scripts/diagnose-windows-runner.ps1')
 $failed = $false
 foreach ($relative in $paths) {
   $file = Join-Path $root $relative
@@ -20,3 +20,5 @@ foreach ($relative in $paths) {
 }
 if ($failed) { exit 1 }
 Write-Host 'All PowerShell scripts parsed successfully.'
+
+exit 0

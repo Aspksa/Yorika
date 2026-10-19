@@ -145,12 +145,20 @@ def learn_reply(store, query, response):
     db = store.connection
     if db.in_transaction:
         raise RuntimeError("Persona growth requires a separate transaction")
+    # The sidecar index must survive a rejected duplicate: rolling its first
+    # creation back would otherwise repeat a full backfill on every attempt.
+    db.execute("BEGIN IMMEDIATE")
+    try:
+        _ensure_index(db)
+        db.commit()
+    except BaseException:
+        db.rollback()
+        raise
     db.execute("BEGIN IMMEDIATE")
     try:
         if not settings(store)["enabled"]:
             db.rollback()
             return False
-        _ensure_index(db)
         words = _words(text)
         if not words:
             db.rollback()

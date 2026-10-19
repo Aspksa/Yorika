@@ -45,6 +45,17 @@ class Store:
             raise
 
     def _migrate(self) -> None:
+        # Serialize first-run migrations across processes: inspect schema only
+        # after obtaining a write lock, otherwise two new Store instances race.
+        self.connection.execute("BEGIN IMMEDIATE")
+        try:
+            self._migrate_locked()
+            self.connection.commit()
+        except BaseException:
+            self.connection.rollback()
+            raise
+
+    def _migrate_locked(self) -> None:
         current = int(self.connection.execute("PRAGMA user_version").fetchone()[0])
         if current > SCHEMA_VERSION:
             raise RuntimeError("Database was created by a newer Yorika; refusing downgrade")
@@ -142,7 +153,7 @@ class Store:
             raise ValueError("query must be non-empty")
         if type(limit) is not int or not 1 <= limit <= 100:
             raise ValueError("limit must be 1..100")
-        words = re.findall(r"[^\\W_]+", query.casefold(), flags=re.UNICODE)
+        words = re.findall(r"[^\W_]+", query.casefold(), flags=re.UNICODE)
         if not words:
             return []
         if len(words) > 20 or any(len(word) > 100 for word in words):
@@ -485,7 +496,7 @@ class Store:
         namespace = bundle["namespace"]
         if not isinstance(namespace, str) or not namespace or len(namespace) > 256:
             raise ValueError("Invalid export namespace")
-        if any(ord(c) < 32 for c in namespace):
+        if any(ord(c) < 32 or c == "\\" for c in namespace):
             raise ValueError("Control character in namespace")
         entries = bundle["records"]
         if not isinstance(entries, list) or len(entries) > 100000:
@@ -503,7 +514,7 @@ class Store:
             record_id, value, updated_at = item["record_id"], item["value"], item["updated_at"]
             if not isinstance(record_id, str) or not record_id or len(record_id) > 512:
                 raise ValueError("Invalid memory record ID")
-            if any(ord(c) < 32 for c in record_id):
+            if any(ord(c) < 32 or c == "\\" for c in record_id):
                 raise ValueError("Control character in memory record ID")
             if record_id in seen:
                 raise ValueError("Duplicate memory record ID")

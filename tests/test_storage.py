@@ -1,3 +1,4 @@
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -401,7 +402,7 @@ class StorageTests(unittest.TestCase):
                 db.put("settings", "profile", {"tone": "gentle"})
                 backup_path = db.backup(root / "snapshot.sqlite3")
                 self.assertTrue(backup_path.exists())
-            with sqlite3.connect(root / "snapshot.sqlite3") as restored:
+            with closing(sqlite3.connect(root / "snapshot.sqlite3")) as restored, restored:
                 self.assertEqual(restored.execute("PRAGMA integrity_check").fetchone()[0], "ok")
                 self.assertEqual(restored.execute("SELECT count(*) FROM events").fetchone()[0], 1)
                 self.assertEqual(restored.execute("SELECT count(*) FROM records").fetchone()[0], 1)
@@ -437,12 +438,12 @@ class StorageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             file = root / "yorika.sqlite3"
-            with sqlite3.connect(file) as db:
+            with closing(sqlite3.connect(file)) as db, db:
                 db.execute("CREATE TABLE private_notes (message TEXT)")
                 db.execute("INSERT INTO private_notes VALUES (?)", ("Не удалять",))
             with self.assertRaisesRegex(RuntimeError, "Unversioned database"):
                 Store(root)
-            with sqlite3.connect(file) as db:
+            with closing(sqlite3.connect(file)) as db, db:
                 self.assertEqual(db.execute("SELECT message FROM private_notes").fetchone()[0], "Не удалять")
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 0)
                 self.assertNotIn("records", {r[0] for r in db.execute("SELECT name FROM sqlite_master")})
@@ -451,26 +452,26 @@ class StorageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             db_path = root / "yorika.sqlite3"
-            with sqlite3.connect(db_path) as db:
+            with closing(sqlite3.connect(db_path)) as db, db:
                 db.execute("CREATE TABLE records (namespace TEXT, record_id TEXT)")
                 db.execute("CREATE TABLE events (event_id INTEGER)")
                 db.execute("PRAGMA user_version=1")
             with self.assertRaisesRegex(RuntimeError, "schema mismatch"):
                 Store(root)
-            with sqlite3.connect(db_path) as db:
+            with closing(sqlite3.connect(db_path)) as db, db:
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 1)
                 self.assertEqual(len(db.execute("PRAGMA table_info(records)").fetchall()), 2)
 
     def test_reject_existing_schema_with_wrong_constraints(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            with sqlite3.connect(root / "yorika.sqlite3") as db:
+            with closing(sqlite3.connect(root / "yorika.sqlite3")) as db, db:
                 db.execute("CREATE TABLE records (namespace TEXT, record_id TEXT, payload TEXT, updated_at TEXT)")
                 db.execute("CREATE TABLE events (event_id INTEGER PRIMARY KEY, event_type TEXT NOT NULL, payload TEXT NOT NULL, recorded_at TEXT NOT NULL)")
                 db.execute("PRAGMA user_version=1")
             with self.assertRaisesRegex(RuntimeError, "schema mismatch: records"):
                 Store(root)
-            with sqlite3.connect(root / "yorika.sqlite3") as db:
+            with closing(sqlite3.connect(root / "yorika.sqlite3")) as db, db:
                 self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 1)
 
     def test_reject_corrupt_existing_database(self):
@@ -487,12 +488,12 @@ class StorageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             path = root / "yorika.sqlite3"
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 db.execute("CREATE TABLE alien (value TEXT)")
                 self.assertEqual(db.execute("PRAGMA journal_mode").fetchone()[0], "delete")
             with self.assertRaisesRegex(RuntimeError, "Unversioned database"):
                 Store(root)
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 self.assertEqual(db.execute("PRAGMA journal_mode").fetchone()[0], "delete")
 
     def test_reject_future_schema(self):
@@ -500,7 +501,7 @@ class StorageTests(unittest.TestCase):
             root = Path(temp)
             with Store(root):
                 pass
-            with sqlite3.connect(root / "yorika.sqlite3") as db:
+            with closing(sqlite3.connect(root / "yorika.sqlite3")) as db, db:
                 db.execute("PRAGMA user_version=999")
             with self.assertRaisesRegex(RuntimeError, "newer"):
                 Store(root)

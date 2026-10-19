@@ -28,7 +28,13 @@ try{
  SeedOld
  Add-Type -AssemblyName System.IO.Compression.FileSystem
  $zipPath=Join-Path $staging ($sha+'.zip')
- [IO.Compression.ZipFile]::CreateFromDirectory($fixture,$zipPath)
+ $zip=[IO.Compression.ZipFile]::Open($zipPath,[IO.Compression.ZipArchiveMode]::Create)
+ try {
+  foreach($file in @(Get-ChildItem -LiteralPath $fixture -File -Recurse)){
+   $relative=$file.FullName.Substring($fixture.Length+1).Replace([IO.Path]::DirectorySeparatorChar,'/')
+   [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$file.FullName,$relative)
+  }
+ }finally{$zip.Dispose()}
  $hash=(Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
  [IO.File]::WriteAllText((Join-Path $staging ($sha+'.json')),(@{sha=$sha;hash=$hash}|ConvertTo-Json -Compress))
  & $installer -Root $root -Sha $sha -ServerPid 0 -TestOnly

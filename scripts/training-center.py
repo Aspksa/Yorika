@@ -99,11 +99,12 @@ def handle(action, body):
         return {"results": blind.results()}
     if action == "brain-status":
         from backend import brain, continual, curiosity
-        from backend import autopilot, plans, programs, simworld
+        from backend import autopilot, plans, programs, simworld, summary
         return {"engine": brain.engine(), "continual": continual.status(), "wishes": curiosity.wishes(),
                 "frontier": curiosity.logic_frontier(), "curiosity": curiosity.last(), "plans": plans.status(),
                 "sim": dict(simworld.totals(), job=tc._read(tc.folder() / "sim-job.json")),
-                "skills": programs.describe(), "autopilot": autopilot.status(), "evolution": _evolution()}
+                "skills": programs.describe(), "autopilot": autopilot.status(), "evolution": _evolution(),
+                "summary": summary.build()}
     if action == "plan-start":
         from backend import plans
         return plans.start(body.get("kind"), copies=body.get("copies"), branches=body.get("branches", 3),

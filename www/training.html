@@ -214,6 +214,20 @@
    </div>
    <ul class="ap-parts" id="ap-parts"></ul>
    <p class="ap-note">Тратить токены Cloud.ru и включать версии без вас автопилот сам не начинает: это решаете вы.</p>
+   <div class="ap-summary" aria-labelledby="sum-title">
+    <h3 id="sum-title">Что пробовали и что помогло</h3>
+    <div class="sm-grid">
+     <figure class="sm-chart"><figcaption>Рост: экзамен активных версий</figcaption><div id="ch-growth" class="sm-box"></div><div class="sm-legend" id="lg-growth"></div></figure>
+     <figure class="sm-chart"><figcaption>Что помогло за неделю</figcaption><div id="ch-tried" class="sm-box tried"></div><div class="sm-legend" id="lg-tried"></div></figure>
+     <figure class="sm-chart"><figcaption>Фронт Парето: размер и экзамен</figcaption><div id="ch-pareto" class="sm-box"></div><div class="sm-legend" id="lg-pareto"></div></figure>
+     <figure class="sm-chart"><figcaption>Карта мозга: что даёт каждая часть</figcaption><div id="ch-brain" class="sm-box"></div><div class="sm-legend" id="lg-brain"></div></figure>
+    </div>
+    <p class="ap-note">Всё нарисовано по замерам экзамена. Помогло — значит, версия не хуже активной или вошла в архив.</p>
+   </div>
+   <div class="ap-manual">
+    <button class="secondary small" id="manual-toggle" aria-expanded="false" aria-controls="pane-brain">Вручную</button>
+    <small id="manual-note">Пока автопилот включён, кнопки ручных занятий свёрнуты. За вами всегда: сделать версию активной, вымирание, траты Cloud.ru и «Стоп всё».</small>
+   </div>
   </section>
 
   <section class="card brain-top" aria-labelledby="engine-title">
@@ -277,7 +291,7 @@
    <ul class="advice" id="map-advice"></ul>
   </section>
 
-  <section class="powers" aria-labelledby="powers-title">
+  <section class="powers manual" aria-labelledby="powers-title">
    <h2 id="powers-title" class="section-title">То, чего не умеет мозг человека</h2>
    <div class="power-grid">
     <article class="power" data-plan="swarm">
@@ -330,13 +344,13 @@
    </section>
   </div>
 
-  <section class="card curious" aria-labelledby="cur-title">
+  <section class="card curious manual" aria-labelledby="cur-title">
    <header class="card-head"><span class="card-ic" data-icon="bulb" aria-hidden="true"></span><div><h2 id="cur-title">Чего ей хочется выучить</h2><p>Список составлен по её экзаменам, а не придуман.</p></div><button class="secondary small head-btn" id="cur-now">Позаниматься сейчас</button></header>
    <ol id="wishes" class="wishes"></ol>
    <p class="hint" id="cur-last"></p>
   </section>
 
-  <section class="card" aria-labelledby="think-title">
+  <section class="card manual" aria-labelledby="think-title">
    <header class="card-head"><span class="card-ic" data-icon="sparkles" aria-hidden="true"></span><div><h2 id="think-title">Спросить и посмотреть, как она думает</h2><p>Несколько черновиков, проверка, лучший ответ.</p></div></header>
    <div class="form-grid two">
     <div><label class="token-label" for="think-run">Версия</label><select id="think-run" class="field"></select></div>

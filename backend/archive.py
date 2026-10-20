@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 SIZES = [(2_000_000, "до 2 млн"), (8_000_000, "2–8 млн"), (20_000_000, "8–20 млн"), (40_000_000, "20–40 млн"),
          (None, "от 40 млн")]
-FAMILIES = ["классика", "новое", "петли", "эксперты", "память", "всё сразу"]
+FAMILIES = ["классика", "новое", "петли", "эксперты", "память", "без внимания", "дендриты", "всё сразу"]
 TOURNAMENT = 30
 
 
@@ -56,7 +56,9 @@ def family_of(arch):
     if not arch.get("lab"):
         return "классика"
     features = [name for name, on in (("петли", arch.get("loops", 1) > 1), ("эксперты", bool(arch.get("experts"))),
-                                      ("память", bool(arch.get("memory")))) if on]
+                                      ("память", bool(arch.get("memory") or arch.get("hopfield") or arch.get("fast"))),
+                                      ("без внимания", arch.get("mixer", "attn") != "attn"),
+                                      ("дендриты", bool(arch.get("dendrites")))) if on]
     if len(features) >= 2:
         return "всё сразу"
     return features[0] if features else "новое"

@@ -43,11 +43,11 @@ def handle(action, body):
         hours = body.get("hours", 8)
         return tc.start(body.get("mode"), dataset=body.get("dataset"), device=body.get("device", "cuda"),
                         total_steps=body.get("steps", 100000), hours=hours, base=body.get("base"),
-                        size=body.get("size", "s"), arch=body.get("arch"))
+                        size=body.get("size", "s"), arch=body.get("arch"), ff=body.get("ff", False))
     if action == "series":
         return tc.start_series(body.get("dataset"), body.get("sizes"), device=body.get("device", "cuda"),
                                total_steps=body.get("steps", 100000), hours_each=body.get("hours", 2.0),
-                               arch=body.get("arch"))
+                               arch=body.get("arch"), ff=body.get("ff", False))
     if action == "control":
         return tc.control(body.get("id"), body.get("action"))
     if action == "activate":

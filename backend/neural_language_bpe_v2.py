@@ -8,24 +8,35 @@ from pathlib import Path
 from backend.neural_bpe_v1 import SPECIAL, OFFSET, train as train_bpe, encode as encode_bpe, decode as decode_bpe, validate as validate_bpe
 
 
-ARCH_KEYS = ("lab", "loops", "experts", "memory")
+ARCH_KEYS = ("lab", "loops", "experts", "memory", "mixer", "dendrites", "hopfield", "fast")
+ARCH_DEFAULTS = {"loops": 1, "experts": 0, "memory": 0, "mixer": "attn", "dendrites": 0, "hopfield": 0, "fast": False}
+ARCH_VALUES = {"loops": (1, 2, 3, 4), "experts": (0, 2, 4, 6, 8), "memory": (0, 64, 128, 256, 512, 1024),
+               "mixer": ("attn", "ssm", "liquid", "hybrid"), "dendrites": (0, 4, 8),
+               "hopfield": (0, 64, 128, 256, 512), "fast": (False, True)}
 
 
 def check_arch(arch):
     """Optional brain features; an empty dict is the original architecture, bit for bit.
 
-    "lab" alone is the newer pre-norm network (it can grow); loops, experts and memory imply it.
+    "lab" alone is the newer pre-norm network (it can grow); every other option implies it.
+    mixer: what mixes the tokens in each block: attention, a state-space scan ("ssm"), liquid
+    time constants ("liquid") or state-space and attention in turn ("hybrid"). dendrites and
+    experts both replace the feed-forward layer, so only one of them at a time.
     """
     arch = dict(arch or {})
     if set(arch) - set(ARCH_KEYS):
         raise ValueError("Unknown architecture option")
-    loops, experts, memory = arch.get("loops", 1), arch.get("experts", 0), arch.get("memory", 0)
-    if (type(loops) is not int or not 1 <= loops <= 4 or type(experts) is not int or experts not in (0, 2, 4, 6, 8)
-            or type(memory) is not int or memory not in (0, 64, 128, 256, 512, 1024)
-            or arch.get("lab", True) is not True):
+    if arch.get("lab", True) is not True:
         raise ValueError("Invalid architecture options")
-    out = {k: v for k, v in (("loops", loops), ("experts", experts), ("memory", memory))
-           if v != {"loops": 1, "experts": 0, "memory": 0}[k]}
+    out = {}
+    for key, default in ARCH_DEFAULTS.items():
+        value = arch.get(key, default)
+        if type(value) is not type(default) or value not in ARCH_VALUES[key]:
+            raise ValueError("Invalid architecture options")
+        if value != default:
+            out[key] = value
+    if out.get("experts") and out.get("dendrites"):
+        raise ValueError("Experts and dendrites both replace the feed-forward layer: choose one")
     return dict(lab=True, **out) if out or arch.get("lab") else {}
 
 
@@ -62,7 +73,7 @@ def make_model(torch, *, vocab_size, width=64, heads=4, context=128, layers=2, a
 
 
 def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
-    """Pre-norm blocks with three optional brain features.
+    """Pre-norm blocks with optional brain features (newer ones in backend/brain_blocks.py).
 
     loops: the block stack runs several times (shared weights); training samples 1..loops passes,
     so the same model can answer fast or think longer. experts: each block's feed-forward is a
@@ -72,7 +83,11 @@ def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
     the brain grow deeper without losing what it learned (backend/growth.py).
     """
     from torch.nn import functional as F
+    from backend import brain_blocks
     loops, experts, slots = arch.get("loops", 1), arch.get("experts", 0), arch.get("memory", 0)
+    mixer, dendrites, hopfield, fast = (arch.get("mixer", "attn"), arch.get("dendrites", 0),
+                                        arch.get("hopfield", 0), arch.get("fast", False))
+    parts = brain_blocks.build(torch, nn, F, width, heads)
 
     class Experts(nn.Module):
         def __init__(self):
@@ -101,13 +116,19 @@ def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
             return out
 
     class Block(nn.Module):
-        def __init__(self):
+        def __init__(self, k):
             super().__init__()
             self.norm1, self.norm2 = nn.LayerNorm(width), nn.LayerNorm(width)
-            self.attn = nn.MultiheadAttention(width, heads, batch_first=True, bias=False)
-            nn.init.zeros_(self.attn.out_proj.weight)
+            kind = {"hybrid": "ssm" if k % 2 == 0 else "attn"}.get(mixer, mixer)
+            if kind == "attn":
+                self.attn = nn.MultiheadAttention(width, heads, batch_first=True, bias=False)
+                nn.init.zeros_(self.attn.out_proj.weight)
+            else:
+                self.mix = parts["Scan"](liquid=kind == "liquid")
             if experts:
                 self.ffn = Experts()
+            elif dendrites:
+                self.ffn = parts["Dendrites"](dendrites)
             else:
                 self.ffn = nn.Sequential(nn.Linear(width, width * 4), nn.GELU(), nn.Linear(width * 4, width))
                 nn.init.zeros_(self.ffn[2].weight)
@@ -115,7 +136,10 @@ def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
 
         def forward(self, x, mask):
             h = self.norm1(x)
-            x = x + self.attn(h, h, h, attn_mask=mask, need_weights=False)[0]
+            if hasattr(self, "attn"):
+                x = x + self.attn(h, h, h, attn_mask=mask, need_weights=False)[0]
+            else:
+                x = x + self.mix(h)
             return x + self.ffn(self.norm2(x))
 
     class Memory(nn.Module):
@@ -137,17 +161,22 @@ def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
             super().__init__()
             self.embedding = nn.Embedding(vocab_size, width)
             self.position = nn.Embedding(context, width)
-            self.blocks = nn.ModuleList(Block() for _ in range(layers))
+            self.blocks = nn.ModuleList(Block(k) for k in range(layers))
             if loops > 1:
                 self.loop = nn.Embedding(loops, width)
                 nn.init.zeros_(self.loop.weight)
             if slots:
                 self.memory = Memory()
+            if hopfield:
+                self.hopfield = parts["Hopfield"](hopfield)
+            if fast:
+                self.fast = parts["Fast"]()
             self.norm = nn.LayerNorm(width)
             self.output = nn.Linear(width, vocab_size)
             self.passes = loops
-            # Introspection switches blocks off one at a time to measure what each one does.
-            self.skip = set()
+            # Introspection switches blocks (and the parts after the first block) off one at a
+            # time to measure what each one does.
+            self.skip, self.off = set(), set()
 
         def forward(self, ids, passes=None):
             length = ids.shape[1]
@@ -165,8 +194,10 @@ def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
                     if k not in self.skip:
                         x = block(x, mask)
                     # Memory is read right after the first block, so growing deeper never moves it.
-                    if slots and k == 0:
-                        x = self.memory(x)
+                    if k == 0:
+                        for name in ("memory", "hopfield", "fast"):
+                            if hasattr(self, name) and name not in self.off:
+                                x = getattr(self, name)(x)
             self.aux_loss = sum(b.ffn.aux for b in self.blocks) / len(self.blocks) if experts else None
             return self.output(self.norm(x))
 

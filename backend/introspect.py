@@ -9,6 +9,7 @@ of these numbers, nothing more.
 USELESS = 0.002    # under 0.2 % worse without the block: it barely contributes
 CROWDED = 0.03     # every block costs more than 3 % when removed: there is no slack, grow
 SAMPLE = 48
+PARTS = (("memory", "память внутри сети"), ("hopfield", "память Хопфилда"), ("fast", "быстрые веса"))
 
 
 def _loss(model, state, examples):
@@ -77,7 +78,15 @@ def inspect(loaded, examples):
             finally:
                 model.skip = set()
         blocks.append(entry)
-    report = {"loss": round(base, 4), "blocks": blocks, "experts": None, "memory": None,
+    parts = []
+    for name, label in PARTS:
+        if hasattr(model, name) and hasattr(model, "off"):
+            model.off = {name}
+            try:
+                parts.append({"name": name, "label": label, "contribution": round(_loss(model, state, examples) / base - 1, 4)})
+            finally:
+                model.off = set()
+    report = {"loss": round(base, 4), "blocks": blocks, "experts": None, "memory": None, "parts": parts,
               "dead": _dead_neurons(model, state, examples), "arch": state.get("arch") or {}}
     traced = []
     for block in getattr(model, "blocks", []):
@@ -137,6 +146,9 @@ def advice(report):
     if report["memory"] and report["memory"]["used"] < report["memory"]["slots"] // 4:
         out.append({"kind": "memory", "text": "Из %d ячеек памяти заметно используются %d: памяти больше, чем нужно сейчас." % (
             report["memory"]["slots"], report["memory"]["used"])})
+    idle = [p["label"] for p in report.get("parts") or [] if p["contribution"] < USELESS]
+    if idle:
+        out.append({"kind": "parts", "text": "Почти ничего не даёт: %s (без неё экзамен хуже меньше чем на 0,2%%)." % ", ".join(idle)})
     dead = [k + 1 for k, v in report["dead"].items() if v > 0.5]
     if dead:
         out.append({"kind": "dead", "text": "В слое %s больше половины нейронов ни разу не включились." % ", ".join(map(str, dead))})

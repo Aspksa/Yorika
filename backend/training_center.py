@@ -385,6 +385,7 @@ def _summary(path):
             "precision": (run.get("config") or {}).get("precision", "fp32"),
             "size": (run.get("config") or {}).get("size", "s"), "series": run.get("series"),
             "exam_per_char": progress.get("exam_per_char"), "old_exams": progress.get("old_exams", []),
+            "forward_forward": progress.get("forward_forward"),
             # The page needs the score; the answers stay in progress.json for whoever wants to read them.
             "honesty": {k: v for k, v in (progress.get("honesty") or {}).items() if k != "answers"} or None,
             "logic": progress.get("logic"), "kind": run.get("kind"), "verdict": progress.get("verdict"),
@@ -413,7 +414,10 @@ def _active_job():
     return None
 
 
-def config_for(size, arch=None):
+FF_STEPS = 200
+
+
+def config_for(size, arch=None, ff=False):
     from backend.neural_language_bpe_v2 import check_arch
     if size not in SIZES:
         raise ValueError("Размер модели: s, m или l")
@@ -421,11 +425,16 @@ def config_for(size, arch=None):
         arch = check_arch(dict({"lab": True}, **(arch or {})))
     except ValueError:
         raise ValueError("Неверные настройки устройства мозга") from None
-    return dict(DEFAULT_CONFIG, **SIZES[size], size=size, arch=arch)
+    if type(ff) is not bool:
+        raise ValueError("Неверные настройки устройства мозга")
+    config = dict(DEFAULT_CONFIG, **SIZES[size], size=size, arch=arch)
+    if ff:
+        config["rule"] = {"ff": FF_STEPS}  # Forward-Forward warm-up of the newborn
+    return config
 
 
 def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, config=None, launch=True, base=None,
-          size="s", series=None, arch=None, kind=None, init=None, grow=None, records=None, scheduled=False):
+          size="s", series=None, arch=None, kind=None, init=None, grow=None, records=None, scheduled=False, ff=False):
     """init: a checkpoint (relative to the folder) whose weights and tokenizer the run continues;
     grow: {"from": run id, "layers": n} grows that version deeper first; records: a prepared
     dataset for internal runs (quick learning, sleep), which skip the 10 000 gate."""
@@ -433,7 +442,7 @@ def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, c
         raise ValueError("Неизвестный режим")
     if kind is not None and kind not in KINDS:
         raise ValueError("Неизвестный вид обучения")
-    config = dict(config) if config else config_for(size, arch)
+    config = dict(config) if config else config_for(size, arch, ff)
     config.setdefault("size", size)
     if grow is not None:
         source = _summary(_run_dir(grow.get("from")))
@@ -564,14 +573,14 @@ def control(run_id, action):
 
 
 def start_series(dataset, sizes=None, *, device="cuda", total_steps=100000, hours_each=2.0, launch=True,
-                 configs=None, kind=None, arch=None):
+                 configs=None, kind=None, arch=None, ff=False):
     """Sandbox: the same data, several model sizes (or evolution variants) one after another,
     compared on the same exam."""
     if configs is None:
         if (not isinstance(sizes, list) or not 2 <= len(sizes) <= 3 or len(set(sizes)) != len(sizes) or
                 any(size not in SIZES for size in sizes)):
             raise ValueError("Выберите от двух до трёх разных размеров")
-        configs = [config_for(size, arch) for size in sizes]
+        configs = [config_for(size, arch, ff) for size in sizes]
     series_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     first = start("long", dataset=dataset, device=device, total_steps=total_steps, hours=hours_each,
                   config=configs[0], series=series_id, launch=launch, kind=kind)
@@ -619,14 +628,24 @@ def _describe(config):
         parts.append("%d экспертов" % arch["experts"])
     if arch.get("memory"):
         parts.append("память %d" % arch["memory"])
+    for key, value in (("mixer", MIXER_NAMES.get(arch.get("mixer"))), ("dendrites", arch.get("dendrites") and "дендриты ×%d" % arch["dendrites"]),
+                       ("hopfield", arch.get("hopfield") and "Хопфилд %d" % arch["hopfield"]), ("fast", arch.get("fast") and "быстрые веса"),
+                       ("ff", (config.get("rule") or {}).get("ff") and "разгон Forward-Forward")):
+        if value:
+            parts.append(value)
     return ", ".join(parts)
 
 
+MIXER_NAMES = {"ssm": "Mamba вместо внимания", "liquid": "жидкие нейроны", "hybrid": "Mamba + внимание"}
+
+
 def mutate(parent, rng):
-    """One variant of a configuration: a random change of depth, width, loops, experts or memory."""
+    """One variant of a configuration: a random change of depth, width, loops, experts, memory,
+    the token mixer (attention, Mamba, liquid, both), dendrites, Hopfield memory, fast weights or
+    a Forward-Forward warm-up."""
     child = json.loads(json.dumps(parent))
     arch = dict(child.get("arch") or {"lab": True}, lab=True)
-    gene = rng.choice(["layers", "width", "loops", "experts", "memory", "merges"])
+    gene = rng.choice(["layers", "width", "loops", "experts", "memory", "merges", "mixer", "dendrites", "hopfield", "fast", "ff"])
     if gene == "layers":
         child["layers"] = max(2, min(12, child["layers"] + rng.choice([-2, 2])))
     elif gene == "width":
@@ -636,8 +655,23 @@ def mutate(parent, rng):
         arch["loops"] = rng.choice([v for v in (1, 2, 3) if v != arch.get("loops", 1)])
     elif gene == "experts":
         arch["experts"] = 0 if arch.get("experts") else rng.choice([4, 6])
+        arch.pop("dendrites", None)
     elif gene == "memory":
         arch["memory"] = 0 if arch.get("memory") else rng.choice([128, 256])
+    elif gene == "mixer":
+        arch["mixer"] = rng.choice([m for m in ("attn", "ssm", "liquid", "hybrid") if m != arch.get("mixer", "attn")])
+    elif gene == "dendrites":
+        arch["dendrites"] = 0 if arch.get("dendrites") else 4
+        arch.pop("experts", None)
+    elif gene == "hopfield":
+        arch["hopfield"] = 0 if arch.get("hopfield") else rng.choice([128, 256])
+    elif gene == "fast":
+        arch["fast"] = not arch.get("fast", False)
+    elif gene == "ff":
+        rule = dict(child.get("rule") or {})
+        if rule.pop("ff", 0) == 0:
+            rule["ff"] = FF_STEPS
+        child["rule"] = rule or None
     else:
         child["max_merges"] = rng.choice([v for v in (512, 1024, 2048) if v != child.get("max_merges")])
     from backend.neural_language_bpe_v2 import check_arch
@@ -999,6 +1033,8 @@ def worker(run_id):
                  speed=round(status["steps_per_second"], 2), parameters=status["parameters"],
                  examples_speed=round(status["examples_per_second"], 1),
                  peak_vram=max(peak or 0, progress.get("peak_vram") or 0) or None)
+            if status.get("ff_report"):
+                save(forward_forward=status["ff_report"])
     except Exception as error:  # the page must see why the worker ended
         message = str(error) if re.search("[а-яА-Я]", str(error)) else "Обучение остановилось с ошибкой: %s" % type(error).__name__
         if "out of memory" in str(error).lower():

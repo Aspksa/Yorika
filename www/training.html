@@ -97,8 +97,14 @@
      <label class="arch-card"><input type="checkbox" id="arch-loops"><span><b data-icon="loop" aria-hidden="true"></b><strong>Думает глубже</strong><small>слои проходятся до 3 раз; на трудном вопросе дольше</small></span></label>
      <label class="arch-card"><input type="checkbox" id="arch-experts"><span><b data-icon="swarm" aria-hidden="true"></b><strong>Рой экспертов</strong><small>4 эксперта, на каждое слово работают 2</small></span></label>
      <label class="arch-card"><input type="checkbox" id="arch-memory"><span><b data-icon="archive" aria-hidden="true"></b><strong>Память внутри сети</strong><small>256 ячеек, которые сеть читает сама</small></span></label>
+     <label class="arch-card"><input type="checkbox" id="arch-ssm"><span><b data-icon="stairs" aria-hidden="true"></b><strong>Mamba</strong><small>каждый второй слой без внимания: память-состояние, которая сама решает, что забыть</small></span></label>
+     <label class="arch-card"><input type="checkbox" id="arch-liquid"><span><b data-icon="comet" aria-hidden="true"></b><strong>Жидкие нейроны</strong><small>у каждого канала своя скорость, и она зависит от слова; упрощённая быстрая форма</small></span></label>
+     <label class="arch-card"><input type="checkbox" id="arch-dendrites"><span><b data-icon="seed" aria-hidden="true"></b><strong>Активные дендриты</strong><small>тема разговора включает свои группы нейронов; вместо роя экспертов</small></span></label>
+     <label class="arch-card"><input type="checkbox" id="arch-hopfield"><span><b data-icon="database" aria-hidden="true"></b><strong>Память Хопфилда</strong><small>256 образов: по части вспоминает целое</small></span></label>
+     <label class="arch-card"><input type="checkbox" id="arch-fast"><span><b data-icon="zap" aria-hidden="true"></b><strong>Быстрые веса</strong><small>пока текст в контексте, связи из него запоминаются на лету</small></span></label>
+     <label class="arch-card"><input type="checkbox" id="arch-ff"><span><b data-icon="rocket" aria-hidden="true"></b><strong>Разгон Forward-Forward</strong><small>200 шагов: каждый слой сначала учится сам, без обратного прохода</small></span></label>
     </div>
-    <p class="hint">Новое устройство умеет расти: к обученной версии можно добавить слои, не потеряв выученного.</p>
+    <p class="hint">Новое устройство умеет расти: к обученной версии можно добавить слои, не потеряв выученного. Помогает ли каждая часть, решает экзамен против версии без неё.</p>
    </div>
    <div class="form-grid">
     <div data-for="long sandbox"><label class="token-label" for="long-file">Файл диалогов</label><select id="long-file" class="field"></select></div>

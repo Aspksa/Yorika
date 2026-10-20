@@ -57,14 +57,16 @@ class _LazyRows:
         return self.rows[index]
 
 
-RULE_KEYS = {"wd": (0.0, 0.2), "clip": (0.1, 5.0), "warmup": (0, 2000), "plasticity": (0.25, 4.0)}
+RULE_KEYS = {"wd": (0.0, 0.2), "clip": (0.1, 5.0), "warmup": (0, 2000), "plasticity": (0.25, 4.0), "ff": (0, 2000)}
 
 
 def check_rule(rule):
     """A learning rule: weight decay, gradient clip, warm-up steps and plasticity across depth.
 
     plasticity is the learning-rate ratio between the deepest and the first block: above 1 the
-    deep blocks change faster, below 1 the early ones do. None keeps the original rule."""
+    deep blocks change faster, below 1 the early ones do. ff: steps of Forward-Forward warm-up
+    before backpropagation, for a newborn only (backend/forward_forward.py). None keeps the
+    original rule."""
     if rule is None:
         return None
     if not isinstance(rule, dict) or set(rule) - set(RULE_KEYS):
@@ -73,6 +75,8 @@ def check_rule(rule):
         low, high = RULE_KEYS[key]
         if type(value) not in (int, float) or isinstance(value, bool) or not low <= value <= high:
             raise ValueError("Invalid learning rule")
+    if "ff" in rule and type(rule["ff"]) is not int:
+        raise ValueError("Invalid learning rule")
     return dict(sorted(rule.items()))
 
 
@@ -121,6 +125,8 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
     if type(lr) is not float or not 1e-6 <= lr <= 1e-2:
         raise ValueError("Invalid learning rate")
     rule = check_rule(rule)
+    if (rule or {}).get("ff") and not check_arch(arch):
+        raise ValueError("Forward-Forward работает только с новым устройством мозга")
     train_device = torch.device(device)
     started_at = time.monotonic()
     if (not isinstance(train, (list, tuple)) or not train or
@@ -261,6 +267,10 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
         _ENCODED[key] = rows
         return rows
     train_rows, valid_rows = prepare(train, "train"), prepare(validation, "validation")
+    ff_report = None
+    if (rule or {}).get("ff") and start == 0 and not base and not lm:
+        from backend import forward_forward
+        ff_report = forward_forward.warmup(torch, model, train_rows, train_device, steps=rule["ff"], seed=seed)
     def batch_loss(rows):
         # Pads go after each sequence, so the causal mask keeps them invisible; they carry no loss.
         width_ = max(len(ids) for ids, _ in rows) - 1
@@ -332,6 +342,8 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
                        "config": [width, heads, layers, context, max_merges, seed],
                        "training_device": device, "speed": speed, "objective": objective,
                        "init_sha256": base_sha if base else None, "arch": arch, "lr": lr, "rule": rule}
+            if ff_report or (state or {}).get("ff_report"):
+                payload["ff_report"] = ff_report or state["ff_report"]
             if scaler is not None:
                 payload["scaler"] = scaler.state_dict()
             if device == "cuda":
@@ -365,7 +377,7 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
             "train_sha256": fingerprint, "tokenizer_sha256": tokenizer["sha256"],
             "checkpoint": str(path), "best_checkpoint": str(best_path),
             "best_validation_nll": best_nll, "best_step": best_step,
-            "resumed_from": start, "device": str(train_device),
+            "resumed_from": start, "device": str(train_device), "ff_report": ff_report,
             "peak_cuda_allocated_bytes": (torch.cuda.max_memory_allocated(train_device) if device == "cuda" else None)}
 
 

@@ -97,7 +97,13 @@ const KINDS={quick:"урок",sleep:"сон",evolution:"эволюция",merge:
 const VERDICT={rolled_back:["chip-warn","откат"],waiting:["chip-next","ждёт вас"],activated:["chip-ok","включена сама"]};
 const mb=b=>b?(b/1048576).toFixed(1).replace(".",",")+" МБ":"—";
 const fx=v=>v==null?"—":Number(v).toFixed(3);
-const archBody=()=>{const a={};if($("arch-loops").checked)a.loops=3;if($("arch-experts").checked)a.experts=4;if($("arch-memory").checked)a.memory=256;return a};
+const archBody=()=>{const a={};if($("arch-loops").checked)a.loops=3;if($("arch-experts").checked)a.experts=4;if($("arch-memory").checked)a.memory=256;
+  if($("arch-ssm").checked)a.mixer="hybrid";if($("arch-liquid").checked)a.mixer="liquid";if($("arch-dendrites").checked)a.dendrites=4;
+  if($("arch-hopfield").checked)a.hopfield=256;if($("arch-fast").checked)a.fast=true;return a};
+// Pairs that replace the same part of a block: choosing one clears the other.
+for(const [a,b] of [["arch-ssm","arch-liquid"],["arch-dendrites","arch-experts"]]){
+  $(a).addEventListener("change",()=>{if($(a).checked)$(b).checked=false});$(b).addEventListener("change",()=>{if($(b).checked)$(a).checked=false})}
+const MIXER={ssm:"Mamba",liquid:"жидкие нейроны",hybrid:"Mamba + внимание"};
 const forgets=r=>(r.old_exams||[]).filter(o=>o.mine>o.theirs*1.05);
 let status=null,slStatus=null,tStatus=null;
 
@@ -227,6 +233,11 @@ function renderVersions(s){
     if(a.loops>1)chips.append(Object.assign(el("span","chip chip-next",`думает ×${a.loops}`),{title:"Слои проходятся несколько раз; на трудном вопросе дольше"}));
     if(a.experts)chips.append(Object.assign(el("span","chip chip-next",`эксперты ×${a.experts}`),{title:"На каждое слово работают 2 эксперта из "+a.experts}));
     if(a.memory)chips.append(Object.assign(el("span","chip chip-next","память "+a.memory),{title:"Ячейки памяти внутри сети"}));
+    if(a.mixer)chips.append(Object.assign(el("span","chip chip-next",MIXER[a.mixer]),{title:"Чем слова смешиваются в слоях"}));
+    if(a.dendrites)chips.append(Object.assign(el("span","chip chip-next","дендриты"),{title:"Тема разговора включает свои группы нейронов"}));
+    if(a.hopfield)chips.append(Object.assign(el("span","chip chip-next","Хопфилд "+a.hopfield),{title:"Ассоциативная память: по части вспоминает целое"}));
+    if(a.fast)chips.append(Object.assign(el("span","chip chip-next","быстрые веса"),{title:"Связи из текста в контексте запоминаются на лету"}));
+    if(r.forward_forward)chips.append(Object.assign(el("span","chip chip-next","Forward-Forward"),{title:"Разгон: слои различают настоящий ответ и перемешанный в долях "+r.forward_forward.separation.join(", ")}));
     if(KINDS[r.kind])chips.append(el("span","chip",KINDS[r.kind]));
     if(r.grown_from)chips.append(Object.assign(el("span","chip chip-next",`выросла · ${r.layers} слоёв`),{title:"Выросла из версии "+when(r.grown_from)}));
     if(r.logic){const lv=r.logic.levels||{},passed=Object.keys(lv).filter(k=>lv[k]>=.8).length;chips.append(Object.assign(el("span","chip "+(passed?"chip-ok":""),`логика ур. ${passed}`),{title:"Уровни логики, сданные на 80%: "+Object.entries(lv).map(([k,v])=>`${k}: ${Math.round(v*100)}%`).join(", ")}))}
@@ -316,10 +327,10 @@ const startRun=(button,mode)=>act_(button,()=>{
     const common={dataset:$("long-file").value,device:radio("device"),steps:parseInt($("steps").value,10),hours:parseFloat($("hours").value)};
     if(radio("sandbox-kind")==="evolution")return post("evolve",{...common,population:parseInt($("population").value,10)});
     const sizes=[...document.querySelectorAll("input[name=series-size]:checked")].map(i=>i.value);
-    return post("series",{...common,sizes,arch:archBody()});
+    return post("series",{...common,sizes,arch:archBody(),ff:$("arch-ff").checked});
   }
   const body={mode,device:radio("device")};
-  if(mode!=="pilot")body.arch=archBody();
+  if(mode!=="pilot"){body.arch=archBody();body.ff=$("arch-ff").checked}
   if(mode!=="pilot")body.size=radio("size");
   if(mode!=="pilot")Object.assign(body,{steps:parseInt($("steps").value,10),hours:parseFloat($("hours").value)});
   if(mode==="long")Object.assign(body,{dataset:$("long-file").value,base:$("base-run").value||null});

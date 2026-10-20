@@ -56,6 +56,10 @@ const ICONS={
  gift:["M20 12v10H4V12","M2 7h20v5H2z","M12 22V7","M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z","M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"],
  puzzle:["M19.4 15a1.6 1.6 0 0 0 0 3.2H21V22h-4v-1.6a1.6 1.6 0 0 0-3.2 0V22H3V11h1.6a1.6 1.6 0 0 0 0-3.2H3V4h7v1.6a1.6 1.6 0 0 0 3.2 0V4H21v11z"],
  pause:["M8 5v14","M16 5v14"],
+ // The three tabs: a sunrise over the horizon, a fox's face, three sliders.
+ today:["M12 3v2.5","M4.9 7.4l1.8 1.8","M19.1 7.4l-1.8 1.8","M2.5 16.5H5","M19 16.5h2.5","M7.5 16.5a4.5 4.5 0 0 1 9 0","M4 20.5h16"],
+ fox:["M4 3.5 8.6 8.5h6.8L20 3.5l.6 7.6-3.3 1.6L12 20.5l-5.3-7.8-3.3-1.6z","M6.4 6.6l.9 2","M17.6 6.6l-.9 2","M9.2 12.6h.01","M14.8 12.6h.01","M11.1 16.6h1.8L12 17.8z"],
+ tune:["M3 6h8.5","M15.5 6H21","M13.5 4a2 2 0 1 0 0 4 2 2 0 1 0 0-4z","M3 12h2.5","M9.5 12H21","M7.5 10a2 2 0 1 0 0 4 2 2 0 1 0 0-4z","M3 18h11.5","M18.5 18H21","M16.5 16a2 2 0 1 0 0 4 2 2 0 1 0 0-4z"],
  calendar:["M3 5h18v16H3z","M3 10h18","M8 3v4M16 3v4","M7 14h2M11 14h2M15 14h2M7 18h2M11 18h2"],
  branch:["M6 3v12","M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z","M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z","M18 9a9 9 0 0 1-9 9"],
  hourglass:["M6 2h12","M6 22h12","M7 2v4a5 5 0 0 0 10 0V2","M7 22v-4a5 5 0 0 1 10 0v4"],
@@ -128,7 +132,8 @@ const gpuMem=g=>g&&g.memory_used!=null?`${gb(g.memory_used)} из ${gb(g.memory_
 
 // ---- live strip under the tabs: the running lesson, visible from every tab ----
 function renderLive(s){
-  const job=s.runs.find(r=>LIVE.has(r.state)),strip=$("live-strip");strip.hidden=!job;if(!job)return;
+  const job=s.runs.find(r=>LIVE.has(r.state)),strip=$("live-strip");strip.hidden=!job;
+  document.documentElement.style.setProperty("--strip",job?"52px":"0px");if(!job)return;
   const g=job.device==="cuda"?s.gpu:null,pct=Math.round(progressOf(job)*100),left=etaOf(job);
   $("live-strip-title").textContent=`${STATES[job.state]} обучение · ${runName(job)}${KINDS[job.kind]?" · "+KINDS[job.kind]:""}`;
   $("live-strip-bar").style.width=pct+"%";$("live-strip-pct").textContent=pct+"%";
@@ -310,6 +315,38 @@ function renderVersions(s){
   $("blind-start").disabled=longs.length<2;
   renderSeries(s);
 }
+// ---- «Сегодня»: one line about the night, then everything that waits for the owner ----
+function waitingItems(){
+  const out=[],p=slStatus&&slStatus.proposal,c=slStatus&&slStatus.counts,ex=evo&&evo.extinction;
+  if(p)out.push({icon:"sparkles",text:`Новая версия от ${when(p.candidate.id)} готова заменить нынешнюю`,go:"Посмотреть",to:["today","proposal"]});
+  for(const r of (status&&status.runs)||[])
+    if(r.verdict&&r.verdict.result==="waiting"&&!(p&&p.candidate.id===r.id))
+      out.push({icon:"layers",text:`Версия от ${when(r.id)} не хуже активной и ждёт вашего решения`,go:"К версиям",to:["train","versions-title"]});
+  if(c&&c.unrated)out.push({icon:"thumb",text:`Ответов без оценки: ${num(c.unrated)}. Оценки решают, чему она учится`,go:"Оценить",to:["exp","rate-title"]});
+  if(ex&&ex.plateau&&ex.count>0)out.push({icon:"comet",text:`Рост остановился: можно убрать слабые версии (${ex.count}, ${mb(ex.mb*1048576)})`,go:"Решить",to:["evo","ex-go"]});
+  const sc=evo&&evo.selfcheck;
+  if(sc&&sc.state==="finished"&&sc.ok===false)out.push({icon:"exam",text:"Самопроверка нашла, что починить",go:"Открыть",to:["train","selfcheck"]});
+  return out;
+}
+function renderToday(){
+  const items=waitingItems(),list=$("wait-list");list.replaceChildren();
+  for(const w of items){const li=el("li"),ic=el("span","wait-ic");ic.append(icon(w.icon));
+    const b=el("button","secondary small",w.go);b.type="button";b.onclick=()=>goTo(...w.to);li.append(ic,el("span",null,w.text),b);list.append(li)}
+  if(!items.length)list.append(el("li","wait-none","Ничего не ждёт: всё, что можно, идёт само."));
+  const badge=$("tab-today-badge");badge.hidden=!items.length;badge.textContent=items.length;
+  $("today-date").textContent="Сегодня, "+new Date().toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"});
+  const g=brainNow&&brainNow.summary&&brainNow.summary.growth,pts=(g&&g.active)||[],job=status&&status.runs.find(r=>LIVE.has(r.state));
+  let line,sub=[];
+  if(pts.length>=2)line=`Экзамен активной версии: ${fmt(pts.at(-2).exam,2)} → ${fmt(pts.at(-1).exam,2)}`;
+  else if(status&&status.active)line=`Отвечает своя версия от ${when(status.active.run)}`;
+  else if(status)line="Своя модель ещё не обучена: в чате отвечает Cloud.ru";
+  else line="—";
+  if(pts.length>=2)sub.push(pts.at(-1).exam<pts.at(-2).exam?"ниже — лучше: выросла":"ниже — лучше: пока без роста");
+  if(job)sub.push(`сейчас учится, ${Math.round(progressOf(job)*100)}%`);
+  sub.push(items.length?`ждёт вас: ${items.length}`:"ничего не ждёт");
+  $("today-title").textContent=line;$("today-sub").textContent=sub.join(" · ");
+}
+
 // ---- version card: what it is, how it scored, where it came from (one parent, never a tree) ----
 const ORIGIN={grown:"выросла из",base:"основа — предобучение",parent:"продолжает",merged:"скрещена из"};
 // The list is redrawn on every refresh: open cards and their answers survive it.
@@ -380,7 +417,7 @@ function renderSeries(s){
 async function refresh(){
   try{
     const s=status=await api("/api/training/status");
-    renderReady(s);renderData(s);renderJob(s.runs);renderLive(s);renderVersions(s);renderFlow();if(!$("pane-brain").hidden)renderLogic();
+    renderReady(s);renderData(s);renderJob(s.runs);renderLive(s);renderVersions(s);renderFlow();renderToday();if(!$("pane-brain").hidden)renderLogic();
     const busy=s.runs.some(r=>LIVE.has(r.state))||s.torch.install.running;
     clearTimeout(timer);timer=setTimeout(refresh,busy?3000:20000);
   }catch(e){showError(e.message);clearTimeout(timer);timer=setTimeout(refresh,10000)}
@@ -488,14 +525,25 @@ $("blind-start").onclick=e=>act(e.currentTarget,async()=>{
 $("blind-box").addEventListener("toggle",()=>{if($("blind-box").open)loadBlindResults()});
 
 // ---- tabs ----
-const TABS=["train","brain","evo","exp","teacher","night","future"];
+// Three tabs: «Сегодня», «Yorika» (training, brain, evolution, experience) and «Настройки».
+// Old names (#exp, #teacher, #grow…) still open the right section.
+const GROUPS=["today","yorika","settings"];
+const SECTION={train:"yorika",brain:"yorika",evo:"yorika",exp:"yorika",night:"settings",teacher:"settings",data:"settings",future:"settings"};
+const lastSection={yorika:"train",settings:"night"};
+try{Object.assign(lastSection,JSON.parse(localStorage.getItem("yorika.training.sections")||"{}"))}catch{}
 function openTab(name,focus){
-  if(name==="self")name="exp";if(name==="grow")name="future";
-  if(!TABS.includes(name))name="train";
-  for(const t of TABS){const tab=$("tab-"+t),on=t===name;tab.setAttribute("aria-selected",on);tab.tabIndex=on?0:-1;$("pane-"+t).hidden=!on}
+  name=({self:"exp",grow:"future"})[name]||name;
+  if(name==="yorika"||name==="settings")name=lastSection[name];
+  if(name!=="today"&&!SECTION[name])name="today";
+  const group=name==="today"?"today":SECTION[name];
+  for(const g of GROUPS){const tab=$("tab-"+g),on=g===group;tab.setAttribute("aria-selected",on);tab.tabIndex=on?0:-1;$("group-"+g).hidden=!on}
+  for(const k in SECTION)$("pane-"+k).hidden=k!==name;
+  for(const b of document.querySelectorAll("[data-sub]")){const on=b.dataset.sub===name;b.classList.toggle("on",on);if(on)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current")}
   for(const n of document.querySelectorAll(".flow-node"))n.classList.toggle("on",n.dataset.go===name);
-  if(focus)$("tab-"+name).focus();
-  try{localStorage.setItem("yorika.training.tab",name)}catch{}
+  if(group!=="today")lastSection[group]=name;
+  if(focus)$("tab-"+group).focus();
+  try{localStorage.setItem("yorika.training.tab",name);localStorage.setItem("yorika.training.sections",JSON.stringify(lastSection))}catch{}
+  if(name==="today"){refreshSelf();refreshBrain();refreshEvo()}
   if(name==="exp")refreshSelf();
   if(name==="teacher")refreshTeacher();
   if(name==="night")refreshNight();
@@ -503,11 +551,13 @@ function openTab(name,focus){
   if(name==="evo")refreshEvo();
   if(name==="train")refreshSelfcheck();
 }
-for(const t of TABS){
-  $("tab-"+t).onclick=()=>openTab(t);
-  $("tab-"+t).onkeydown=e=>{const i=TABS.indexOf(t),d=e.key==="ArrowRight"?1:e.key==="ArrowLeft"?-1:0;if(d){e.preventDefault();openTab(TABS[(i+d+TABS.length)%TABS.length],true)}};
-}
-for(const a of document.querySelectorAll("[data-go]"))a.onclick=e=>{e.preventDefault();openTab(a.dataset.go);$("tab-"+a.dataset.go).scrollIntoView({behavior:"smooth",block:"nearest"})};
+GROUPS.forEach((g,i)=>{
+  $("tab-"+g).onclick=()=>openTab(g);
+  $("tab-"+g).onkeydown=e=>{const d=e.key==="ArrowRight"?1:e.key==="ArrowLeft"?-1:0;if(d){e.preventDefault();openTab(GROUPS[(i+d+GROUPS.length)%GROUPS.length],true)}};
+});
+for(const b of document.querySelectorAll("[data-sub]"))b.onclick=()=>openTab(b.dataset.sub);
+const goTo=(name,target)=>{openTab(name);const t=target&&$(target);(t||document.querySelector(".tabs-dock")).scrollIntoView({behavior:"smooth",block:"start"})};
+for(const a of document.querySelectorAll("[data-go]"))a.onclick=e=>{e.preventDefault();goTo(a.dataset.go)};
 
 // ---- experience: collect, rate (smart order, teacher verdicts), decide ----
 let view="unrated",shown=0,proposalNow=null;
@@ -587,7 +637,7 @@ async function refreshSelf(){
   try{
     const s=slStatus=await api("/api/training/sl-status");
     $("collect-toggle").checked=s.collect;$("collect-now").disabled=!s.collect;
-    renderCounts(s.counts);renderPacks(s.counts);renderProposal(s.proposal);renderFlow();await loadExamples(true);
+    renderCounts(s.counts);renderPacks(s.counts);renderProposal(s.proposal);renderFlow();renderToday();await loadExamples(true);
   }catch(e){showError(e.message)}
 }
 $("collect-toggle").onchange=e=>{const on=e.target.checked;act(e.target,async()=>{await post("sl-collect-setting",{enabled:on});$("collect-now").disabled=!on}).then(r=>{if(r===null)e.target.checked=!on})};
@@ -755,7 +805,7 @@ $("night-save").onclick=e=>act(e.currentTarget,async()=>{
 
 // ---- brain: who answers, living learning, logic, memory, curiosity, thinking ----
 const LIVE_EVENT={start:"урок начат",rolled_back:"откат",activated:"включена сама",waiting:"ждёт вас"};
-let brainTimer=null;
+let brainTimer=null,brainNow=null;
 function renderLogic(){
   const runs=status?status.runs.filter(r=>r.mode==="long"&&r.has_best):[];
   const ref=(status&&status.active&&runs.find(r=>r.id===status.active.run))||runs[0];
@@ -776,7 +826,7 @@ function renderLogic(){
 async function refreshBrain(){
   try{
     if(!status)status=await api("/api/training/status");
-    const b=await api("/api/training/brain-status"),e=b.engine,c=b.continual,s=c.settings,m=c.memory;
+    const b=brainNow=await api("/api/training/brain-status"),e=b.engine,c=b.continual,s=c.settings,m=c.memory;
     if(!$("pane-brain").contains(document.activeElement)){
       document.querySelector(`input[name=engine][value=${e.engine}]`).checked=true;
       document.querySelector(`input[name=drafts][value="${e.drafts}"]`).checked=true;$("engine-q4").checked=e.compressed;
@@ -801,7 +851,7 @@ async function refreshBrain(){
     const cur=b.curiosity,running=cur&&cur.state==="running";
     $("cur-now").disabled=running;$("cur-now").textContent=running?"Занимается…":"Позаниматься сейчас";
     $("cur-last").textContent=cur?(running?"Решает задачи на краю своих сил…":`Последний раз: ${cur.state==="failed"?"не получилось":""} ${cur.result||""}`):"Ещё не занималась. Ночью это происходит само, если включено.";
-    renderLogic();renderAutopilot(b.autopilot);renderSummary(b.summary||{});renderMap();renderPlan(b.plans);renderSkills(b.skills);renderWorld(b.sim);
+    renderToday();renderLogic();renderAutopilot(b.autopilot);renderSummary(b.summary||{});renderMap();renderPlan(b.plans);renderSkills(b.skills);renderWorld(b.sim);
     const planLive=b.plans.plan&&["preparing","running"].includes(b.plans.plan.state),simLive=b.sim.job&&b.sim.job.state==="running";
     clearTimeout(brainTimer);if(running||planLive||simLive)brainTimer=setTimeout(refreshBrain,4000);
   }catch(e){showError(e.message)}
@@ -1058,7 +1108,7 @@ function renderFuture(){
   const box=$("grow-cards");box.replaceChildren();
   for(const g of GROW){
     const card=el("article","grow-card");card.dataset.status=g.s;
-    const head=el("header");head.append(el("span","grow-num",g.n),el("h3",null,g.t));
+    const head=el("header");head.append(el("h3",null,g.t));
     card.append(head,el("p",null,g.d),chip(g.s));box.append(card);
   }
   const list=$("timeline");list.replaceChildren();
@@ -1085,7 +1135,7 @@ let evo=null,evoTimer=null,scTimer=null;
 async function refreshEvo(){
   try{
     if(!status)status=await api("/api/training/status");
-    const b=await api("/api/training/brain-status");evo=b.evolution||{};
+    const b=brainNow=await api("/api/training/brain-status");evo=b.evolution||{};renderToday();
     renderDawn(evo.report||{},evo.tonight||{},b.autopilot);renderHealth(evo.health||{},b.autopilot);
     renderSpecies(evo.archive||{});renderLadders(evo.ladder||{},evo.envs||{});renderRecipes(evo.recipes||{});
     renderDiary(evo.diary||[]);renderMind(evo);renderKnow(evo);renderSelection(evo,status);
@@ -1115,7 +1165,7 @@ function renderHealth(h,ap){
   for(const x of h.items||[]){const li=el("li",x.level);li.append(el("span",null,x.text));if(x.fix)li.append(el("small",null,x.fix));ul.append(li)}
   if(h.free_gb!=null)ul.append(el("li","ok",`Свободно на диске: ${String(h.free_gb).replace(".",",")} ГБ`));
   const part=k=>((ap&&ap.parts)||[]).find(p=>p.key===k);
-  if(!$("pane-evo").contains(document.activeElement)){$("opt-week").checked=!!(evo.options||{}).auto_week;$("opt-tidy").checked=(evo.options||{}).tidy!==false}
+  if(!document.querySelector(".dawn").contains(document.activeElement)){$("opt-week").checked=!!(evo.options||{}).auto_week;$("opt-tidy").checked=(evo.options||{}).tidy!==false}
   $("opt-week").title=part("auto_week")&&!part("auto_week").on?"Работает, когда включено расписание учёбы":"";
 }
 function renderSpecies(a){
@@ -1317,9 +1367,20 @@ $("screen-go").onclick=e=>act(e.currentTarget,async()=>{
   $("screen-text").textContent=r.text||"(текста нет)";$("screen-answer").textContent=r.answer||"—";$("screen-note").textContent=r.note||"";
 });
 
+// Versions are named by their date everywhere: reports from the backend say «20261019-020000-long»,
+// the page shows «19 окт., 02:00». One watcher covers every list, log and report.
+const RUN_ID=/\b\d{8}-\d{6}-(?:long|pilot|pretrain)\b/g;
+function prettyText(node){if(RUN_ID.test(node.nodeValue)){RUN_ID.lastIndex=0;node.nodeValue=node.nodeValue.replace(RUN_ID,id=>`«${when(id)}»`)}RUN_ID.lastIndex=0}
+function prettyTree(root){
+  if(root.nodeType===3){prettyText(root);return}
+  if(root.nodeType!==1||/^(SCRIPT|STYLE|TEXTAREA|INPUT|SELECT)$/.test(root.nodeName))return;
+  const walk=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);for(let n=walk.nextNode();n;n=walk.nextNode())prettyText(n);
+}
+new MutationObserver(list=>{for(const m of list){if(m.type==="characterData")prettyText(m.target);else for(const n of m.addedNodes)prettyTree(n)}})
+  .observe(document.body,{subtree:true,childList:true,characterData:true});
 renderFuture();fillIcons();syncMode();refresh();
-let startTab="train";try{startTab=location.hash.slice(1)||localStorage.getItem("yorika.training.tab")||"train"}catch{}
+let startTab="today";try{startTab=location.hash.slice(1)||localStorage.getItem("yorika.training.tab")||"today"}catch{}
 openTab(startTab);
-if(!["exp"].includes(startTab))api("/api/training/sl-status").then(r=>{slStatus=r;renderCounts(r.counts);renderFlow()}).catch(()=>{});
+if(!["exp","today"].includes(startTab))api("/api/training/sl-status").then(r=>{slStatus=r;renderCounts(r.counts);renderFlow()}).catch(()=>{});
 if(startTab!=="teacher")api("/api/training/teacher-status").then(r=>{tStatus=r;renderFlow()}).catch(()=>{});
 addEventListener("hashchange",()=>openTab(location.hash.slice(1)));

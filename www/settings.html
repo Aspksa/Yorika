@@ -19,7 +19,7 @@
 
  <div class="page-grid">
   <section class="panel" aria-labelledby="updates-title">
-   <header class="panel-head"><span class="panel-index">01</span><h2 id="updates-title">Обновления</h2></header>
+   <header class="panel-head"><h2 id="updates-title">Обновления</h2></header>
    <fieldset class="choice-group">
     <legend>Канал обновлений <small>Откуда получать изменения</small></legend>
     <label class="choice"><input type="radio" name="update-channel" value="fresh" checked><span><strong>Свежий</strong><small>Последний коммит ветки main</small></span></label>
@@ -41,7 +41,7 @@
   </section>
 
   <section class="panel" aria-labelledby="local-title">
-   <header class="panel-head"><span class="panel-index">02</span><h2 id="local-title">Локальный сервер</h2></header>
+   <header class="panel-head"><h2 id="local-title">Локальный сервер</h2></header>
    <p class="support-text">Yorika работает только на этом компьютере. Порт выбирается заново при каждом запуске.</p>
    <label class="token-label" for="local-address">Адрес сайта</label>
    <div class="token-field"><input id="local-address" readonly><button class="reveal" id="copy-address" type="button">Скопировать</button></div>
@@ -55,7 +55,7 @@
  </div>
 
  <section class="panel appearance-panel" id="model" aria-labelledby="cloud-ru-title">
-  <header class="panel-head"><span class="panel-index">03</span><h2 id="cloud-ru-title">Языковая модель</h2><span id="cloud-ru-pill" class="model-pill" data-state="unknown">Проверка…</span></header>
+  <header class="panel-head"><h2 id="cloud-ru-title">Языковая модель</h2><span id="cloud-ru-pill" class="model-pill" data-state="unknown">Проверка…</span></header>
   <p class="support-text">Чат с аватаром отвечает через <b>Cloud.ru Foundation Models</b>. Запросы идут через локальный сервер Yorika: ключ шифруется Windows DPAPI для текущего пользователя, в браузере не хранится и повторно не показывается. Отправка сообщений и выбранных воспоминаний в Cloud.ru может тарифицироваться.</p>
   <form id="cloud-ru-form" class="field-stack" autocomplete="off">
    <div>
@@ -82,7 +82,7 @@
  </section>
 
  <section class="panel appearance-panel" aria-labelledby="memory-controls-title">
-  <header class="panel-head"><span class="panel-index">04</span><h2 id="memory-controls-title">Память и предпочтения</h2></header>
+  <header class="panel-head"><h2 id="memory-controls-title">Память и предпочтения</h2></header>
   <p class="support-text">Долговременная память Yorika хранится в SQLite на этом компьютере. Предпочтения сохраняются только по вашему явному действию, воспоминания можно исправить или удалить.</p>
   <div class="pref-form">
    <div><label class="token-label" for="memory-preference-key">Название (латиница, без пробелов)</label><div class="token-field"><input id="memory-preference-key" maxlength="64" placeholder="communication_style" spellcheck="false"></div></div>
@@ -100,7 +100,7 @@
  </section>
 
  <section class="panel appearance-panel" aria-labelledby="persona-growth-title">
-  <header class="panel-head"><span class="panel-index">05</span><h2 id="persona-growth-title">Рост личности Йорики</h2></header>
+  <header class="panel-head"><h2 id="persona-growth-title">Рост личности Йорики</h2></header>
   <p class="support-text">Дополнительные реплики хранятся локально в SQLite. При включённом накоплении после каждых 20 подходящих сообщений Йорика автоматически запрашивает у Cloud.ru новые варианты; это может тарифицироваться. Проверка личных данных и похожих фраз эвристическая и не гарантирует полной защиты.</p>
   <label class="switch"><input id="persona-growth-enabled" type="checkbox"><span class="switch-track" aria-hidden="true"></span><span><strong>Сохранять новые реплики</strong><small id="persona-growth-status" role="status" aria-live="polite">Загрузка статистики…</small></span></label>
   <div class="list-head"><h3 class="list-title">Недавние реплики</h3><button id="persona-growth-refresh" class="ghost" type="button">Обновить список</button></div>
@@ -108,7 +108,7 @@
  </section>
 
  <section class="panel appearance-panel" aria-labelledby="look-title">
-  <header class="panel-head"><span class="panel-index">06</span><h2 id="look-title">Внешний вид</h2></header>
+  <header class="panel-head"><h2 id="look-title">Внешний вид</h2></header>
   <p class="support-text">Тема, цвет, скругления и размер интерфейса. Меняются сразу, хранятся в этом браузере.</p>
   <div class="appearance-grid">
    <fieldset class="choice-group">
@@ -135,7 +135,7 @@
  </section>
 
  <section class="panel avatar-panel" aria-labelledby="avatar-title">
-  <header class="panel-head"><span class="panel-index">07</span><h2 id="avatar-title">Аватар</h2></header>
+  <header class="panel-head"><h2 id="avatar-title">Аватар</h2></header>
   <p class="support-text">Картинка, которая живёт на всех страницах и открывает чат. Загруженные картинки хранятся в этом браузере.</p>
   <fieldset class="choice-group">
    <legend>Картинка <small>Лучше всего подходит PNG или WebP с прозрачным фоном</small></legend>
@@ -154,7 +154,7 @@
  </section>
 
  <section class="panel data-panel" aria-labelledby="data-title">
-  <header class="panel-head"><span class="panel-index">08</span><h2 id="data-title">Данные браузера</h2></header>
+  <header class="panel-head"><h2 id="data-title">Данные браузера</h2></header>
   <p class="support-text">Хранилище IndexedDB привязано к адресу с портом, поэтому после перезапуска Yorika на другом порту оно начинается заново.</p><p class="support-text"><a href="./memory.html">Открыть память браузера →</a></p>
   <ul id="store-list" class="store-list" aria-label="Разделы хранилища"><li class="store-empty">Подсчёт записей…</li></ul>
   <p id="data-status" class="token-status" role="status" aria-live="polite"></p>

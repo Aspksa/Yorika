@@ -22,7 +22,8 @@ WRITES = {"probe", "install-torch", "data-check", "folder", "open-folder", "star
           "night-settings", "series", "sl-pack-preview", "sl-pack-add", "blind-start", "blind-vote", "blind-results",
           "teacher-models", "chat-engine", "continual-settings", "continual-now", "evolve", "merge",
           "compress", "grow", "curiosity-now", "think", "plan-start", "schedule-set", "autopilot",
-          "programs-learn", "sim-now", "introspect", "autopilot-options", "tidy"}
+          "programs-learn", "sim-now", "introspect", "autopilot-options", "tidy", "selfcheck", "harvest",
+          "exchange", "screen-help", "diary-write", "rebirth"}
 
 
 def handle(action, body):
@@ -114,6 +115,35 @@ def handle(action, body):
     if action == "tidy":
         from backend import health
         return health.tidy()
+    if action == "selfcheck":
+        from backend import selfcheck
+        return selfcheck.start()
+    if action == "harvest":
+        from backend import harvest
+        return harvest.build(body.get("target"))
+    if action == "exchange":
+        current = tc.active()
+        if not current:
+            raise ValueError("Сначала сделайте активной одну из версий")
+        job = tc._read(tc.folder() / "exchange-job.json", {}) or {}
+        if job.get("state") == "running" and __import__("time").time() - job.get("t", 0) < 3600:
+            raise ValueError("Обмен генами уже идёт")
+        tc._write(tc.folder() / "exchange-job.json", {"state": "running", "t": __import__("time").time(), "result": None})
+        tc._spawn([sys.executable, str(tc.CLI), "exchange-worker"], tc.folder() / "exchange.log")
+        return {"state": "running"}
+    if action == "screen-help":
+        from backend import screen
+        return screen.help_with(body.get("question") or "Что здесь не так и что делать?")
+    if action == "diary-write":
+        from backend import diary
+        return diary.write((night.log() or [None])[-1])
+    if action == "rebirth":
+        current = tc.active()
+        if not current:
+            raise ValueError("Сначала сделайте активной одну из версий")
+        from backend import plans
+        return tc.start("long", device=night._device(current["run"]), total_steps=1000000, hours=body.get("hours", 0.5),
+                        kind="rebirth", grow={"from": current["run"], "rebirth": True}, records=plans._experience())
     if action == "schedule-set":
         from backend import schedule
         result = schedule.set_grid(body.get("grid"), body.get("enforce", True) is True)
@@ -193,10 +223,12 @@ def handle(action, body):
 
 def _evolution():
     """Archive, study recipes, the task ladder, health, tonight's choice and the morning report."""
-    from backend import archive, health, planner, recipes, simworld
+    from backend import archive, diary, health, mind, planner, recipes, selfcheck, simworld
     parts = {}
     for key, read in (("archive", archive.cells), ("recipes", recipes.status), ("ladder", simworld.ladder),
-                      ("health", health.check), ("report", planner.morning), ("tonight", lambda: planner.today(night.activity()))):
+                      ("health", health.check), ("report", planner.morning), ("tonight", lambda: planner.today(night.activity())),
+                      ("diary", diary.entries), ("trust", mind.trust), ("selfcheck", selfcheck.last),
+                      ("exchange", lambda: tc._read(tc.folder() / "exchange-job.json"))):
         try:
             parts[key] = read()
         except Exception as error:  # noqa: BLE001 - one broken part never hides the page
@@ -230,6 +262,22 @@ def main(argv):
             result, state = str(error)[:200], "failed"
         tc._write(tc.folder() / "sim-job.json", {"state": state, "t": time.time(), "result": result})
         return 0 if state == "finished" else 1
+    if len(argv) == 2 and argv[1] == "exchange-worker":
+        import time
+        try:
+            result, state = night._ecosystem(tc.active()), "finished"
+        except Exception as error:  # noqa: BLE001 - the page shows why it stopped
+            result, state = str(error)[:200], "failed"
+        tc._write(tc.folder() / "exchange-job.json", {"state": state, "t": time.time(), "result": result})
+        return 0 if state == "finished" else 1
+    if len(argv) == 2 and argv[1] == "selfcheck-worker":
+        from backend import selfcheck
+        try:
+            selfcheck.run()
+        except Exception as error:  # noqa: BLE001 - the page shows why it stopped
+            tc._write(tc.folder() / "selfcheck.json", {"state": "failed", "error": str(error)[:200], "steps": []})
+            return 1
+        return 0
     if len(argv) == 3 and argv[1] == "introspect-worker":
         return tc.introspect_worker(argv[2])
     if len(argv) == 2 and argv[1] == "night-run":

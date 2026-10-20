@@ -152,7 +152,7 @@ def maybe_start(launch=True, force=False):
         raise ValueError("Для урока нужно хотя бы 10 примеров")
     config = dict(tc._read(tc._run_dir(current["run"]) / "run.json")["config"])
     from backend import recipes
-    config["lr"] = recipes.learning_rate()  # the study recipe that won its last contest
+    config["lr"], config["rule"] = recipes.learning_rate(), recipes.learning_rule()  # the study recipe that won its last contest
     run = tc.start("long", device=_device(current["run"]), total_steps=1000000, hours=plan["minutes"] / 60,
                    config=config, kind="quick", init=current["checkpoint"], records=records, launch=launch,
                    scheduled=not force)

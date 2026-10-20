@@ -4,6 +4,8 @@ import {api} from "./api.js";
 const $=id=>document.getElementById(id);
 // ---- icons: one stroke style, filled into every [data-icon] ----
 const ICONS={
+ seed:["M12 22V12","M12 12C12 7 8 4 3 4c0 5 4 8 9 8z","M12 14c0-4 3-7 8-7 0 4-3 7-8 7z"],
+ bubble:["M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 21l1.9-5.1A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z","M8 11h.01M12 11h.01M16 11h.01"],
  dna:["M7 2c0 6 10 6 10 12s-10 6-10 8","M17 2c0 6-10 6-10 12s10 6 10 8","M8 6h8M8 18h8M10 10h4M10 14h4"],
  hex:["M12 2l8.7 5v10L12 22l-8.7-5V7z","M12 8l3.5 2v4L12 16l-3.5-2v-4z"],
  stairs:["M3 21h5v-5h5v-5h5V6h3","M3 21V3"],
@@ -417,6 +419,7 @@ function openTab(name,focus){
   if(name==="night")refreshNight();
   if(name==="brain")refreshBrain();
   if(name==="evo")refreshEvo();
+  if(name==="train")refreshSelfcheck();
 }
 for(const t of TABS){
   $("tab-"+t).onclick=()=>openTab(t);
@@ -769,7 +772,7 @@ function renderMap(){
 }
 $("map-look").onclick=e=>act(e.currentTarget,async()=>{const ref=mapRef();if(!ref)return;await post("introspect",{id:ref.id});$("map-sub").textContent="Заглядываю внутрь: замер идёт в фоне, карта обновится сама.";setTimeout(async()=>{await refresh();renderMap()},15000)});
 
-const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей",recipes:"Конкурс рецептов",shrink:"Сжатие после роста"};
+const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей",recipes:"Конкурс рецептов",shrink:"Сжатие после роста",hemispheres:"Два полушария",thoughts:"Язык мыслей"};
 const PLAN_STATE={preparing:"готовится",running:"идёт",finished:"готово",failed:"ошибка",stopped:"остановлен"};
 function renderPlan(p){
   const plan=p.plan,box=$("plan-box");box.hidden=!plan;
@@ -901,15 +904,17 @@ function renderFuture(){
 // ---- evolution: the morning report, health, the map of species, the task ladder, study recipes ----
 const DAWN_IC={train:"play",plan:"swarm",sim:"puzzle",programs:"code",tidy:"archive",health:"shield",run:"layers",archive:"hex",ladder:"stairs"};
 const GENE={experience:["разговоры","--gene-a"],logic:["логика","--gene-b"],sim:["мир задач","--gene-c"],programs:["программы","--gene-d"],tools:["инструменты","--gene-e"]};
-let evo=null;
+let evo=null,evoTimer=null,scTimer=null;
 async function refreshEvo(){
   try{
     if(!status)status=await api("/api/training/status");
     const b=await api("/api/training/brain-status");evo=b.evolution||{};
     renderDawn(evo.report||{},evo.tonight||{},b.autopilot);renderHealth(evo.health||{},b.autopilot);
     renderSpecies(evo.archive||{});renderLadders(evo.ladder||{},evo.envs||{});renderRecipes(evo.recipes||{});
+    renderDiary(evo.diary||[]);renderMind(evo);
     const live=b.plans.plan&&["preparing","running"].includes(b.plans.plan.state);
-    for(const x of document.querySelectorAll("[data-evo-plan]"))x.disabled=!!live||!(status&&status.active);
+    for(const x of document.querySelectorAll("[data-evo-plan],[data-mind-go]"))x.disabled=!!live||!(status&&status.active);
+    const ex=evo.exchange;if(ex&&ex.state==="running"){document.querySelector("[data-mind-go=exchange]").disabled=true;clearTimeout(evoTimer);evoTimer=setTimeout(refreshEvo,5000)}
   }catch(e){showError(e.message)}
 }
 function renderDawn(r,t,ap){
@@ -989,6 +994,82 @@ for(const b of document.querySelectorAll("[data-evo-plan]"))b.onclick=()=>{
   if(!confirm(`${PLAN_NAME[kind]}: запустить? Уроки по ${body.minutes} мин. Активная версия не изменится без вашего решения.`))return;
   act(b,async()=>{await post("plan-start",body);await refresh();await refreshEvo()});
 };
+
+// ---- the diary, the mind lab, the self-check, more data, screen help ----
+function renderDiary(list){
+  const box=$("diary-pages");box.replaceChildren();
+  const pages=list.slice().reverse().slice(0,3);
+  for(const [k,e] of pages.entries()){
+    const page=el("article","diary-page"+(k===0?" today":""));
+    page.append(el("time",null,new Date(e.at).toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"})));
+    for(const line of e.lines)page.append(el("p",null,line));
+    const n=e.numbers||{},chips=el("div","diary-nums");
+    for(const [label,v] of [["логика",n.logic],["мир",n.sim],["честность",n.honesty]])if(v!=null)chips.append(el("span","chip",`${label} ${Math.round(v*100)}%`));
+    if(n.ladder)chips.append(el("span","chip",`ступеней ${n.ladder}`));
+    page.append(chips);box.append(page);
+  }
+  if(!pages.length)box.append(el("p","empty-line","Первая запись появится после первой ночи учёбы. Можно записать и сейчас."));
+}
+function renderMind(e){
+  const t=e.trust||{},box=$("trust");box.replaceChildren();
+  const NAMES={logic:"логика",sim:"мир задач",inverse:"обратные"};
+  for(const [kind,row] of Object.entries(t)){
+    const line=el("div","trust-row"),a=row.left/Math.max(1,row.asked),b=row.right/Math.max(1,row.asked);
+    const bar=el("span","trust-bar");bar.style.setProperty("--l",a.toFixed(2));bar.style.setProperty("--r",b.toFixed(2));
+    line.append(el("small",null,NAMES[kind]||kind),bar,el("small",null,`${Math.round(a*100)} : ${Math.round(b*100)}`));box.append(line);
+  }
+  if(!Object.keys(t).length)box.append(el("small","mind-stat","Споров ещё не было: левая — активная, правая — сильнейшая из архива."));
+  const best=(e.recipes||{}).best;$("mind-rule").textContent=best&&best.rule?`Сейчас: распад ${best.rule.wd}, срез ${best.rule.clip}, разгон ${best.rule.warmup}, пластичность ×${best.rule.plasticity}`:"Закон пока обычный; меняется в конкурсе рецептов";
+  const ex=e.exchange;$("mind-exchange").textContent=ex?(ex.state==="running"?"Меняются блоками…":ex.result||""):"";
+}
+for(const b of document.querySelectorAll("[data-mind-go]"))b.onclick=()=>{
+  const kind=b.dataset.mindGo,mins=parseFloat($("plan-minutes").value)||20;
+  const say={rebirth:"Молчащие нейроны активной версии родятся заново, потом короткий урок.",hemispheres:`Две версии решат задачи, урок из их споров по ${mins} мин.`,thoughts:`Урок языка мыслей по ${mins} мин.`,exchange:"Активная версия попробует взять блоки у версий своей линии; берётся только то, что улучшает экзамен."}[kind];
+  if(!confirm(say+" Активная версия не изменится без вашего решения."))return;
+  act(b,async()=>{
+    if(kind==="rebirth")await post("rebirth",{hours:Math.max(0.1,mins/60)});
+    else if(kind==="exchange")await post("exchange");
+    else await post("plan-start",{kind,minutes:mins,prompts:90});
+    await refresh();await refreshEvo();
+  });
+};
+$("diary-now").onclick=e=>act(e.currentTarget,async()=>{await post("diary-write");await refreshEvo()});
+
+const SC_STEPS=["PyTorch и видеокарта","Папка обучения и диск","Урок на минуту","Экзамены","Мир задач","Поиск программы","Расписание и планировщик","Уборка за собой"];
+async function refreshSelfcheck(){
+  try{const b=await api("/api/training/brain-status");renderSelfcheck((b.evolution||{}).selfcheck)}catch{}
+}
+function renderSelfcheck(r){
+  const ol=$("sc-steps");ol.replaceChildren();const running=r&&r.state==="running";
+  $("sc-go").disabled=running;$("sc-go").textContent=running?"Проверяю…":r?"Проверить ещё раз":"Проверить всё";
+  $("selfcheck").dataset.state=r?(running?"live":r.ok?"ok":"bad"):"";
+  if(!r){$("sc-copy-row").hidden=true;return}
+  const done=r.steps||[];
+  for(const title of SC_STEPS){
+    const s=done.find(x=>x.title===title),li=el("li",s?(s.ok?"ok":"bad"):running?"wait":"skip");
+    li.append(el("b",null,title),el("small",null,s?`${s.detail} · ${s.seconds} с`:running?"ждёт":"пропущено"));ol.append(li);
+  }
+  const passed=done.filter(x=>x.ok).length;$("sc-ring").style.setProperty("--p",(passed/SC_STEPS.length).toFixed(2));
+  $("sc-line").textContent=running?"Идёт проверка, около двух минут.":r.state==="failed"?`Проверка остановилась: ${r.error||""}`:r.ok?`Всё работает: ${passed} из ${done.length} шагов.`:`Прошло ${passed} из ${done.length}; что упало — видно ниже.`;
+  $("sc-copy-row").hidden=!r.text;
+  clearTimeout(scTimer);if(running)scTimer=setTimeout(refreshSelfcheck,3000);
+}
+$("sc-go").onclick=e=>act(e.currentTarget,async()=>{renderSelfcheck(await post("selfcheck"));setTimeout(refreshSelfcheck,2000)});
+$("sc-copy").onclick=async()=>{const b=await api("/api/training/brain-status");const t=((b.evolution||{}).selfcheck||{}).text||"";
+  try{await navigator.clipboard.writeText(t);$("sc-copy").textContent="Скопировано"}catch{prompt("Скопируйте отчёт:",t)}};
+
+$("harvest-go").onclick=e=>{
+  if(!confirm("Собрать файл из ваших одобренных разговоров и проверенных уроков до 10 000 записей? Ничего не тратится, файл появится в папке данных."))return;
+  act(e.currentTarget,async()=>{const r=await post("harvest");const bar=$("harvest-bar");bar.replaceChildren();bar.hidden=false;
+    const COL={experience:"--gene-a",logic:"--gene-b",sim:"--gene-c",programs:"--gene-d",tools:"--gene-e",dream:"--brand-hi"};
+    for(const [k,v] of Object.entries(r.mix)){if(!v)continue;const seg=el("span","gene");seg.style.flex=String(v);seg.style.background=`var(${COL[k]})`;seg.title=`${r.names[k]}: ${v}`;seg.append(el("small",null,`${r.names[k]} ${v}`));bar.append(seg)}
+    $("harvest-note").textContent=`Готов файл ${r.name}: ${num(r.count)} записей, из них ваших разговоров ${Math.round(r.conversation_share*100)}%. ${r.long_ready?"Можно запускать долгое обучение.":""}${r.conversation_share<0.2?" Разговоров мало: она будет хорошо решать задачи, но говорить пока бедно.":""}`;
+    await refresh()})};
+
+$("screen-go").onclick=e=>act(e.currentTarget,async()=>{
+  const r=await post("screen-help",{question:$("screen-q").value});$("screen-out").hidden=false;
+  $("screen-text").textContent=r.text||"(текста нет)";$("screen-answer").textContent=r.answer||"—";$("screen-note").textContent=r.note||"";
+});
 
 renderFuture();fillIcons();syncMode();refresh();
 let startTab="train";try{startTab=location.hash.slice(1)||localStorage.getItem("yorika.training.tab")||"train"}catch{}

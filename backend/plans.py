@@ -21,6 +21,9 @@ improved the exams most per hour becomes the way quick lessons and sleep study (
 Shrink: a version that grew (deeper or wider) teaches a version of the size it grew from. The
 small one learns the big one's checked answers; it is kept only if it is not worse.
 
+Hemispheres and thoughts (mind.py): lessons from where two versions disagree, and lessons in
+thinking with hidden steps, each one lesson judged against the active version.
+
 Nothing here activates a version by itself, except through «включать сама, если не хуже».
 """
 import random
@@ -31,7 +34,7 @@ from datetime import datetime, timezone
 from backend import self_learning as sl
 from backend import training_center as tc
 
-KINDS = ("swarm", "search", "distill", "recipes", "shrink")
+KINDS = ("swarm", "search", "distill", "recipes", "shrink", "hemispheres", "thoughts")
 SKILLS = ("logic", "sim", "programs", "tools", "experience")
 SKILL_NAMES = {"logic": "логика", "sim": "мир задач", "programs": "программы", "tools": "инструменты",
                "experience": "ваши разговоры"}
@@ -193,11 +196,22 @@ def start(kind, *, copies=None, branches=3, rounds=2, minutes=20, prompts=120, d
         if not teacher:
             raise ValueError("Нет выросшей версии, которую можно сжать")
         item = tc._summary(tc._run_dir(teacher))
-        if not item.get("grown_from") or not item["has_best"]:
+        if not item.get("grown_from") or item.get("kind") != "grow" or not item["has_best"]:
             raise ValueError("Сжать после роста можно только выросшую обученную версию")
         if type(prompts) is not int or not 20 <= prompts <= 1000:
             raise ValueError("Вопросов от 20 до 1000")
         plan.update(teacher=teacher, student=_root(teacher), rounds=1, prompts=prompts)
+    elif kind == "hemispheres":
+        from backend import mind
+        other = teacher or mind.partner(current_brain["run"])
+        if not other:
+            raise ValueError("Нужна вторая обученная версия: второе полушарие")
+        tc._run_dir(other)
+        if type(prompts) is not int or not 20 <= prompts <= 1000:
+            raise ValueError("Вопросов от 20 до 1000")
+        plan.update(partner=other, rounds=1, prompts=prompts)
+    elif kind == "thoughts":
+        plan.update(rounds=1)
     elif kind == "search":
         if type(branches) is not int or not 2 <= branches <= 6 or type(rounds) is not int or not 1 <= rounds <= 5:
             raise ValueError("Веток от 2 до 6, раундов от 1 до 5")
@@ -249,7 +263,7 @@ def _prepare_round(plan):
                 raise ValueError("Для рецептов мало уроков: %d" % len(records))
             queue.append({"label": "рецепт %d: %s" % (k + 1, recipes.describe(recipe)), "records": records,
                           "kind": "branch", "recipe": k, "minutes": max(1, plan["minutes"] * recipe["time"]),
-                          "config": dict(config, lr=recipe["lr"], seed=config["seed"] + 77 * (k + 1))})
+                          "config": dict(config, lr=recipe["lr"], rule=recipe.get("rule"), seed=config["seed"] + 77 * (k + 1))})
     elif plan["kind"] == "shrink":
         student = plan["student"]
         records, made = distill_set(tc._run_dir(plan["teacher"]) / "language-longrun.pt.best.pt", plan["prompts"],
@@ -261,6 +275,25 @@ def _prepare_round(plan):
         queue.append({"label": "малая учится у выросшей %s" % plan["teacher"], "records": records, "kind": "distill",
                       "config": _config(student)})
         _note(plan, "выросшая ответила: оставлено %d из %d" % (made["kept"], made["asked"]))
+    elif plan["kind"] == "hemispheres":
+        from backend import mind
+        records, made = mind.hemisphere_set(tc.folder() / base_ckpt, tc._run_dir(plan["partner"]) / "language-longrun.pt.best.pt",
+                                            plan["prompts"], seed=plan["round"])
+        plan["made"] = made
+        queue.append({"label": "полушария: урок из %d споров" % made["asked"], "records": records, "kind": "hemispheres",
+                      "config": config})
+        _note(plan, "права только активная %d, только вторая %d, обе %d, никто %d" % (
+            made["left"], made["right"], made["both"], made["none"]))
+    elif plan["kind"] == "thoughts":
+        from backend import mind
+        from backend.neural_language_benchmark import load_candidate
+        own = mind.own_thoughts(load_candidate(tc.folder() / base_ckpt), 40, seed=plan["round"])
+        records = _synthetic(own + mind.thought_lessons(160, seed=plan["round"]), "thoughts")
+        keys = {r["prompt"].casefold().strip() for r in records}
+        records += [r for r in _experience(len(records), plan["round"]) if r["prompt"].casefold().strip() not in keys]
+        plan["made"] = {"own": len(own), "lessons": len(records)}
+        queue.append({"label": "язык мыслей: своих верных мыслей %d" % len(own), "records": records, "kind": "branch",
+                      "config": config})
     elif plan["kind"] == "swarm":
         for k, skill in enumerate(plan["copies"]):
             records = skill_set(skill, seed=k)
@@ -344,6 +377,8 @@ def on_finished(run_id):
             return _finish_recipes(plan)
         if plan["kind"] == "shrink":
             return _finish_shrink(plan)
+        if plan["kind"] in ("hemispheres", "thoughts"):
+            return _finish_single(plan)
         return _finish_distill_round(plan)
     except Exception as error:  # noqa: BLE001
         return _end(plan, "failed", str(error)[:200])
@@ -529,7 +564,8 @@ def _root(run_id):
     seen = set()
     while run_id and run_id not in seen:
         seen.add(run_id)
-        source = (tc._read(tc._run_dir(run_id) / "run.json", {}) or {}).get("grown_from")
+        info = tc._read(tc._run_dir(run_id) / "run.json", {}) or {}
+        source = info.get("grown_from") if info.get("kind") == "grow" else None
         if not source:
             return run_id
         run_id = source
@@ -539,13 +575,28 @@ def _root(run_id):
 def shrink_teacher():
     """The newest finished grown version whose smaller ancestor still has its weights."""
     for item in tc.runs():
-        if item.get("grown_from") and item["has_best"] and item["state"] == "finished":
+        if item.get("grown_from") and item.get("kind") == "grow" and item["has_best"] and item["state"] == "finished":
             try:
                 if tc._summary(tc._run_dir(_root(item["id"])))["has_best"]:
                     return item["id"]
             except ValueError:
                 continue
     return None
+
+
+def _finish_single(plan):
+    from backend import continual
+    run_id = plan["round_runs"][-1]
+    if not tc._summary(tc._run_dir(run_id))["has_best"]:
+        return _end(plan, "failed", "Урок не сохранил точку")
+    plan["result_run"] = run_id
+    verdict = continual.judge(run_id)
+    progress = tc._read(tc._run_dir(run_id) / "progress.json", {}) or {}
+    progress["verdict"] = verdict
+    tc._write(tc._run_dir(run_id) / "progress.json", progress)
+    return _end(plan, "finished", "%s: урок %s, %s" % ({"hemispheres": "Два полушария", "thoughts": "Язык мыслей"}[plan["kind"]],
+                run_id, {"rolled_back": "хуже активной, отложен (%s)" % verdict["why"], "waiting": "не хуже, ждёт вашего решения",
+                         "activated": "не хуже, включён сам"}[verdict["result"]]))
 
 
 def _finish_shrink(plan):

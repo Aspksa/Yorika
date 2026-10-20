@@ -6,10 +6,13 @@ rule that fits picks the activity, and its reason is written into the log and th
 1. No active version: a fresh one.
 2. A grown version waits to be compressed: shrink (the big one teaches the small one).
 3. Looking inside the active version says experts are overloaded or idle: experts ±2.
-4. It says every layer is needed: grow two layers deeper.
-5. The study recipe was not tested for a week: a recipes contest.
-6. The archive has fewer than three kinds: evolution from any elite.
-7. Otherwise the week plan's activity for today (sleep, copies, branches, future self...).
+4. It says more than half the neurons of a layer stay silent: neurogenesis (they are reborn).
+5. It says every layer is needed: grow two layers deeper.
+6. The study recipe was not tested for a week: a recipes contest.
+7. The archive has fewer than three kinds: evolution from any elite.
+8. Approved books and no pretrained base yet: reading.
+9. A week without the two hemispheres, the language of thought or gene exchange: that one.
+10. Otherwise the week plan's activity for today (sleep, copies, branches, future self...).
 
 Every activity is a lesson that ends in the usual exams and the tournament; nothing here
 activates a version or spends money.
@@ -17,7 +20,7 @@ activates a version or spends money.
 import time
 from datetime import datetime, timezone
 
-RECIPES_EVERY = 7 * 24 * 3600
+RECIPES_EVERY = WEEK = 7 * 24 * 3600
 
 
 def _state():
@@ -54,12 +57,13 @@ def expert_change(item):
 
 def _grown_children(run_id):
     from backend import training_center as tc
-    return [r for r in tc.runs() if r.get("grown_from") == run_id]
+    return [r for r in tc.runs() if r.get("grown_from") == run_id and r.get("kind") == "grow"]
 
 
 def today(week_activity=None):
     """{"activity", "why", "grow": {...} for growth}; never starts anything itself."""
     from backend import archive, plans, recipes
+    from backend import training_center as tc
     item = _active_item()
     state = _state()
     if not item:
@@ -73,6 +77,8 @@ def today(week_activity=None):
         why = "один эксперт перегружен" if change > 0 else "два эксперта почти не работают"
         return {"activity": "experts", "why": why + " (по взгляду внутрь)", "grow": {"from": item["id"], "experts": change}}
     advice = {a.get("kind") for a in ((item.get("introspection") or {}).get("advice") or [])}
+    if "dead" in advice and _since(state, "rebirth") > WEEK:
+        return {"activity": "rebirth", "why": "в слое больше половины нейронов молчат (по взгляду внутрь)"}
     if "grow" in advice and not grown and (item.get("layers") or 0) + 2 <= 16:
         return {"activity": "grow", "why": "каждый слой нужен, места мало (по взгляду внутрь)",
                 "grow": {"from": item["id"], "layers": 2}}
@@ -82,8 +88,28 @@ def today(week_activity=None):
         return {"activity": "recipes", "why": "рецепт учёбы не проверялся неделю" if tried else "рецепт учёбы ещё не испытан"}
     if archive.cells()["filled"] < 3:
         return {"activity": "evolution", "why": "в архиве меньше трёх разных видов"}
+    if _pretrain_waits():
+        return {"activity": "pretrain", "why": "есть одобренные книги, а прочитанной основы ещё нет"}
+    from backend import mind
+    if mind.partner(item["id"]) and _since(state, "hemispheres") > WEEK:
+        return {"activity": "hemispheres", "why": "неделю не было спора двух полушарий"}
+    if _since(state, "thoughts") > WEEK:
+        return {"activity": "thoughts", "why": "неделю не тренировала язык мыслей"}
+    if _since(state, "ecosystem") > WEEK and len(tc.runs()) > 2:
+        return {"activity": "ecosystem", "why": "неделю не было обмена генами между версиями одной линии"}
     what = week_activity or "sleep"
     return {"activity": what, "why": "по плану недели"}
+
+
+def _since(state, activity):
+    return time.time() - (state.get("history") or {}).get(activity, 0)
+
+
+def _pretrain_waits():
+    from backend import training_center as tc
+    if not any(f["approved"] for f in tc.texts()["files"]):
+        return False
+    return not any(r["mode"] == "pretrain" and r["has_best"] for r in tc.runs())
 
 
 def _ts(text):
@@ -99,6 +125,7 @@ def done(choice):
     if choice.get("activity") == "shrink":
         state["shrunk"] = (state.get("shrunk", []) + [choice["teacher"]])[-50:]
     state["last"] = dict(choice, at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+    state.setdefault("history", {})[choice["activity"]] = time.time()
     _save_state(state)
 
 
@@ -118,7 +145,7 @@ def morning():
     lines = []
     if entry:
         for step in entry["steps"]:
-            if step["step"] in ("plan", "train", "sim", "programs", "tidy", "health"):
+            if step["step"] in ("plan", "train", "sim", "programs", "tidy", "health", "dreams"):
                 lines.append({"kind": step["step"], "text": step["result"]})
     new_runs = [r for r in tc.runs() if _ts(r.get("created")) >= since and r["mode"] == "long"]
     for r in new_runs[:6]:

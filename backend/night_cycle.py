@@ -24,7 +24,9 @@ DEFAULTS = {"enabled": False, "time": "02:00", "hours": 4.0, "teacher_tokens": 0
             "sleep": True, "curiosity": True, "evolve": 0, "week": None, "lives": 300, "programs": True}
 ACTIVITIES = {"sleep": "Сон", "distill": "Учёба у себя будущей", "search": "Ветки времени", "swarm": "Копии",
               "evolution": "Эволюция", "fresh": "Новая версия", "rest": "Отдых", "recipes": "Рецепты учёбы",
-              "grow": "Рост глубже", "experts": "Рост вширь (эксперты)", "shrink": "Сжатие после роста"}
+              "grow": "Рост глубже", "experts": "Рост вширь (эксперты)", "shrink": "Сжатие после роста",
+              "hemispheres": "Два полушария", "thoughts": "Язык мыслей", "ecosystem": "Обмен генами",
+              "rebirth": "Нейрогенез", "pretrain": "Чтение книг"}
 TASK_PREFIX = "Yorika Study"
 EVOLUTION_WEEKDAY = 5  # Saturday night: evolution; other nights: sleep that continues the active version
 
@@ -158,17 +160,24 @@ def _start_activity(what, choice, plan, name, launch, hours):
     if what == "rest":
         return "сегодня отдых по плану недели"
     current = tc.active()
-    if what in ("swarm", "search", "distill", "recipes", "shrink"):
+    if what == "ecosystem":
+        return _ecosystem(current)
+    if what == "pretrain":
+        started = tc.start("pretrain", device=_device(current["run"]) if current else "cuda", total_steps=1000000,
+                           hours=hours, launch=launch, scheduled=True)
+        return "чтение книг %s на %s ч: сначала язык, потом диалоги" % (started["id"], hours)
+    if what in ("swarm", "search", "distill", "recipes", "shrink", "hemispheres", "thoughts"):
         from backend import plans
         if not current:
             raise ValueError("нет активной версии для «%s»" % ACTIVITIES[what])
         rounds = 2 if what in ("search", "distill") else 1
-        lessons = {"swarm": 5, "search": 3 * rounds, "distill": rounds, "recipes": 3, "shrink": 1}[what]
+        lessons = {"swarm": 5, "search": 3 * rounds, "distill": rounds, "recipes": 3, "shrink": 1, "hemispheres": 1,
+                   "thoughts": 1}[what]
         minutes = max(5, min(240, round(hours * 60 / lessons)))
         started = plans.start(what, minutes=minutes, rounds=rounds, launch=launch, scheduled=True, branches=3,
                               teacher=(choice or {}).get("teacher"))
         return "%s: план %s, по %d мин на урок" % (ACTIVITIES[what], started["id"], minutes)
-    if what in ("grow", "experts"):
+    if what in ("grow", "experts", "rebirth"):
         from backend import planner, plans
         if not current:
             raise ValueError("нет активной версии, чтобы расти")
@@ -179,6 +188,8 @@ def _start_activity(what, choice, plan, name, launch, hours):
                 if not change:
                     raise ValueError("эксперты загружены ровно или их нет: расти вширь незачем")
                 grow = {"from": current["run"], "experts": change}
+            elif what == "rebirth":
+                grow = {"from": current["run"], "rebirth": True}
             else:
                 grow = {"from": current["run"], "layers": 2}
         records = plans._experience()
@@ -187,8 +198,12 @@ def _start_activity(what, choice, plan, name, launch, hours):
             records = continual.sleep_set(name)[0]
         if len(records) < 20:
             raise ValueError("для роста нужно хотя бы 20 примеров, сейчас %d" % len(records))
-        started = tc.start("long", device=_device(current["run"]), total_steps=1000000, hours=hours, kind="grow",
+        started = tc.start("long", device=_device(current["run"]), total_steps=1000000, hours=hours,
+                           kind="rebirth" if grow.get("rebirth") else "grow",
                            grow=grow, records=records, dataset=name, launch=launch, scheduled=True)
+        if grow.get("rebirth"):
+            born = tc._read(tc._run_dir(started["id"]) / "reborn.json", {}) or {}
+            return "нейрогенез %s: заново родились %d молчавших нейронов" % (started["id"], born.get("total", 0))
         how = ("+%d эксперта" % grow["experts"] if grow.get("experts", 0) > 0 else "%d эксперта" % grow["experts"]) \
             if grow.get("experts") else "+%d слоя" % grow.get("layers", 2)
         return "рост %s (%s) из %s" % (started["id"], how, grow["from"])
@@ -200,7 +215,7 @@ def _start_activity(what, choice, plan, name, launch, hours):
         records, mix = continual.sleep_set(name)
         config = dict(tc._read(tc._run_dir(current["run"]) / "run.json")["config"])
         from backend import recipes
-        config["lr"] = recipes.learning_rate()
+        config["lr"], config["rule"] = recipes.learning_rate(), recipes.learning_rule()
         started = tc.start("long", device=continual._device(current["run"]), total_steps=1000000,
                            hours=hours, config=config, kind="sleep", init=current["checkpoint"],
                            records=records, dataset=name, launch=launch, scheduled=True)
@@ -222,6 +237,24 @@ def _start_activity(what, choice, plan, name, launch, hours):
     started = tc.start("long", dataset=name, device="cuda", total_steps=1000000, hours=hours,
                        launch=launch, size=sizes[0], scheduled=True)
     return "запущено обучение %s на %s ч" % (started["id"], hours)
+
+
+def _ecosystem(current):
+    """Gene exchange with versions of the same line; the new version takes every exam."""
+    from backend import continual, mind
+    if not current:
+        raise ValueError("нет активной версии для обмена генами")
+    donors = mind.donors(current["run"])
+    if not donors:
+        return "обменяться не с кем: нет версий того же устройства и словаря"
+    info = tc._read(tc._run_dir(current["run"]) / "run.json")
+    records = tc._read(tc._run_dir(current["run"]) / "dataset.json") if info.get("internal") else tc._load_records(info["dataset"])
+    run_id, made = mind.exchange(current["run"], donors, tc._prepare(records)["validation"])
+    if not run_id:
+        return "обмен генами: ни один чужой блок не улучшил экзамен, всё осталось как было"
+    tc.exam_worker(run_id)
+    verdict = continual.judge(run_id)
+    return "обмен генами %s: взято блоков %d, итог: %s" % (run_id, len(made["taken"]), verdict["why"])
 
 
 def _device(run_id):
@@ -279,6 +312,11 @@ def run(launch=True, opener=None):
                 step("sim", _sim_lives(plan["lives"]))
             except Exception as error:  # noqa: BLE001
                 step("sim", str(error)[:160])
+        try:
+            from backend import dreams
+            step("dreams", dreams.night_step())
+        except Exception as error:  # noqa: BLE001
+            step("dreams", str(error)[:160])
         if plan["programs"]:
             try:
                 step("programs", _programs())
@@ -313,6 +351,13 @@ def run(launch=True, opener=None):
                 step("tidy", "уборка выключена")
         except Exception as error:  # noqa: BLE001
             step("tidy", str(error)[:160])
+    if plan["enabled"]:
+        try:
+            from backend import diary
+            diary.write(entry)
+            step("diary", "запись в дневнике сделана")
+        except Exception as error:  # noqa: BLE001
+            step("diary", str(error)[:160])
     entry["finished"] = _now()
     history = log() + [entry]
     tc._write(tc.folder() / "night-log.json", history[-14:])

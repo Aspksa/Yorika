@@ -5,6 +5,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 from datetime import datetime
 from pathlib import Path
 
@@ -92,7 +93,9 @@ class SizeAndSeriesTests(LabBase):
             store["items"].append({"id": "n%d" % i, "prompt": "Ночь %d?" % i, "answer": "Да %d." % i, "ts": i,
                                    "rating": "up", "correction": None, "source": "yorika-chat"})
         sl._save(store)
-        steps = {s["step"]: s["result"] for s in night.run(launch=False)["steps"]}
+        # Outside the study grid the night uses its own 4 hours; inside it, the hours left would depend on the clock.
+        with mock.patch("backend.schedule.hours_left", lambda *a, **k: 0):
+            steps = {s["step"]: s["result"] for s in night.run(launch=False)["steps"]}
         self.assertIn("песочница", steps["train"])
         self.assertEqual(tc.series()["hours_each"], 2.0)
 

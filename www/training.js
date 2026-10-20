@@ -4,6 +4,10 @@ import {api} from "./api.js";
 const $=id=>document.getElementById(id);
 // ---- icons: one stroke style, filled into every [data-icon] ----
 const ICONS={
+ crown:["M3 7l4 4 5-7 5 7 4-4-2 12H5z","M5 21h14"],
+ egg:["M12 2C8 2 5 9 5 14a7 7 0 0 0 14 0c0-5-3-12-7-12z","M9 14l2-2 2 2 2-2"],
+ gauge:["M12 14l4-4","M3.3 18a10 10 0 1 1 17.4 0","M12 14a1 1 0 1 0 0 .01"],
+ comet:["M14 10 4 20","M10 4l10 10","M14.5 9.5a5 5 0 1 1-1 7"],
  seed:["M12 22V12","M12 12C12 7 8 4 3 4c0 5 4 8 9 8z","M12 14c0-4 3-7 8-7 0 4-3 7-8 7z"],
  bubble:["M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 21l1.9-5.1A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z","M8 11h.01M12 11h.01M16 11h.01"],
  dna:["M7 2c0 6 10 6 10 12s-10 6-10 8","M17 2c0 6-10 6-10 12s10 6 10 8","M8 6h8M8 18h8M10 10h4M10 14h4"],
@@ -772,7 +776,7 @@ function renderMap(){
 }
 $("map-look").onclick=e=>act(e.currentTarget,async()=>{const ref=mapRef();if(!ref)return;await post("introspect",{id:ref.id});$("map-sub").textContent="Заглядываю внутрь: замер идёт в фоне, карта обновится сама.";setTimeout(async()=>{await refresh();renderMap()},15000)});
 
-const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей",recipes:"Конкурс рецептов",shrink:"Сжатие после роста",hemispheres:"Два полушария",thoughts:"Язык мыслей"};
+const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей",recipes:"Конкурс рецептов",shrink:"Сжатие после роста",hemispheres:"Два полушария",thoughts:"Язык мыслей",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина"};
 const PLAN_STATE={preparing:"готовится",running:"идёт",finished:"готово",failed:"ошибка",stopped:"остановлен"};
 function renderPlan(p){
   const plan=p.plan,box=$("plan-box");box.hidden=!plan;
@@ -902,7 +906,7 @@ function renderFuture(){
 
 
 // ---- evolution: the morning report, health, the map of species, the task ladder, study recipes ----
-const DAWN_IC={train:"play",plan:"swarm",sim:"puzzle",programs:"code",tidy:"archive",health:"shield",run:"layers",archive:"hex",ladder:"stairs"};
+const DAWN_IC={plateau:"comet",train:"play",plan:"swarm",sim:"puzzle",programs:"code",tidy:"archive",health:"shield",run:"layers",archive:"hex",ladder:"stairs"};
 const GENE={experience:["разговоры","--gene-a"],logic:["логика","--gene-b"],sim:["мир задач","--gene-c"],programs:["программы","--gene-d"],tools:["инструменты","--gene-e"]};
 let evo=null,evoTimer=null,scTimer=null;
 async function refreshEvo(){
@@ -911,9 +915,10 @@ async function refreshEvo(){
     const b=await api("/api/training/brain-status");evo=b.evolution||{};
     renderDawn(evo.report||{},evo.tonight||{},b.autopilot);renderHealth(evo.health||{},b.autopilot);
     renderSpecies(evo.archive||{});renderLadders(evo.ladder||{},evo.envs||{});renderRecipes(evo.recipes||{});
-    renderDiary(evo.diary||[]);renderMind(evo);
+    renderDiary(evo.diary||[]);renderMind(evo);renderKnow(evo);
     const live=b.plans.plan&&["preparing","running"].includes(b.plans.plan.state);
     for(const x of document.querySelectorAll("[data-evo-plan],[data-mind-go]"))x.disabled=!!live||!(status&&status.active);
+    $("ex-go").disabled=!!live||!((evo.extinction||{}).count>0);
     const ex=evo.exchange;if(ex&&ex.state==="running"){document.querySelector("[data-mind-go=exchange]").disabled=true;clearTimeout(evoTimer);evoTimer=setTimeout(refreshEvo,5000)}
   }catch(e){showError(e.message)}
 }
@@ -930,7 +935,7 @@ function renderDawn(r,t,ap){
   }
   fillIcons(ul);
 }
-const ACT_NAME={sleep:"Сон",distill:"Учёба у себя будущей",search:"Ветки времени",swarm:"Копии",evolution:"Эволюция",fresh:"Новая версия",rest:"Отдых",recipes:"Рецепты учёбы",grow:"Рост глубже",experts:"Рост вширь (эксперты)",shrink:"Сжатие после роста"};
+const ACT_NAME={sleep:"Сон",distill:"Учёба у себя будущей",search:"Ветки времени",swarm:"Копии",evolution:"Эволюция",fresh:"Новая версия",rest:"Отдых",recipes:"Рецепты учёбы",grow:"Рост глубже",experts:"Рост вширь (эксперты)",shrink:"Сжатие после роста",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина"};
 function renderHealth(h,ap){
   $("health-dot").dataset.state=h.state||"";
   const ul=$("health-list");ul.replaceChildren();
@@ -1033,6 +1038,48 @@ for(const b of document.querySelectorAll("[data-mind-go]"))b.onclick=()=>{
     await refresh();await refreshEvo();
   });
 };
+// ---- evolutionary know-how: coevolution, the Red Queen, Baldwin, mutation strength, species, extinction ----
+function renderKnow(e){
+  const co=e.coevolution||{},ul=$("co-list");ul.replaceChildren();
+  for(const t of (co.top||[]).slice(0,4)){const li=el("li"),bar=el("span","co-bar");bar.style.setProperty("--f",String(t.fail??0));
+    li.append(el("span",null,t.label),bar,el("b",null,t.fail==null?"—":`${Math.round(t.fail*100)}%`));li.title=`${t.label}: проваливает ${t.fail==null?"—":Math.round(t.fail*100)+"%"}`;ul.append(li)}
+  if(!(co.top||[]).length)ul.append(el("li","co-foot","Поколений задач ещё не было: первое найдёт, где она ошибается чаще всего."));
+  else ul.append(el("li","co-foot",`Поколение задач ${co.generation} · в популяции ${co.size}`));
+  const rq=(co.redqueen||{}),box=$("rq");box.replaceChildren();const m=rq.last;
+  if(m){const side=(name,score,rating,win)=>{const d=el("div","rq-side"+(win?" win":""));d.append(el("small",null,name),el("strong",null,String(score)),el("small",null,`рейтинг ${Math.round(rating)}`));return d};
+    box.append(side("активная",m.score[0],m.ratings[0],m.score[0]>m.score[1]),el("span","rq-vs","VS"),side("соперница",m.score[1],m.ratings[1],m.score[1]>m.score[0]),
+      el("small","rq-note",`Верных вопросов задано: ${m.asked[0]} и ${m.asked[1]} · матчей ${rq.matches}`))}
+  else box.append(el("small","rq-note","Матчей ещё не было. Соперница — сильнейшая другая версия из архива."));
+  const bw=e.baldwin||{},chart=$("bw");chart.replaceChildren();const curve=(bw.curve||[]).slice(-8);
+  const vals=curve.flatMap(c=>[c.inherited,c.control]).filter(v=>v!=null),hi=Math.max(...vals,0),lo=Math.min(...vals,hi);
+  const h=v=>v==null?0:hi>lo?0.15+0.85*(hi-v)/(hi-lo):0.6;
+  for(const c of curve){const g=el("div","bw-gen");const a=el("i","inh"),b=el("i");a.style.setProperty("--h",h(c.inherited).toFixed(2));b.style.setProperty("--h",h(c.control).toFixed(2));
+    a.title=`поколение ${c.g}: врождённая ${c.inherited??"—"}`;b.title=`поколение ${c.g}: случайная ${c.control??"—"}`;g.append(a,b);chart.append(g)}
+  if(!curve.length)chart.append(el("span","bw-empty","Выше столбик — быстрее училась. Цветной — врождённая точка, серый — случайная."));
+  $("bw-stat").textContent=bw.generation?`Поколений ${bw.generation} · врождённая быстрее случайной в ${bw.inherited_wins} из ${bw.duels}`:"Ни одного поколения стартов ещё не было";
+  const mu=e.mutation||{},gauge=$("mu");const frac=mu.strength?(mu.strength-(mu.low||1))/((mu.high||4)-(mu.low||1)):0;
+  gauge.style.setProperty("--s",(mu.boost?1:frac).toFixed(3));gauge.classList.toggle("boost",!!mu.boost);
+  $("mu-stat").textContent=mu.tries?`Сила ${String(mu.strength).replace(".",",")} гена · удачных ${mu.wins} из ${mu.tries}${mu.plateau?" · плато":""}${mu.boost?` · смелые мутанты ещё ${mu.boost} пок.`:""}`:"Сила 1,5 гена · поколений ещё не было";
+  const sp=e.species||{},dots=$("sp-dots");dots.replaceChildren();const list=sp.species||[];
+  for(const x of list.slice(-14)){const d=el("span","sp-dot"+(x.protected?" young":""),String(x.id));d.style.setProperty("--n",String(Math.min(6,x.size)));d.style.setProperty("--k",(x.solved/(sp.probes||24)).toFixed(2));
+    d.title=`Вид №${x.id}: версий ${x.size}, решает ${x.solved} из ${sp.probes||24} проб${x.protected?`, под защитой ещё ${x.left}`:""}`;dots.append(d)}
+  if(!list.length)dots.append(el("small","mind-stat","Виды появятся после экзаменов новых версий."));
+  $("sp-stat").textContent=list.length?`Видов ${list.length} · под защитой ${list.filter(x=>x.protected).length} · версий изучено ${sp.versions}`:"";
+  const ex=e.extinction||{},exb=$("ex");exb.replaceChildren();
+  exb.append(el("span","ex-state"+(ex.plateau?" stuck":""),ex.plateau?"Плато":"Эволюция идёт"),el("small",null,ex.why||""),
+    el("small",null,ex.count?`Слабых версий, которых можно удалить: ${ex.count} (${String(ex.mb).replace(".",",")} МБ)`:"Удалять некого: все версии нужны"));
+  const last=(ex.history||[]).slice(-1)[0];if(last)exb.append(el("small",null,`Последнее: ${new Date(last.at).toLocaleDateString("ru-RU")}, удалено ${last.removed.length}`));
+}
+$("ex-go").onclick=e=>act(e.currentTarget,async()=>{
+  const p=await post("extinction-preview");
+  if(!p.count){showError("Удалять некого: все версии нужны");return}
+  const list=p.candidates.slice(0,12).map(c=>`• ${c.run} — сила ${c.fitness.toFixed(2)}, ${c.mb} МБ`).join("\n");
+  if(!confirm(`${p.plateau?"Эволюция на плато: "+p.why+".":"Плато сейчас нет."}\n\nБудут удалены с диска ${p.count} слабых версий (${p.mb} МБ):\n${list}${p.count>12?"\n…":""}\n\nАктивная, её предки, лучшие в архиве и молодые виды не трогаются. Вернуть удалённое нельзя.`))return;
+  const word=prompt("Чтобы подтвердить, напишите слово: вымирание");
+  if((word||"").trim().toLowerCase()!=="вымирание")return;
+  const r=await post("extinction",{confirm:true,expect:p.count});
+  showError("");$("ex-go").textContent=`Удалено ${r.removed.length}, освобождено ${r.freed_mb} МБ`;await refreshEvo();
+});
 $("diary-now").onclick=e=>act(e.currentTarget,async()=>{await post("diary-write");await refreshEvo()});
 
 const SC_STEPS=["PyTorch и видеокарта","Папка обучения и диск","Урок на минуту","Экзамены","Мир задач","Поиск программы","Расписание и планировщик","Уборка за собой"];

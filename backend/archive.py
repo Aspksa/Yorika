@@ -157,9 +157,29 @@ def update(run_id, loaded=None, play=True):
                                                              arch=item.get("arch"))),
                                   "added": _now(), "replaced": incumbent["run"] if incumbent and incumbent["run"] != run_id else None}
             entry["result"] = "вошла в архив" + (" вместо %s" % incumbent["run"] if incumbent and incumbent["run"] != run_id else "")
+    born = _species(run_id, path, loaded, score)
+    if born:
+        entry["species"] = born["species"]
+        if born["founded"] and "вошла" not in entry["result"]:
+            entry["result"] += "; но она основала новый вид №%d, он под защитой" % born["species"]
+    if item.get("kind") == "evolution":
+        from backend import mutation
+        mutation.record("архитектура", entry["result"].startswith("вошла"))
     data["log"].append(entry)
     _save(data)
     return dict(entry, tournament=match)
+
+
+def _species(run_id, path, loaded, score):
+    """Behaviour on the probe tasks and a species; never stops the archive update."""
+    from backend import species
+    from backend.neural_language_benchmark import load_candidate
+    try:
+        return species.observe(run_id, loaded or load_candidate(path / "language-longrun.pt.best.pt"), score)
+    except Exception as error:  # noqa: BLE001
+        import sys
+        print(repr(error), file=sys.stderr)
+        return None
 
 
 def _width(path):
@@ -180,9 +200,15 @@ def elites():
 
 
 def pick_parent(rng=None):
-    """Any elite, so evolution keeps exploring different kinds; None while the archive is empty."""
+    """Any elite, so evolution keeps exploring different kinds; sometimes the best of a young
+    protected species (backend/species.py); None while both are empty."""
+    from backend import species
+    rng = rng or random
+    novel = species.novel_parent(rng, _exists)
+    if novel:
+        return novel
     found = sorted(elites())
-    return (rng or random).choice(found) if found else None
+    return rng.choice(found) if found else None
 
 
 def cells():

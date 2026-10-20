@@ -92,14 +92,15 @@ def mutate(recipe, rng):
 
 def candidates(count, seed=None):
     """The best recipe and `count - 1` different mutants of it."""
+    from backend import mutation
     rng = random.Random(seed)
     parent = best()
     out, seen = [parent], {describe(parent)}
     for _ in range(count * 20):
         if len(out) >= count:
             break
-        child = mutate(parent, rng)
-        if describe(child) not in seen:
+        child = mutation.apply(mutate, parent, rng)
+        if valid(child) and describe(child) not in seen:
             seen.add(describe(child))
             out.append(child)
     return out
@@ -176,6 +177,9 @@ def remember(results):
         changed = describe(winner["recipe"]) != describe(best())
         data["best"] = winner["recipe"]
     tc._write(_path(), data)
+    if results:
+        from backend import mutation
+        mutation.record("рецепты", changed)
     return {"winner": winner, "changed": changed}
 
 

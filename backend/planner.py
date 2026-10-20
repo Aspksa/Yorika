@@ -12,7 +12,9 @@ rule that fits picks the activity, and its reason is written into the log and th
 7. The archive has fewer than three kinds: evolution from any elite.
 8. Approved books and no pretrained base yet: reading.
 9. A week without the two hemispheres, the language of thought or gene exchange: that one.
-10. Otherwise the week plan's activity for today (sleep, copies, branches, future self...).
+10. A week without coevolution of tasks or a Red Queen match, two weeks without a generation of
+    starting points (the Baldwin effect): that one.
+11. Otherwise the week plan's activity for today (sleep, copies, branches, future self...).
 
 Every activity is a lesson that ends in the usual exams and the tournament; nothing here
 activates a version or spends money.
@@ -97,6 +99,12 @@ def today(week_activity=None):
         return {"activity": "thoughts", "why": "неделю не тренировала язык мыслей"}
     if _since(state, "ecosystem") > WEEK and len(tc.runs()) > 2:
         return {"activity": "ecosystem", "why": "неделю не было обмена генами между версиями одной линии"}
+    if _since(state, "coevolve") > WEEK:
+        return {"activity": "coevolve", "why": "неделю не искала свои слабые места"}
+    if mind.partner(item["id"]) and _since(state, "redqueen") > WEEK:
+        return {"activity": "redqueen", "why": "неделю не было матча Красной Королевы"}
+    if _since(state, "baldwin") > 2 * WEEK:
+        return {"activity": "baldwin", "why": "две недели не испытывала врождённые стартовые точки"}
     what = week_activity or "sleep"
     return {"activity": what, "why": "по плану недели"}
 
@@ -163,6 +171,13 @@ def morning():
     for p in plans.history():
         if _ts(p.get("finished")) >= since:
             lines.append({"kind": "plan", "text": p.get("result") or ""})
+    try:
+        from backend import extinction
+        stuck = extinction.plateau()
+        if stuck["plateau"]:
+            lines.append({"kind": "plateau", "text": "Эволюция на плато (%s): можно устроить вымирание, только вашей кнопкой" % stuck["why"]})
+    except Exception:  # noqa: BLE001 - the report never fails because of one line
+        pass
     waiting = [r["id"] for r in tc.runs() if (r.get("verdict") or {}).get("result") == "waiting" and _ts(r.get("created")) >= since]
     return {"since": entry["started"] if entry else None, "lines": lines[-16:], "waiting": waiting,
             "choice": last(), "empty": not lines}

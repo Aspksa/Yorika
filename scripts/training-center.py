@@ -23,7 +23,7 @@ WRITES = {"probe", "install-torch", "data-check", "folder", "open-folder", "star
           "teacher-models", "chat-engine", "continual-settings", "continual-now", "evolve", "merge",
           "compress", "grow", "curiosity-now", "think", "plan-start", "schedule-set", "autopilot",
           "programs-learn", "sim-now", "introspect", "autopilot-options", "tidy", "selfcheck", "harvest",
-          "exchange", "screen-help", "diary-write", "rebirth"}
+          "exchange", "screen-help", "diary-write", "rebirth", "extinction-preview", "extinction"}
 
 
 def handle(action, body):
@@ -131,6 +131,12 @@ def handle(action, body):
         tc._write(tc.folder() / "exchange-job.json", {"state": "running", "t": __import__("time").time(), "result": None})
         tc._spawn([sys.executable, str(tc.CLI), "exchange-worker"], tc.folder() / "exchange.log")
         return {"state": "running"}
+    if action == "extinction-preview":
+        from backend import extinction
+        return extinction.preview()
+    if action == "extinction":
+        from backend import extinction
+        return extinction.run(body.get("confirm") is True, body.get("expect"))
     if action == "screen-help":
         from backend import screen
         return screen.help_with(body.get("question") or "Что здесь не так и что делать?")
@@ -223,12 +229,14 @@ def handle(action, body):
 
 def _evolution():
     """Archive, study recipes, the task ladder, health, tonight's choice and the morning report."""
-    from backend import archive, diary, health, mind, planner, recipes, selfcheck, simworld
+    from backend import archive, baldwin, coevolution, diary, extinction, health, mind, mutation, planner, recipes, selfcheck, simworld, species
     parts = {}
     for key, read in (("archive", archive.cells), ("recipes", recipes.status), ("ladder", simworld.ladder),
                       ("health", health.check), ("report", planner.morning), ("tonight", lambda: planner.today(night.activity())),
                       ("diary", diary.entries), ("trust", mind.trust), ("selfcheck", selfcheck.last),
-                      ("exchange", lambda: tc._read(tc.folder() / "exchange-job.json"))):
+                      ("exchange", lambda: tc._read(tc.folder() / "exchange-job.json")),
+                      ("coevolution", coevolution.status), ("baldwin", baldwin.status), ("mutation", mutation.status),
+                      ("species", species.status), ("extinction", extinction.status)):
         try:
             parts[key] = read()
         except Exception as error:  # noqa: BLE001 - one broken part never hides the page

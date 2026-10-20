@@ -406,6 +406,52 @@
    </div>
   </section>
 
+  <section class="knowhow" aria-labelledby="know-title">
+   <div class="know-head">
+    <h2 id="know-title" class="section-title">Эволюционные ноу-хау</h2>
+    <p class="mind-sub">Шесть приёмов, которые делают эволюцию открытой: задачи растут вместе с ней, соперники гонят друг друга, наследуется умение учиться, сила мутаций настраивает сама себя, новое защищено, застой разрушается. Всё измеряется программой.</p>
+   </div>
+   <div class="mind-grid know-grid">
+    <article class="mind know" data-know="coevolve">
+     <span class="mind-ic" data-icon="target" aria-hidden="true"></span><h3>Коэволюция задач</h3>
+     <p>Задачи — тоже вид. Выживают те, что она проваливает, и мутируют: уровень, вид, мир. Учитель сам находит слабые места.</p>
+     <ul class="co-list" id="co-list" aria-label="Самые трудные задачи"></ul>
+     <button class="secondary small" data-evo-plan="coevolve">Найти слабые места</button>
+    </article>
+    <article class="mind know" data-know="redqueen">
+     <span class="mind-ic" data-icon="crown" aria-hidden="true"></span><h3>Красная Королева</h3>
+     <p>Две версии по очереди ведут викторину: спрашивать можно только то, что решаешь сам. Обе учат проигранное.</p>
+     <div class="rq" id="rq" aria-live="polite"></div>
+     <button class="secondary small" data-evo-plan="redqueen">Устроить матч</button>
+    </article>
+    <article class="mind know" data-know="baldwin">
+     <span class="mind-ic" data-icon="egg" aria-hidden="true"></span><h3>Эффект Болдуина</h3>
+     <p>Эволюционирует точка рождения: с какими весами новая версия учится быстрее всего. Рядом всегда честный случайный старт.</p>
+     <div class="bw" id="bw" role="img" aria-label="Врождённая точка против случайной по поколениям"></div>
+     <small class="mind-stat" id="bw-stat"></small>
+     <button class="secondary small" data-evo-plan="baldwin">Поколение стартов</button>
+    </article>
+    <article class="mind know" data-know="mutation">
+     <span class="mind-ic" data-icon="gauge" aria-hidden="true"></span><h3>Самонастройка мутаций</h3>
+     <p>Правило одной пятой: на плато мутации смелеют, после удач становятся осторожнее. Сила — сколько генов меняет потомок.</p>
+     <div class="mu" id="mu"><div class="mu-track"><span class="mu-fill"></span><span class="mu-needle"></span></div><div class="mu-scale" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span></div></div>
+     <small class="mind-stat" id="mu-stat"></small>
+    </article>
+    <article class="mind know" data-know="species">
+     <span class="mind-ic" data-icon="hex" aria-hidden="true"></span><h3>Новизна и виды</h3>
+     <p>Каждая версия решает 24 пробные задачи. Кто решает не то, что другие, основывает вид и шесть поколений под защитой.</p>
+     <div class="sp-dots" id="sp-dots" aria-label="Виды"></div>
+     <small class="mind-stat" id="sp-stat"></small>
+    </article>
+    <article class="mind know" data-know="extinction">
+     <span class="mind-ic" data-icon="comet" aria-hidden="true"></span><h3>Массовое вымирание</h3>
+     <p>Если эволюция застряла, слабая половина версий уходит, а три поколения после — смелые мутанты. Только вашей кнопкой.</p>
+     <div class="ex" id="ex"></div>
+     <button class="danger small" id="ex-go">Устроить вымирание…</button>
+    </article>
+   </div>
+  </section>
+
   <section class="card species-card" aria-labelledby="species-title">
    <header class="card-head"><span class="card-ic" data-icon="hex" aria-hidden="true"></span><div><h2 id="species-title">Карта видов</h2><p id="species-sub">Лучшая версия каждого вида: размер × устройство. Эволюция берёт родителя из любой клетки, поэтому не застревает на одном пути.</p></div></header>
    <div class="species" id="species" role="table" aria-label="Архив версий"></div>

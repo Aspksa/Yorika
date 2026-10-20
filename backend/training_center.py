@@ -40,7 +40,7 @@ SIZES = {"s": {"width": 320, "heads": 8, "layers": 4, "max_merges": 1024},
          "m": {"width": 512, "heads": 8, "layers": 8, "max_merges": 2048},
          "l": {"width": 640, "heads": 10, "layers": 10, "batch_size": 8, "accumulate": 2, "max_merges": 2048}}
 KINDS = ("quick", "sleep", "evolution", "merge", "grow", "swarm", "copy", "branch", "distill", "selfcheck",
-         "hemispheres", "rebirth", "ecosystem")
+         "hemispheres", "rebirth", "ecosystem", "coevolve", "redqueen", "baldwin")
 RUN_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-(pilot|long|pretrain)\Z")
 TEXT_NAME = re.compile(r"^[^\\/:*?\"<>|]{1,120}\.txt\Z")
 TEXT_LICENSES = ("public-domain", "user-consent")
@@ -673,7 +673,10 @@ def start_evolution(dataset, population=4, *, device="cuda", total_steps=100000,
     for _ in range(population * 10):
         if len(children) >= population:
             break
-        child = mutate(parent, rng)
+        # Several genes at once when evolution is stuck (backend/mutation.py).
+        from backend import mutation
+        child = mutation.apply(mutate, parent, rng)
+        child["label"] = _describe(child)
         key = json.dumps({k: v for k, v in child.items() if k != "label"}, sort_keys=True)
         if key not in seen:
             seen.add(key)

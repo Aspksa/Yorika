@@ -24,6 +24,10 @@ small one learns the big one's checked answers; it is kept only if it is not wor
 Hemispheres and thoughts (mind.py): lessons from where two versions disagree, and lessons in
 thinking with hidden steps, each one lesson judged against the active version.
 
+Coevolution, the Red Queen and the Baldwin effect (coevolution.py, baldwin.py): lessons from
+the task genomes she fails; a match of two quiz masters after which both study their losses;
+newborn starting points that compete on how fast they learn the same lesson.
+
 Nothing here activates a version by itself, except through «включать сама, если не хуже».
 """
 import random
@@ -34,7 +38,7 @@ from datetime import datetime, timezone
 from backend import self_learning as sl
 from backend import training_center as tc
 
-KINDS = ("swarm", "search", "distill", "recipes", "shrink", "hemispheres", "thoughts")
+KINDS = ("swarm", "search", "distill", "recipes", "shrink", "hemispheres", "thoughts", "coevolve", "redqueen", "baldwin")
 SKILLS = ("logic", "sim", "programs", "tools", "experience")
 SKILL_NAMES = {"logic": "логика", "sim": "мир задач", "programs": "программы", "tools": "инструменты",
                "experience": "ваши разговоры"}
@@ -93,7 +97,8 @@ def _experience(limit=None, seed=0):
 
 
 def _synthetic(pairs, source):
-    banned = tc.protected_prompts()
+    from backend import species
+    banned = tc.protected_prompts() | species.probe_questions()
     seen, out = set(), []
     for prompt, answer in pairs:
         key = prompt.casefold().strip()
@@ -210,7 +215,21 @@ def start(kind, *, copies=None, branches=3, rounds=2, minutes=20, prompts=120, d
         if type(prompts) is not int or not 20 <= prompts <= 1000:
             raise ValueError("Вопросов от 20 до 1000")
         plan.update(partner=other, rounds=1, prompts=prompts)
-    elif kind == "thoughts":
+    elif kind == "redqueen":
+        from backend import mind
+        other = teacher or mind.partner(current_brain["run"])
+        if not other:
+            raise ValueError("Нужна вторая обученная версия: соперница")
+        if not tc._summary(tc._run_dir(other))["has_best"]:
+            raise ValueError("У соперницы нет сохранённой точки")
+        if type(prompts) is not int or not 20 <= prompts <= 1000:
+            raise ValueError("Вопросов от 20 до 1000")
+        plan.update(partner=other, rounds=1, prompts=prompts)
+    elif kind == "baldwin":
+        if type(branches) is not int or not 2 <= branches <= 6:
+            raise ValueError("Стартов от 2 до 6")
+        plan.update(branches=branches, rounds=1)
+    elif kind in ("thoughts", "coevolve"):
         plan.update(rounds=1)
     elif kind == "search":
         if type(branches) is not int or not 2 <= branches <= 6 or type(rounds) is not int or not 1 <= rounds <= 5:
@@ -294,6 +313,47 @@ def _prepare_round(plan):
         plan["made"] = {"own": len(own), "lessons": len(records)}
         queue.append({"label": "язык мыслей: своих верных мыслей %d" % len(own), "records": records, "kind": "branch",
                       "config": config})
+    elif plan["kind"] == "coevolve":
+        from backend import coevolution
+        from backend.neural_language_benchmark import load_candidate
+        pairs, made = coevolution.evolve(load_candidate(tc.folder() / base_ckpt), seed=int(plan["id"][-6:]) + plan["round"])
+        records = _with_replay(_synthetic(pairs, "coevolution"), plan["round"])
+        plan["made"] = made
+        if len(records) < 20:
+            raise ValueError("Слабых мест для урока мало: %d примеров" % len(records))
+        queue.append({"label": "коэволюция: слабые места поколения %d" % made["generation"], "records": records,
+                      "kind": "coevolve", "config": config})
+        _note(plan, "поколение задач %d: слабее всего %s" % (made["generation"], ", ".join(
+            "%s (%d%%)" % (w["label"], round(100 * w["fail"])) for w in made["weak"][:3])))
+    elif plan["kind"] == "redqueen":
+        from backend import coevolution
+        from backend.neural_language_benchmark import load_candidate
+        partner_ckpt = "runs/%s/language-longrun.pt.best.pt" % plan["partner"]
+        left, right, made = coevolution.match((plan["base"]["run"], load_candidate(tc.folder() / base_ckpt)),
+                                              (plan["partner"], load_candidate(tc.folder() / partner_ckpt)),
+                                              seed=int(plan["id"][-6:]), questions=max(10, plan["prompts"] // 4))
+        plan["made"] = made
+        for side, pairs, init, cfg in (("active", left, base_ckpt, config), ("partner", right, partner_ckpt, _config(plan["partner"]))):
+            records = _with_replay(_synthetic(pairs, "redqueen"), plan["round"])
+            if len(records) < 20:
+                _note(plan, "%s: учить почти нечего (%d примеров)" % ("активная" if side == "active" else "соперница", len(records)))
+                continue
+            queue.append({"label": "Красная Королева: %s учит проигранное" % ("активная" if side == "active" else "соперница"),
+                          "records": records, "kind": "redqueen", "config": cfg, "init": init, "side": side})
+        _note(plan, "матч: активная %d : %d соперница (верных вопросов %d и %d), рейтинг %s : %s" % (
+            made["score"][0], made["score"][1], made["asked"][0], made["asked"][1], made["ratings"][0], made["ratings"][1]))
+        if not queue:
+            raise ValueError("После матча учить нечего: обе ответили на всё одинаково")
+    elif plan["kind"] == "baldwin":
+        from backend import baldwin, recipes
+        genomes, files = baldwin.prepare(tc.folder() / base_ckpt, plan["branches"], int(plan["id"][-6:]))
+        plan["genomes"] = genomes
+        records = recipes.records(recipes.DEFAULT, seed=int(plan["id"][-6:]) % 1000)
+        if len(records) < 20:
+            raise ValueError("Для стартов мало уроков: %d" % len(records))
+        for k, (genome, path) in enumerate(zip(genomes, files)):
+            queue.append({"label": "старт %d: %s" % (k + 1, baldwin.describe(genome)), "records": records, "kind": "baldwin",
+                          "config": config, "init": path, "baldwin": k})
     elif plan["kind"] == "swarm":
         for k, skill in enumerate(plan["copies"]):
             records = skill_set(skill, seed=k)
@@ -325,7 +385,7 @@ def _prepare_round(plan):
     folder.mkdir(parents=True, exist_ok=True)
     for k, item in enumerate(queue):
         # Datasets live in files: plan.json stays small enough to read on every page refresh.
-        item["init"] = base_ckpt
+        item.setdefault("init", base_ckpt)
         item["records_file"] = "plan/r%d-%d.json" % (plan["round"], k)
         tc._write(tc.folder() / item["records_file"], item.pop("records"))
     plan["queue"], plan["state"] = queue, "running"
@@ -351,7 +411,8 @@ def _next(plan):
                     raise
                 time.sleep(1.1)
         entry = {"id": run["id"], "label": item["label"], "skill": item.get("skill"), "round": plan["round"],
-                 "recipe": item.get("recipe"), "minutes": item.get("minutes", plan["minutes"])}
+                 "recipe": item.get("recipe"), "minutes": item.get("minutes", plan["minutes"]),
+                 "side": item.get("side"), "baldwin": item.get("baldwin"), "init": item["init"]}
         plan["runs"].append(entry)
         plan["round_runs"].append(run["id"])
         _save(plan)
@@ -377,8 +438,12 @@ def on_finished(run_id):
             return _finish_recipes(plan)
         if plan["kind"] == "shrink":
             return _finish_shrink(plan)
-        if plan["kind"] in ("hemispheres", "thoughts"):
+        if plan["kind"] in ("hemispheres", "thoughts", "coevolve"):
             return _finish_single(plan)
+        if plan["kind"] == "redqueen":
+            return _finish_redqueen(plan)
+        if plan["kind"] == "baldwin":
+            return _finish_baldwin(plan)
         return _finish_distill_round(plan)
     except Exception as error:  # noqa: BLE001
         return _end(plan, "failed", str(error)[:200])
@@ -594,9 +659,54 @@ def _finish_single(plan):
     progress = tc._read(tc._run_dir(run_id) / "progress.json", {}) or {}
     progress["verdict"] = verdict
     tc._write(tc._run_dir(run_id) / "progress.json", progress)
-    return _end(plan, "finished", "%s: урок %s, %s" % ({"hemispheres": "Два полушария", "thoughts": "Язык мыслей"}[plan["kind"]],
+    return _end(plan, "finished", "%s: урок %s, %s" % ({"hemispheres": "Два полушария", "thoughts": "Язык мыслей",
+                                                         "coevolve": "Коэволюция задач"}[plan["kind"]],
                 run_id, {"rolled_back": "хуже активной, отложен (%s)" % verdict["why"], "waiting": "не хуже, ждёт вашего решения",
                          "activated": "не хуже, включён сам"}[verdict["result"]]))
+
+
+def _with_replay(records, seed):
+    """Lessons plus as many of your examples, so a skill does not push out the conversation."""
+    keys = {r["prompt"].casefold().strip() for r in records}
+    return records + [r for r in _experience(len(records), seed) if r["prompt"].casefold().strip() not in keys]
+
+
+def _finish_redqueen(plan):
+    from backend import continual
+    made = plan.get("made") or {}
+    lines = ["Матч: активная %d : %d соперница" % tuple(made.get("score", [0, 0]))]
+    for entry in plan["runs"]:
+        if not tc._summary(tc._run_dir(entry["id"]))["has_best"]:
+            continue
+        if entry.get("side") == "active":
+            plan["result_run"] = entry["id"]
+            verdict = continual.judge(entry["id"])
+            progress = tc._read(tc._run_dir(entry["id"]) / "progress.json", {}) or {}
+            progress["verdict"] = verdict
+            tc._write(tc._run_dir(entry["id"]) / "progress.json", progress)
+            lines.append("урок активной %s: %s" % (entry["id"], {"rolled_back": "хуже активной, отложен", "waiting": "не хуже, ждёт вашего решения",
+                                                                 "activated": "не хуже, включён сам"}[verdict["result"]]))
+        else:
+            lines.append("соперница тоже подучилась: %s" % entry["id"])
+    return _end(plan, "finished", "; ".join(lines))
+
+
+def _finish_baldwin(plan):
+    from backend import baldwin
+    results = []
+    for entry in plan["runs"]:
+        if entry.get("baldwin") is None:
+            continue
+        item = tc._summary(tc._run_dir(entry["id"]))
+        if item["has_best"] and item.get("exam_per_char") is not None:
+            results.append({"k": entry["baldwin"], "run": entry["id"], "exam": item["exam_per_char"], "init": entry["init"]})
+    made = baldwin.remember(plan["genomes"], results)
+    plan["made"] = made
+    text = "Поколение стартов %d: быстрее всех училась «%s» (экзамен %.3f)" % (made["generation"], made["winner"], made["exam"])
+    if made.get("inherited") is not None and made.get("control") is not None:
+        text += "; врождённая точка %.3f против случайной %.3f — %s" % (
+            made["inherited"], made["control"], "врождённая учится быстрее" if made["inherited"] < made["control"] else "пока не быстрее случайной")
+    return _end(plan, "finished", text)
 
 
 def _finish_shrink(plan):

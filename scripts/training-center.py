@@ -227,16 +227,24 @@ def handle(action, body):
     raise ValueError("Неизвестное действие")
 
 
+def _symbiosis(plans):
+    current = tc.active()
+    return {"guest": plans.symbiont(current["run"]) if current else None}
+
+
 def _evolution():
     """Archive, study recipes, the task ladder, health, tonight's choice and the morning report."""
-    from backend import archive, baldwin, coevolution, diary, extinction, health, mind, mutation, planner, recipes, selfcheck, simworld, species
+    from backend import (archive, baldwin, coevolution, data_evolution, diary, es, extinction, health, mind, mutation, planner,
+                         plans, recipes, selfcheck, simworld, species, tabu)
     parts = {}
     for key, read in (("archive", archive.cells), ("recipes", recipes.status), ("ladder", simworld.ladder),
                       ("health", health.check), ("report", planner.morning), ("tonight", lambda: planner.today(night.activity())),
                       ("diary", diary.entries), ("trust", mind.trust), ("selfcheck", selfcheck.last),
                       ("exchange", lambda: tc._read(tc.folder() / "exchange-job.json")),
                       ("coevolution", coevolution.status), ("baldwin", baldwin.status), ("mutation", mutation.status),
-                      ("species", species.status), ("extinction", extinction.status)):
+                      ("species", species.status), ("extinction", extinction.status),
+                      ("pareto", archive.pareto_status), ("es", es.status), ("dataevo", data_evolution.status),
+                      ("tabu", tabu.status), ("symbiosis", lambda: _symbiosis(plans))):
         try:
             parts[key] = read()
         except Exception as error:  # noqa: BLE001 - one broken part never hides the page

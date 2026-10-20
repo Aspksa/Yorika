@@ -171,3 +171,46 @@ def rebirth(source, target, examples, threshold=0.0):
     torch.save(payload, temp)
     temp.replace(target)
     return {"reborn": reborn, "total": sum(reborn.values())}
+
+
+def engulf(host, guest, target):
+    """Endosymbiosis: a whole smaller version (a specialist) moves inside the host.
+
+    Both must share the word pieces. The guest keeps all its weights and reads the same text;
+    its last hidden state reaches the host through a bridge that starts at zero, so at first the
+    host answers exactly as before. Training then decides how much of the guest to listen to.
+    """
+    import torch
+    from backend.neural_language_bpe_v2 import check_arch, make_model
+    h = torch.load(Path(host), map_location="cpu", weights_only=True)
+    g = torch.load(Path(guest), map_location="cpu", weights_only=True)
+    if h.get("schema") != SCHEMA or g.get("schema") != SCHEMA:
+        raise ValueError("Неизвестный формат версии")
+    if h["tokenizer"]["sha256"] != g["tokenizer"]["sha256"]:
+        raise ValueError("Встроить можно только версию с тем же словарём")
+    h_arch, g_arch = h.get("arch") or {}, g.get("arch") or {}
+    if not h_arch or not g_arch:
+        raise ValueError("Оба должны быть нового устройства")
+    if h_arch.get("guest") or g_arch.get("guest"):
+        raise ValueError("Внутри уже живёт специалист")
+    width, heads, layers, context, merges, seed = h["config"]
+    g_width, g_heads, g_layers, g_context = g["config"][:4]
+    if g_context != context:
+        raise ValueError("У специалиста другой контекст")
+    arch = check_arch(dict(h_arch, guest={"width": g_width, "heads": g_heads, "layers": g_layers, "arch": g_arch}))
+    model = make_model(torch, vocab_size=h["vocab_size"], width=width, heads=heads, layers=layers, context=context, arch=arch)
+    weights = model.state_dict()
+    for name, value in h["weights"].items():
+        weights[name] = value
+    for name, value in g["weights"].items():
+        weights["guest." + name] = value
+    model.load_state_dict(weights, strict=True)
+    payload = {"schema": SCHEMA, "weights": model.state_dict(), "tokenizer": h["tokenizer"], "vocab_size": h["vocab_size"],
+               "config": [width, heads, layers, context, merges, seed], "objective": h.get("objective", "dialogue"),
+               "arch": arch, "step": 0}
+    target = Path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temp = target.with_name(target.name + ".tmp")
+    torch.save(payload, temp)
+    temp.replace(target)
+    return {"parameters": sum(p.numel() for p in model.parameters()), "guest_parameters": sum(v.numel() for v in g["weights"].values())}

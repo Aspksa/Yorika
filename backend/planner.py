@@ -105,6 +105,12 @@ def today(week_activity=None):
         return {"activity": "redqueen", "why": "неделю не было матча Красной Королевы"}
     if _since(state, "baldwin") > 2 * WEEK:
         return {"activity": "baldwin", "why": "две недели не испытывала врождённые стартовые точки"}
+    if _since(state, "dataevo") > WEEK:
+        return {"activity": "dataevo", "why": "неделю не отбирала уроки по пользе"}
+    if _since(state, "es") > 2 * WEEK:
+        return {"activity": "es", "why": "две недели не пробовала эволюцию весов без градиентов"}
+    if _since(state, "symbiosis") > 2 * WEEK and plans.symbiont(item["id"]):
+        return {"activity": "symbiosis", "why": "есть меньшая версия-специалист с тем же словарём, её можно встроить"}
     what = week_activity or "sleep"
     return {"activity": what, "why": "по плану недели"}
 

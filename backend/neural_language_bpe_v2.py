@@ -8,11 +8,13 @@ from pathlib import Path
 from backend.neural_bpe_v1 import SPECIAL, OFFSET, train as train_bpe, encode as encode_bpe, decode as decode_bpe, validate as validate_bpe
 
 
-ARCH_KEYS = ("lab", "loops", "experts", "memory", "mixer", "dendrites", "hopfield", "fast")
-ARCH_DEFAULTS = {"loops": 1, "experts": 0, "memory": 0, "mixer": "attn", "dendrites": 0, "hopfield": 0, "fast": False}
+ARCH_KEYS = ("lab", "loops", "experts", "memory", "mixer", "dendrites", "hopfield", "fast", "epigenetic", "guest")
+ARCH_DEFAULTS = {"loops": 1, "experts": 0, "memory": 0, "mixer": "attn", "dendrites": 0, "hopfield": 0, "fast": False,
+                 "epigenetic": False}
 ARCH_VALUES = {"loops": (1, 2, 3, 4), "experts": (0, 2, 4, 6, 8), "memory": (0, 64, 128, 256, 512, 1024),
                "mixer": ("attn", "ssm", "liquid", "hybrid"), "dendrites": (0, 4, 8),
-               "hopfield": (0, 64, 128, 256, 512), "fast": (False, True)}
+               "hopfield": (0, 64, 128, 256, 512), "fast": (False, True), "epigenetic": (False, True)}
+EPI_SLOTS = 16  # one expression gate per possible block, so growing deeper keeps the gate's shape
 
 
 def check_arch(arch):
@@ -21,7 +23,9 @@ def check_arch(arch):
     "lab" alone is the newer pre-norm network (it can grow); every other option implies it.
     mixer: what mixes the tokens in each block: attention, a state-space scan ("ssm"), liquid
     time constants ("liquid") or state-space and attention in turn ("hybrid"). dendrites and
-    experts both replace the feed-forward layer, so only one of them at a time.
+    experts both replace the feed-forward layer, so only one of them at a time. epigenetic: the
+    text so far sets how strongly each block is expressed. guest: a whole smaller network living
+    inside (endosymbiosis, backend/growth.py engulf): {"width", "heads", "layers", "arch"}.
     """
     arch = dict(arch or {})
     if set(arch) - set(ARCH_KEYS):
@@ -35,9 +39,21 @@ def check_arch(arch):
             raise ValueError("Invalid architecture options")
         if value != default:
             out[key] = value
+    if "guest" in arch:
+        out["guest"] = _check_guest(arch["guest"])
     if out.get("experts") and out.get("dendrites"):
         raise ValueError("Experts and dendrites both replace the feed-forward layer: choose one")
     return dict(lab=True, **out) if out or arch.get("lab") else {}
+
+
+def _check_guest(guest):
+    if not isinstance(guest, dict) or set(guest) != {"width", "heads", "layers", "arch"}:
+        raise ValueError("Invalid architecture options")
+    width, heads, layers = guest["width"], guest["heads"], guest["layers"]
+    if (any(type(v) is not int for v in (width, heads, layers)) or not 16 <= width <= 1024 or not 1 <= heads <= 16
+            or width % heads or not 1 <= layers <= 16 or not isinstance(guest["arch"], dict) or "guest" in guest["arch"]):
+        raise ValueError("Invalid architecture options")
+    return {"width": width, "heads": heads, "layers": layers, "arch": check_arch(dict(guest["arch"], lab=True))}
 
 
 def make_model(torch, *, vocab_size, width=64, heads=4, context=128, layers=2, arch=None):
@@ -87,6 +103,7 @@ def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
     loops, experts, slots = arch.get("loops", 1), arch.get("experts", 0), arch.get("memory", 0)
     mixer, dendrites, hopfield, fast = (arch.get("mixer", "attn"), arch.get("dendrites", 0),
                                         arch.get("hopfield", 0), arch.get("fast", False))
+    epigenetic, guest = arch.get("epigenetic", False), arch.get("guest")
     parts = brain_blocks.build(torch, nn, F, width, heads)
 
     class Experts(nn.Module):
@@ -171,6 +188,16 @@ def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
                 self.hopfield = parts["Hopfield"](hopfield)
             if fast:
                 self.fast = parts["Fast"]()
+            if epigenetic:
+                # Expression = 1 + tanh(...): exactly 1 at birth, between 0 (silenced) and 2.
+                self.epigenome = nn.Linear(width, EPI_SLOTS)
+                nn.init.zeros_(self.epigenome.weight)
+                nn.init.zeros_(self.epigenome.bias)
+            if guest:
+                self.guest = make_model(torch, vocab_size=vocab_size, width=guest["width"], heads=guest["heads"],
+                                        context=context, layers=guest["layers"], arch=guest["arch"])
+                self.bridge = nn.Linear(guest["width"], width, bias=False)
+                nn.init.zeros_(self.bridge.weight)
             self.norm = nn.LayerNorm(width)
             self.output = nn.Linear(width, vocab_size)
             self.passes = loops
@@ -179,6 +206,9 @@ def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
             self.skip, self.off = set(), set()
 
         def forward(self, ids, passes=None):
+            return self.output(self.norm(self.features(ids, passes)))
+
+        def features(self, ids, passes=None):
             length = ids.shape[1]
             if length > context:
                 raise ValueError("Context overflow")
@@ -187,20 +217,31 @@ def _lab_model(torch, nn, vocab_size, width, heads, context, layers, arch):
             p = torch.arange(length, device=ids.device)
             mask = torch.triu(torch.ones(length, length, dtype=torch.bool, device=ids.device), diagonal=1)
             x = self.embedding(ids) + self.position(p)
+            expression = None
+            if epigenetic and "epigenome" not in self.off:
+                # The context so far (a running mean of the token embeddings) switches blocks up or down.
+                seen = x.cumsum(1) / torch.arange(1, length + 1, device=ids.device, dtype=x.dtype).reshape(1, length, 1)
+                expression = 1 + torch.tanh(self.epigenome(seen))
+                if getattr(self, "trace", None) is not None:
+                    self.trace.append(expression.detach().reshape(-1, EPI_SLOTS).mean(0).cpu())
             for n in range(max(1, min(passes, loops))):
                 if loops > 1:
                     x = x + self.loop.weight[n]
                 for k, block in enumerate(self.blocks):
                     if k not in self.skip:
-                        x = block(x, mask)
+                        x = block(x, mask) if expression is None else x + expression[..., k:k + 1] * (block(x, mask) - x)
                     # Memory is read right after the first block, so growing deeper never moves it.
                     if k == 0:
                         for name in ("memory", "hopfield", "fast"):
                             if hasattr(self, name) and name not in self.off:
                                 x = getattr(self, name)(x)
             self.aux_loss = sum(b.ffn.aux for b in self.blocks) / len(self.blocks) if experts else None
-            return self.output(self.norm(x))
+            if guest and "guest" not in self.off:
+                x = x + self.bridge(self.guest.norm(self.guest.features(ids)))
+            return x
 
+    if layers > EPI_SLOTS:
+        raise ValueError("Invalid model configuration")
     return LabBrain()
 
 

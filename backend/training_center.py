@@ -40,7 +40,7 @@ SIZES = {"s": {"width": 320, "heads": 8, "layers": 4, "max_merges": 1024},
          "m": {"width": 512, "heads": 8, "layers": 8, "max_merges": 2048},
          "l": {"width": 640, "heads": 10, "layers": 10, "batch_size": 8, "accumulate": 2, "max_merges": 2048}}
 KINDS = ("quick", "sleep", "evolution", "merge", "grow", "swarm", "copy", "branch", "distill", "selfcheck",
-         "hemispheres", "rebirth", "ecosystem", "coevolve", "redqueen", "baldwin")
+         "hemispheres", "rebirth", "ecosystem", "coevolve", "redqueen", "baldwin", "es")
 RUN_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-(pilot|long|pretrain)\Z")
 TEXT_NAME = re.compile(r"^[^\\/:*?\"<>|]{1,120}\.txt\Z")
 TEXT_LICENSES = ("public-domain", "user-consent")
@@ -630,6 +630,8 @@ def _describe(config):
         parts.append("память %d" % arch["memory"])
     for key, value in (("mixer", MIXER_NAMES.get(arch.get("mixer"))), ("dendrites", arch.get("dendrites") and "дендриты ×%d" % arch["dendrites"]),
                        ("hopfield", arch.get("hopfield") and "Хопфилд %d" % arch["hopfield"]), ("fast", arch.get("fast") and "быстрые веса"),
+                       ("epigenetic", arch.get("epigenetic") and "эпигенетика"),
+                       ("guest", arch.get("guest") and "специалист внутри"),
                        ("ff", (config.get("rule") or {}).get("ff") and "разгон Forward-Forward")):
         if value:
             parts.append(value)
@@ -645,7 +647,8 @@ def mutate(parent, rng):
     a Forward-Forward warm-up."""
     child = json.loads(json.dumps(parent))
     arch = dict(child.get("arch") or {"lab": True}, lab=True)
-    gene = rng.choice(["layers", "width", "loops", "experts", "memory", "merges", "mixer", "dendrites", "hopfield", "fast", "ff"])
+    gene = rng.choice(["layers", "width", "loops", "experts", "memory", "merges", "mixer", "dendrites", "hopfield", "fast", "ff",
+                       "epigenetic"])
     if gene == "layers":
         child["layers"] = max(2, min(12, child["layers"] + rng.choice([-2, 2])))
     elif gene == "width":
@@ -667,6 +670,8 @@ def mutate(parent, rng):
         arch["hopfield"] = 0 if arch.get("hopfield") else rng.choice([128, 256])
     elif gene == "fast":
         arch["fast"] = not arch.get("fast", False)
+    elif gene == "epigenetic":
+        arch["epigenetic"] = not arch.get("epigenetic", False)
     elif gene == "ff":
         rule = dict(child.get("rule") or {})
         if rule.pop("ff", 0) == 0:
@@ -708,8 +713,12 @@ def start_evolution(dataset, population=4, *, device="cuda", total_steps=100000,
         if len(children) >= population:
             break
         # Several genes at once when evolution is stuck (backend/mutation.py).
-        from backend import mutation
+        from backend import mutation, tabu
         child = mutation.apply(mutate, parent, rng)
+        child["changes"] = tabu.diff({k: v for k, v in parent.items() if k != "changes"},
+                                     {k: v for k, v in child.items() if k != "changes"})
+        if not child["changes"] or tabu.banned("архитектура", child["changes"]):
+            continue  # a change that already failed twice waits its turn (backend/tabu.py)
         child["label"] = _describe(child)
         key = json.dumps({k: v for k, v in child.items() if k != "label"}, sort_keys=True)
         if key not in seen:

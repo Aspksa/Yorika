@@ -777,3 +777,5 @@ textarea.field{resize:vertical;line-height:1.5;font-family:inherit}
 @media(prefers-reduced-motion:reduce){.sp-dot.young,.mu.boost .mu-needle,.ex-state.stuck::before,.co-bar::before{animation:none}}
 @media(max-width:760px){.knowhow{padding:14px}}
 .co-list li.co-foot{display:block;font-size:11px;color:var(--text-muted)}
+.co-list li.sel-row{grid-template-columns:minmax(0,1fr) auto}
+.co-list li.sel-row b{font-variant-numeric:tabular-nums;color:var(--text-soft);font-weight:600}

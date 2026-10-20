@@ -787,7 +787,7 @@ function renderMap(){
 }
 $("map-look").onclick=e=>act(e.currentTarget,async()=>{const ref=mapRef();if(!ref)return;await post("introspect",{id:ref.id});$("map-sub").textContent="Заглядываю внутрь: замер идёт в фоне, карта обновится сама.";setTimeout(async()=>{await refresh();renderMap()},15000)});
 
-const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей",recipes:"Конкурс рецептов",shrink:"Сжатие после роста",hemispheres:"Два полушария",thoughts:"Язык мыслей",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина"};
+const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей",recipes:"Конкурс рецептов",shrink:"Сжатие после роста",hemispheres:"Два полушария",thoughts:"Язык мыслей",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина",es:"Эволюция весов",dataevo:"Эволюция уроков",symbiosis:"Эндосимбиоз"};
 const PLAN_STATE={preparing:"готовится",running:"идёт",finished:"готово",failed:"ошибка",stopped:"остановлен"};
 function renderPlan(p){
   const plan=p.plan,box=$("plan-box");box.hidden=!plan;
@@ -926,9 +926,9 @@ async function refreshEvo(){
     const b=await api("/api/training/brain-status");evo=b.evolution||{};
     renderDawn(evo.report||{},evo.tonight||{},b.autopilot);renderHealth(evo.health||{},b.autopilot);
     renderSpecies(evo.archive||{});renderLadders(evo.ladder||{},evo.envs||{});renderRecipes(evo.recipes||{});
-    renderDiary(evo.diary||[]);renderMind(evo);renderKnow(evo);
+    renderDiary(evo.diary||[]);renderMind(evo);renderKnow(evo);renderSelection(evo,status);
     const live=b.plans.plan&&["preparing","running"].includes(b.plans.plan.state);
-    for(const x of document.querySelectorAll("[data-evo-plan],[data-mind-go]"))x.disabled=!!live||!(status&&status.active);
+    for(const x of document.querySelectorAll("[data-evo-plan],[data-mind-go]"))x.disabled=!!live||!(status&&status.active)||x.dataset.none==="1";
     $("ex-go").disabled=!!live||!((evo.extinction||{}).count>0);
     const ex=evo.exchange;if(ex&&ex.state==="running"){document.querySelector("[data-mind-go=exchange]").disabled=true;clearTimeout(evoTimer);evoTimer=setTimeout(refreshEvo,5000)}
   }catch(e){showError(e.message)}
@@ -946,7 +946,7 @@ function renderDawn(r,t,ap){
   }
   fillIcons(ul);
 }
-const ACT_NAME={sleep:"Сон",distill:"Учёба у себя будущей",search:"Ветки времени",swarm:"Копии",evolution:"Эволюция",fresh:"Новая версия",rest:"Отдых",recipes:"Рецепты учёбы",grow:"Рост глубже",experts:"Рост вширь (эксперты)",shrink:"Сжатие после роста",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина"};
+const ACT_NAME={sleep:"Сон",distill:"Учёба у себя будущей",search:"Ветки времени",swarm:"Копии",evolution:"Эволюция",fresh:"Новая версия",rest:"Отдых",recipes:"Рецепты учёбы",grow:"Рост глубже",experts:"Рост вширь (эксперты)",shrink:"Сжатие после роста",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина",es:"Эволюция весов",dataevo:"Эволюция уроков",symbiosis:"Эндосимбиоз"};
 function renderHealth(h,ap){
   $("health-dot").dataset.state=h.state||"";
   const ul=$("health-list");ul.replaceChildren();
@@ -1049,6 +1049,32 @@ for(const b of document.querySelectorAll("[data-mind-go]"))b.onclick=()=>{
     await refresh();await refreshEvo();
   });
 };
+// ---- selection of weights, lessons and genes ----
+function fillList(id,rows,empty){const ul=$(id);ul.replaceChildren();
+  for(const [a,b] of rows){const li=el("li","sel-row");li.append(el("span",null,a),el("b",null,b));ul.append(li)}
+  if(!rows.length)ul.append(el("li","co-foot",empty))}
+const millions=n=>n?`${(n/1e6).toFixed(1).replace(".",",")} млн`:"—";
+const ES_VERDICT={rolled_back:"хуже активной",waiting:"ждёт решения",activated:"включена"};
+function renderSelection(e,status){
+  const es=(e.es||{}).last;
+  fillList("es-list",es?[["поколений",String(es.generations)],["потеря на уроках",`${es.loss_before} → ${es.loss_after}`],
+    ["итог",es.run?(ES_VERDICT[es.verdict]||"на экзамене"):"лучше не нашла"]]:[],"Ещё не запускалась.");
+  const pa=e.pareto||{};
+  fillList("pareto-list",(pa.front||[]).slice(0,4).map(p=>[`${millions(p.parameters)} · логика ${Math.round(p.logic*100)}%`,String(p.exam).replace(".",",")]),"Фронт появится после экзаменов.");
+  if((pa.front||[]).length)$("pareto-list").append(el("li","co-foot",`На фронте ${pa.front.length} из ${pa.count}; справа экзамен (меньше — лучше)`));
+  const de=(e.dataevo||{}).last;
+  fillList("dataevo-list",de?[["поколение",String(de.generation)],["выжило / выбыло",`${de.kept} / ${de.died}`],["новых из лучших источников",String(de.fresh)]]:[],"Уроки ещё не отбирались.");
+  const cur=(status&&status.active)||null,item=cur&&(status.runs||[]).find(r=>r.id===cur.run);
+  const blocks=((item&&item.introspection)||{}).blocks||[],expr=blocks.filter(b=>b.expression!=null);
+  fillList("epi-list",expr.slice(0,4).map(b=>[`слой ${b.layer}`,`×${String(b.expression).replace(".",",")}`]),
+    item&&(item.arch||{}).epigenetic?"Сила слоёв появится после взгляда внутрь.":"У активной версии гена нет; эволюция может его включить.");
+  const guest=(e.symbiosis||{}).guest;
+  fillList("sym-list",guest?[["кандидат",guest]]:[],"Нет меньшей версии с тем же словарём.");
+  $("sym-go").dataset.none=guest?"":"1";
+  const tb=e.tabu||{};
+  fillList("tabu-list",(tb.active||[]).slice(0,4).map(t=>[t.change,`ещё ${t.left}`]),"Запретов нет.");
+  if(tb.count>4)$("tabu-list").append(el("li","co-foot",`Всего под запретом ${tb.count}`));
+}
 // ---- evolutionary know-how: coevolution, the Red Queen, Baldwin, mutation strength, species, extinction ----
 function renderKnow(e){
   const co=e.coevolution||{},ul=$("co-list");ul.replaceChildren();

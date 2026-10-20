@@ -27,7 +27,8 @@ ACTIVITIES = {"sleep": "Сон", "distill": "Учёба у себя будуще
               "grow": "Рост глубже", "experts": "Рост вширь (эксперты)", "shrink": "Сжатие после роста",
               "hemispheres": "Два полушария", "thoughts": "Язык мыслей", "ecosystem": "Обмен генами",
               "rebirth": "Нейрогенез", "pretrain": "Чтение книг", "coevolve": "Коэволюция задач",
-              "redqueen": "Красная Королева", "baldwin": "Эффект Болдуина"}
+              "redqueen": "Красная Королева", "baldwin": "Эффект Болдуина", "es": "Эволюция весов",
+              "dataevo": "Эволюция уроков", "symbiosis": "Эндосимбиоз"}
 TASK_PREFIX = "Yorika Study"
 EVOLUTION_WEEKDAY = 5  # Saturday night: evolution; other nights: sleep that continues the active version
 
@@ -167,13 +168,14 @@ def _start_activity(what, choice, plan, name, launch, hours):
         started = tc.start("pretrain", device=_device(current["run"]) if current else "cuda", total_steps=1000000,
                            hours=hours, launch=launch, scheduled=True)
         return "чтение книг %s на %s ч: сначала язык, потом диалоги" % (started["id"], hours)
-    if what in ("swarm", "search", "distill", "recipes", "shrink", "hemispheres", "thoughts", "coevolve", "redqueen", "baldwin"):
+    if what in ("swarm", "search", "distill", "recipes", "shrink", "hemispheres", "thoughts", "coevolve", "redqueen", "baldwin",
+                "es", "dataevo", "symbiosis"):
         from backend import plans
         if not current:
             raise ValueError("нет активной версии для «%s»" % ACTIVITIES[what])
         rounds = 2 if what in ("search", "distill") else 1
         lessons = {"swarm": 5, "search": 3 * rounds, "distill": rounds, "recipes": 3, "shrink": 1, "hemispheres": 1,
-                   "thoughts": 1, "coevolve": 1, "redqueen": 2, "baldwin": 3}[what]
+                   "thoughts": 1, "coevolve": 1, "redqueen": 2, "baldwin": 3, "es": 1, "dataevo": 1, "symbiosis": 1}[what]
         minutes = max(5, min(240, round(hours * 60 / lessons)))
         started = plans.start(what, minutes=minutes, rounds=rounds, launch=launch, scheduled=True, branches=3,
                               teacher=(choice or {}).get("teacher"))

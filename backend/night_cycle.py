@@ -31,7 +31,9 @@ ACTIVITIES = {"sleep": "Сон", "distill": "Учёба у себя будуще
               "dataevo": "Эволюция уроков", "symbiosis": "Эндосимбиоз", "breed": "Скрещивание по рецепту",
               "evolrl": "Большинство и новизна", "development": "Развитие по этапам", "solver": "Язык и решатель",
               "prover": "Доказывающая и проверяющая", "concepts": "Свои понятия", "analogy": "Аналогии",
-              "metacog": "Знает, чего не знает", "latent": "Мышление без слов", "grok": "Озарение"}
+              "metacog": "Знает, чего не знает", "latent": "Мышление без слов", "grok": "Озарение", "emergent": "Свой язык",
+              "grounded": "Язык через действия", "scientist": "Учёный внутри", "counterfactual": "Что было бы, если",
+              "teaching": "Учит младшую", "observer": "Внутренний наблюдатель", "budget": "Цена мысли"}
 TASK_PREFIX = "Yorika Study"
 EVOLUTION_WEEKDAY = 5  # Saturday night: evolution; other nights: sleep that continues the active version
 
@@ -173,7 +175,8 @@ def _start_activity(what, choice, plan, name, launch, hours):
         return "чтение книг %s на %s ч: сначала язык, потом диалоги" % (started["id"], hours)
     if what in ("swarm", "search", "distill", "recipes", "shrink", "hemispheres", "thoughts", "coevolve", "redqueen", "baldwin",
                 "es", "dataevo", "symbiosis", "breed", "evolrl", "development", "solver", "prover", "concepts",
-                "analogy", "metacog", "latent", "grok"):
+                "analogy", "metacog", "latent", "grok", "emergent", "grounded", "scientist", "counterfactual", "teaching",
+                "observer", "budget"):
         from backend import plans
         if not current:
             raise ValueError("нет активной версии для «%s»" % ACTIVITIES[what])
@@ -181,7 +184,8 @@ def _start_activity(what, choice, plan, name, launch, hours):
         lessons = {"swarm": 5, "search": 3 * rounds, "distill": rounds, "recipes": 3, "shrink": 1, "hemispheres": 1,
                    "thoughts": 1, "coevolve": 1, "redqueen": 2, "baldwin": 3, "es": 1, "dataevo": 1, "symbiosis": 1,
                    "breed": 1, "evolrl": 1, "development": 1, "solver": 1, "prover": 1, "concepts": 1,
-                   "analogy": 1, "metacog": 1, "latent": 1, "grok": 1}[what]
+                   "analogy": 1, "metacog": 1, "latent": 1, "grok": 1, "emergent": 1, "grounded": 1, "scientist": 1,
+                   "counterfactual": 1, "teaching": 1, "observer": 1, "budget": 1}[what]
         minutes = max(5, min(240, round(hours * 60 / lessons)))
         started = plans.start(what, minutes=minutes, rounds=rounds, launch=launch, scheduled=True, branches=3,
                               teacher=(choice or {}).get("teacher"))

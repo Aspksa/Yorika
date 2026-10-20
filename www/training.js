@@ -1002,7 +1002,7 @@ function renderMap(){
 }
 $("map-look").onclick=e=>act(e.currentTarget,async()=>{const ref=mapRef();if(!ref)return;await post("introspect",{id:ref.id});$("map-sub").textContent="Заглядываю внутрь: замер идёт в фоне, карта обновится сама.";setTimeout(async()=>{await refresh();renderMap()},15000)});
 
-const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей",recipes:"Конкурс рецептов",shrink:"Сжатие после роста",hemispheres:"Два полушария",thoughts:"Язык мыслей",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина",es:"Эволюция весов",dataevo:"Эволюция уроков",symbiosis:"Эндосимбиоз",breed:"Скрещивание по рецепту",evolrl:"Большинство и новизна"};
+const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей",recipes:"Конкурс рецептов",shrink:"Сжатие после роста",hemispheres:"Два полушария",thoughts:"Язык мыслей",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина",es:"Эволюция весов",dataevo:"Эволюция уроков",symbiosis:"Эндосимбиоз",breed:"Скрещивание по рецепту",evolrl:"Большинство и новизна",development:"Развитие по этапам",solver:"Язык и решатель",prover:"Доказывающая и проверяющая",concepts:"Свои понятия",analogy:"Аналогии",metacog:"Знает, чего не знает",latent:"Мышление без слов",grok:"Озарение"};
 const PLAN_STATE={preparing:"готовится",running:"идёт",finished:"готово",failed:"ошибка",stopped:"остановлен"};
 function renderPlan(p){
   const plan=p.plan,box=$("plan-box");box.hidden=!plan;
@@ -1141,7 +1141,7 @@ async function refreshEvo(){
     const b=brainNow=await api("/api/training/brain-status");evo=b.evolution||{};renderToday();
     renderDawn(evo.report||{},evo.tonight||{},b.autopilot);renderHealth(evo.health||{},b.autopilot);
     renderSpecies(evo.archive||{});renderLadders(evo.ladder||{},evo.envs||{});renderRecipes(evo.recipes||{});
-    renderDiary(evo.diary||[]);renderMind(evo);renderKnow(evo);renderSelection(evo,status);
+    renderDiary(evo.diary||[]);renderMind(evo);renderKnow(evo);renderSelection(evo,status);renderReasoning(evo.reasoning||{});
     const live=b.plans.plan&&["preparing","running"].includes(b.plans.plan.state);
     for(const x of document.querySelectorAll("[data-evo-plan],[data-mind-go]"))x.disabled=!!live||!(status&&status.active)||x.dataset.none==="1";
     $("ex-go").disabled=!!live||!((evo.extinction||{}).count>0);
@@ -1161,7 +1161,7 @@ function renderDawn(r,t,ap){
   }
   fillIcons(ul);
 }
-const ACT_NAME={sleep:"Сон",distill:"Учёба у себя будущей",search:"Ветки времени",swarm:"Копии",evolution:"Эволюция",fresh:"Новая версия",rest:"Отдых",recipes:"Рецепты учёбы",grow:"Рост глубже",experts:"Рост вширь (эксперты)",shrink:"Сжатие после роста",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина",es:"Эволюция весов",dataevo:"Эволюция уроков",symbiosis:"Эндосимбиоз",breed:"Скрещивание по рецепту",evolrl:"Большинство и новизна"};
+const ACT_NAME={sleep:"Сон",distill:"Учёба у себя будущей",search:"Ветки времени",swarm:"Копии",evolution:"Эволюция",fresh:"Новая версия",rest:"Отдых",recipes:"Рецепты учёбы",grow:"Рост глубже",experts:"Рост вширь (эксперты)",shrink:"Сжатие после роста",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина",es:"Эволюция весов",dataevo:"Эволюция уроков",symbiosis:"Эндосимбиоз",breed:"Скрещивание по рецепту",evolrl:"Большинство и новизна",development:"Развитие по этапам",solver:"Язык и решатель",prover:"Доказывающая и проверяющая",concepts:"Свои понятия",analogy:"Аналогии",metacog:"Знает, чего не знает",latent:"Мышление без слов",grok:"Озарение"};
 function renderHealth(h,ap){
   $("health-dot").dataset.state=h.state||"";
   const ul=$("health-list");ul.replaceChildren();
@@ -1304,6 +1304,26 @@ function renderSelection(e,status){
   const tb=e.tabu||{};
   fillList("tabu-list",(tb.active||[]).slice(0,4).map(t=>[t.change,`ещё ${t.left}`]),"Запретов нет.");
   if(tb.count>4)$("tabu-list").append(el("li","co-foot",`Всего под запретом ${tb.count}`));
+}
+// ---- the school of reasoning: eight cards, each with its last measurement ----
+function renderReasoning(r){
+  const last=r.last||{},pct=v=>`${Math.round((v||0)*100)}%`,res=e=>e&&e.run?(ES_VERDICT[e.verdict]||"на экзамене"):null;
+  const dev=r.development||{},stages=dev.stages||[];
+  fillList("rs-development",stages.map((name,k)=>[name,dev.scores&&dev.scores[k]!=null?pct(dev.scores[k]):(k<dev.stage?"пройден":"—")]),"Этапы ещё не проверялись.");
+  if(stages.length)$("rs-development").append(el("li","co-foot",dev.stage>=stages.length?"Все этапы пройдены":`Сейчас этап «${stages[dev.stage]}»`));
+  const row=(id,kind,rows,empty)=>{const e=last[kind];fillList(id,e?[...rows(e.made||{}),...(res(e)?[["итог",res(e)]]:[])]:[],empty)};
+  row("rs-solver","solver",m=>[["факты верны до урока",`${m.translated??0} из ${m.checked??0}`]],"Ещё не училась писать факты.");
+  row("rs-prover","prover",m=>[["понятных решений",`${m.legible??0} из ${m.asked??0}`],["проверяющая права",`${m.checker_right??0} из ${m.checks??0}`]],"Ещё не тренировалась.");
+  row("rs-concepts","concepts",m=>[["понятий",String(m.concepts??0)],["решения короче",pct(m.shorter)]],"Понятий ещё нет.");
+  if((r.concepts||[]).length)$("rs-concepts").append(el("li","co-foot",r.concepts.slice(0,3).map(c=>`«${c}»`).join(", ")));
+  row("rs-analogy","analogy",m=>[["в новом обличье",`${m.transfer??0} из ${m.asked??0}`]],"Ещё не училась аналогиям.");
+  const mc=r.metacog||{};
+  fillList("rs-metacog",mc.brier!=null?[["ошибка самооценки",String(mc.brier).replace(".",",")],["у угадывания",String(mc.base).replace(".",",")],["в чате",mc.useful?"включена":"не лучше угадывания"]]:[],"Самооценка ещё не проверялась.");
+  const lt=r.latent||{},le=last.latent;
+  fillList("rs-latent",[["этап",`${lt.stage??0} из ${lt.max??4}`],...(le?[["молча верно",`${le.made.silent_right??0} из ${le.made.asked??0}`]]:[])],"");
+  const g=(r.grok||{}).last;
+  fillList("rs-grok",g?[["сильная регуляризация",g.strong.grokked?`озарение на шаге ${g.strong.grokked}`:`новых верно ${pct(g.strong.test)}`],["слабая",g.weak.grokked?`озарение на шаге ${g.weak.grokked}`:`новых верно ${pct(g.weak.test)}`]]:[],"Опыт ещё не ставился.");
+  if(g)$("rs-grok").append(el("li","co-foot",g.verdict));
 }
 // ---- evolutionary know-how: coevolution, the Red Queen, Baldwin, mutation strength, species, extinction ----
 function renderKnow(e){

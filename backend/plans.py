@@ -36,6 +36,10 @@ Breeding by an evolved recipe and learning without answers (breeding.py, selfevo
 with healthy kinship are merged by a recipe evolved per layer while skills take turns as the goal;
 lessons are her own drafts that most of five agree on, the most novel of them.
 
+The school of reasoning (reasoning.py): Piaget's stages, a logic engine for her facts, legible
+solutions and a checker, her own concepts, analogies, knowing her limits, steps moved inside, and a
+laboratory experiment on insight (grok, no version made).
+
 Nothing here activates a version by itself, except through «включать сама, если не хуже».
 """
 import random
@@ -47,7 +51,9 @@ from backend import self_learning as sl
 from backend import training_center as tc
 
 KINDS = ("swarm", "search", "distill", "recipes", "shrink", "hemispheres", "thoughts", "coevolve", "redqueen", "baldwin",
-         "es", "dataevo", "symbiosis", "breed", "evolrl")
+         "es", "dataevo", "symbiosis", "breed", "evolrl",
+         "development", "solver", "prover", "concepts", "analogy", "metacog", "latent", "grok")
+REASONING = ("development", "solver", "prover", "concepts", "analogy", "metacog", "latent")   # reasoning.KINDS
 SKILLS = ("logic", "sim", "programs", "tools", "experience")
 SKILL_NAMES = {"logic": "логика", "sim": "мир задач", "programs": "программы", "tools": "инструменты",
                "experience": "ваши разговоры"}
@@ -239,7 +245,7 @@ def start(kind, *, copies=None, branches=3, rounds=2, minutes=20, prompts=120, d
         if type(branches) is not int or not 2 <= branches <= 6:
             raise ValueError("Стартов от 2 до 6")
         plan.update(branches=branches, rounds=1)
-    elif kind in ("thoughts", "coevolve", "es", "dataevo", "breed"):
+    elif kind in ("thoughts", "coevolve", "es", "dataevo", "breed", "grok") + REASONING:
         plan.update(rounds=1)
     elif kind == "evolrl":
         if type(prompts) is not int or not 20 <= prompts <= 1000:
@@ -279,6 +285,8 @@ def worker():
             return _run_es(plan)
         if plan["kind"] == "breed":
             return _run_breed(plan)
+        if plan["kind"] == "grok":
+            return _run_grok(plan)
         _prepare_round(plan)
         _next(plan)
     except Exception as error:  # noqa: BLE001 - the page shows why the plan stopped
@@ -388,6 +396,18 @@ def _prepare_round(plan):
         queue.append({"label": "уроки поколения %d: выжило %d, умерло %d, новых %d" % (
             made["generation"], made["kept"], made["died"], made["fresh"]), "records": records, "kind": "branch", "config": config})
         _note(plan, "эволюция уроков: выжило %d, умерло %d, новых %d" % (made["kept"], made["died"], made["fresh"]))
+    elif plan["kind"] in REASONING:
+        from backend import reasoning
+        from backend.neural_language_benchmark import load_candidate
+        pairs, made = reasoning.make(plan["kind"], load_candidate(tc.folder() / base_ckpt), seed=int(plan["id"][-6:]) + plan["round"],
+                                     run_id=base_run)
+        plan["made"] = made
+        records = _with_replay(_synthetic(pairs, plan["kind"]), plan["round"])
+        if len(records) < 20:
+            raise ValueError("Для урока «%s» мало примеров: %d" % (reasoning.TITLES[plan["kind"]], len(records)))
+        queue.append({"label": "%s: %s" % (reasoning.TITLES[plan["kind"]], reasoning.describe(plan["kind"], made)),
+                      "records": records, "kind": "branch", "config": config})
+        _note(plan, reasoning.describe(plan["kind"], made))
     elif plan["kind"] == "evolrl":
         from backend import selfevolve
         pairs, made = selfevolve.build(tc.folder() / base_ckpt, plan["prompts"], seed=int(plan["id"][-6:]) + plan["round"],
@@ -498,7 +518,7 @@ def on_finished(run_id):
             return _finish_recipes(plan)
         if plan["kind"] == "shrink":
             return _finish_shrink(plan)
-        if plan["kind"] in ("hemispheres", "thoughts", "coevolve", "dataevo", "symbiosis", "evolrl"):
+        if plan["kind"] in ("hemispheres", "thoughts", "coevolve", "dataevo", "symbiosis", "evolrl") + REASONING:
             return _finish_single(plan)
         if plan["kind"] == "redqueen":
             return _finish_redqueen(plan)
@@ -710,7 +730,7 @@ def shrink_teacher():
 
 
 def _finish_single(plan):
-    from backend import continual
+    from backend import continual, reasoning
     run_id = plan["round_runs"][-1]
     if not tc._summary(tc._run_dir(run_id))["has_best"]:
         return _end(plan, "failed", "Урок не сохранил точку")
@@ -719,10 +739,13 @@ def _finish_single(plan):
     progress = tc._read(tc._run_dir(run_id) / "progress.json", {}) or {}
     progress["verdict"] = verdict
     tc._write(tc._run_dir(run_id) / "progress.json", progress)
-    return _end(plan, "finished", "%s: урок %s, %s" % ({"hemispheres": "Два полушария", "thoughts": "Язык мыслей",
+    if plan["kind"] in REASONING:
+        reasoning.after(plan["kind"], plan.get("made"), verdict["result"])
+        reasoning.remember(plan["kind"], plan.get("made"), run_id, verdict["result"])
+    return _end(plan, "finished", "%s: урок %s, %s" % (dict(reasoning.TITLES, **{"hemispheres": "Два полушария", "thoughts": "Язык мыслей",
                                                          "coevolve": "Коэволюция задач", "dataevo": "Эволюция уроков",
                                                          "symbiosis": "Эндосимбиоз",
-                                                         "evolrl": "Большинство и новизна"}[plan["kind"]],
+                                                         "evolrl": "Большинство и новизна"})[plan["kind"]],
                 run_id, {"rolled_back": "хуже активной, отложен (%s)" % verdict["why"], "waiting": "не хуже, ждёт вашего решения",
                          "activated": "не хуже, включён сам"}[verdict["result"]]))
 
@@ -862,6 +885,28 @@ def _run_breed(plan):
     _end(plan, "finished", "Скрещивание по рецепту: %s (на уроках навыков: %s), %s" % (run_id, gains, {
         "rolled_back": "хуже активной, отложена (%s)" % verdict["why"], "waiting": "не хуже, ждёт вашего решения",
         "activated": "не хуже, включена сама"}[verdict["result"]]))
+    return 0
+
+
+def _run_grok(plan):
+    """The insight experiment: two small networks of her kind, strong and weak weight decay."""
+    from backend import grokking
+    plan["state"], plan["round"], plan["round_runs"] = "running", 1, []
+    _save(plan)
+    device = plan.get("device") or "cpu"
+    try:
+        import torch
+        if device == "cuda" and not torch.cuda.is_available():
+            device = "cpu"
+    except ImportError:
+        raise ValueError("Для опыта нужен PyTorch")
+    made = grokking.experiment(seconds=plan["minutes"] * 60, seed=int(plan["id"][-6:]) % 1000, device=device,
+                               should_stop=lambda: (current() or {}).get("state") != "running")
+    if (current() or {}).get("state") != "running":
+        return 0
+    grokking.remember(made)
+    plan["made"] = {k: made[k] for k in ("p", "verdict")}
+    _end(plan, "finished", "Озарение (опыт, версия не создаётся): %s" % made["verdict"])
     return 0
 
 

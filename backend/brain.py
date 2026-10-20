@@ -1,7 +1,8 @@
 """How Yorika's own model answers: generation, thinking before answering, and the chat engine.
 
-think() is the "обдумывание": several drafts, each checked (arithmetic claims are recomputed,
-tool calls are run), and the most confident correct-looking one wins. A model trained with
+think() is the "обдумывание": several drafts, each checked (arithmetic claims and day-of-week steps
+are recomputed, tool calls are run, facts written as «Факты: …» go to the logic engine, whose
+answer wins over a guess), and the most confident correct-looking one wins. A model trained with
 loops thinks longer on hard questions: when the first word is uncertain it runs every pass.
 """
 import re
@@ -78,7 +79,9 @@ def think(model, state, prompt, *, drafts=3, max_tokens=96, seed=0):
     import torch
     from backend.tools import run_tools
     loops = loops_of(state)
-    hard = difficulty(model, state, prompt) > HARD_ENTROPY
+    from backend import latent, solver
+    # A silent question («Подумай про себя») always gets every pass: the steps happen inside.
+    hard = latent.SILENT in prompt or difficulty(model, state, prompt) > HARD_ENTROPY
     passes = loops if hard else 1
     rng = torch.Generator().manual_seed(seed)
     candidates = []
@@ -89,13 +92,15 @@ def think(model, state, prompt, *, drafts=3, max_tokens=96, seed=0):
             text, calls = run_tools(draft["text"])
         except Exception:  # noqa: BLE001 - a broken tool must not hide the draft
             text, calls = draft["text"], []
-        errors = wrong_claims(text)
-        # Confidence decides between drafts; a false calculation costs more than any confidence.
-        score = draft["confidence"] - 5.0 * errors - (3.0 if not text.strip() else 0.0)
-        candidates.append({"text": text, "score": score, "errors": errors, "tools": calls})
+        text, checked = solver.apply(text)
+        errors = wrong_claims(text) + solver.wrong_steps(text)
+        # Confidence decides between drafts; a false step costs more than any confidence, and an
+        # answer the logic engine derived from her own facts is worth more than a guess.
+        score = draft["confidence"] - 5.0 * errors - (3.0 if not text.strip() else 0.0) + (2.0 if checked else 0.0)
+        candidates.append({"text": text, "score": score, "errors": errors, "tools": calls, "solver": checked})
     best = max(candidates, key=lambda c: c["score"])
     return {"answer": best["text"], "drafts": len(candidates), "passes": passes, "hard": hard,
-            "fixed": best is not candidates[0], "errors": best["errors"], "tools": best["tools"],
+            "fixed": best is not candidates[0], "errors": best["errors"], "tools": best["tools"], "solver": best["solver"],
             "texts": [c["text"] for c in candidates]}
 
 
@@ -141,7 +146,16 @@ def chat(query, conversation_id=None):
     path = tc.folder() / current["checkpoint"]
     small = path.with_name(path.name[:-3] + ".q4.pt")
     loaded = load(small if settings["compressed"] and small.is_file() else path)
-    result = think(*loaded, query[:2000], drafts=settings["drafts"])
+    drafts, sure = settings["drafts"], None
+    try:
+        # Knowing her limits: a question she is sure about gets one draft, a hard one five.
+        from backend import metacog
+        first = generate(loaded[0], loaded[1], query[:2000], 24)
+        sure = metacog.sure(loaded[0], loaded[1], query[:2000], first["confidence"], current.get("run"))
+        drafts = metacog.drafts_for(sure, drafts)
+    except Exception:  # noqa: BLE001 - without self-knowledge the owner's setting stays
+        pass
+    result = dict(think(*loaded, query[:2000], drafts=drafts), sure=sure)
     if not result["answer"].strip():
         raise RuntimeError("Своя модель не смогла ответить: пустой ответ")
     try:

@@ -122,6 +122,10 @@ class RhythmTests(LabBase):
     def test_planner_reaches_breeding_and_the_majority(self):
         state = planner._state()
         state["history"] = {k: time.time() for k in planner.EVERY if k not in ("breed", "evolrl")}
+        from backend import development
+        development_done = mock.patch.object(development, "finished", lambda: True)
+        development_done.start()
+        self.addCleanup(development_done.stop)
         planner._save_state(state)
         from backend import archive, recipes
         recipes.remember([{"recipe": recipes.DEFAULT, "run": "x", "gain_per_hour": 0.1, "gain": 0.1, "hours": 1}])

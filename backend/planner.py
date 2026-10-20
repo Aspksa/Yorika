@@ -14,7 +14,9 @@ rule that fits picks the activity, and its reason is written into the log and th
 9. Evolutionary activities in turn, each when its time has come: the two hemispheres, the
    language of thought, gene exchange, coevolution of tasks, the Red Queen, starting points (the
    Baldwin effect), evolution of genes, of lessons and of weights, endosymbiosis, breeding by an
-   evolved recipe, learning from the majority of her drafts. Their rhythm adapts: an activity
+   evolved recipe, learning from the majority of her drafts, and the school of reasoning
+   (reasoning.py: Piaget's stages until passed, the logic engine, prover and checker, concepts,
+   analogies, knowing her limits, steps moved inside, the insight experiment). Their rhythm adapts: an activity
    whose versions never helped in the last month (three tries or more) comes half as often, one
    that helped at least every second time comes twice as often, but not more than every three days.
 10. Otherwise the week plan's activity for today (sleep, copies, branches, future self...).
@@ -31,7 +33,8 @@ MONTH = 30 * DAY
 # How often each evolutionary activity comes when nothing is known about it yet.
 EVERY = {"hemispheres": WEEK, "thoughts": WEEK, "ecosystem": WEEK, "coevolve": WEEK, "redqueen": WEEK,
          "baldwin": 2 * WEEK, "evolution": WEEK, "dataevo": WEEK, "es": 2 * WEEK, "symbiosis": 2 * WEEK,
-         "breed": WEEK, "evolrl": WEEK}
+         "breed": WEEK, "evolrl": WEEK, "development": 3 * DAY, "solver": WEEK, "prover": WEEK, "concepts": WEEK,
+         "analogy": WEEK, "metacog": WEEK, "latent": WEEK, "grok": 2 * WEEK}
 
 
 def _state():
@@ -134,6 +137,12 @@ def today(week_activity=None):
         return {"activity": "breed", "why": "есть версии с тем же устройством: можно вывести рецепт скрещивания"}
     if due("evolrl"):
         return {"activity": "evolrl", "why": "давно не училась на ответах, в которых согласно большинство черновиков"}
+    from backend import development, reasoning
+    for kind in ("development",) + reasoning.KINDS[1:] + ("grok",):
+        if kind == "development" and development.finished():
+            continue
+        if due(kind):
+            return {"activity": kind, "why": reasoning.WHY[kind]}
     what = week_activity or "sleep"
     return {"activity": what, "why": "по плану недели"}
 

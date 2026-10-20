@@ -184,12 +184,17 @@ def judge(run_id):
             test = tc._prepare(records)["test"]
             mine = score_checkpoint(None, test, loaded=load_candidate(tc._run_dir(run_id) / "language-longrun.pt.best.pt"))["per_char"]
             theirs = score_checkpoint(None, test, loaded=load_candidate(tc.folder() / current["checkpoint"]))["per_char"]
-        except (ValueError, TypeError, KeyError):
+        except Exception as error:  # noqa: BLE001 - a failed exam is never «не хуже»
             mine = theirs = None
+            failed = str(error)[:120] or type(error).__name__
+        else:
+            failed = None
         honest_new = (item.get("honesty") or {}).get("honest")
         honest_old = ((base or {}).get("honesty") or {}).get("honest")
         worse = []
-        if mine is not None and mine > theirs * 1.01:
+        if failed or mine is None or theirs is None:
+            worse.append("экзамен не удался (%s): без проверки замены нет" % (failed or "нет оценки"))
+        elif mine > theirs * 1.01:
             worse.append("экзамен %.3f хуже %.3f" % (mine, theirs))
         if honest_new is not None and honest_old is not None and honest_new < honest_old - 1:
             worse.append("честность %d против %d" % (honest_new, honest_old))

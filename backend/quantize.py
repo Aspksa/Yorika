@@ -6,7 +6,7 @@ original, so the page shows what compression cost.
 """
 from pathlib import Path
 
-from backend.neural_language_longrun import SCHEMA
+from backend.neural_language_longrun import MAX_WEIGHTS_BYTES, SCHEMA
 
 Q4 = "yorika-q4-v1"
 GROUP = 64
@@ -59,7 +59,7 @@ def load_quantized(path):
     from backend.neural_bpe_v1 import OFFSET, validate
     from backend.neural_language_bpe_v2 import make_model
     path = Path(path)
-    if not path.is_file() or not 0 < path.stat().st_size <= 200_000_000:
+    if not path.is_file() or not 0 < path.stat().st_size <= MAX_WEIGHTS_BYTES:
         raise ValueError("Missing or oversized checkpoint")
     data = torch.load(path, map_location="cpu", weights_only=True)
     if data.get("schema") != Q4:

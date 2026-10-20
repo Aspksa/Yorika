@@ -12,6 +12,7 @@ from backend.neural_bpe_v1 import OFFSET, encode as bpe_encode, validate as chec
 from backend.neural_language_bpe_v2 import make_model
 
 SCHEMA = "yorika-independent-eval-v1"
+MAX_WEIGHTS_BYTES = 1_000_000_000  # weights-only ".best.pt" files (neural_language_longrun.compact)
 CHECKPOINT_SCHEMA = "yorika-language-longrun-v1"
 
 
@@ -23,7 +24,7 @@ def fingerprint(pairs):
 def load_candidate(path):
     import torch
     path = Path(path)
-    if not path.is_file() or not 0 < path.stat().st_size <= 200_000_000:
+    if not path.is_file() or not 0 < path.stat().st_size <= MAX_WEIGHTS_BYTES:
         raise ValueError("Missing or oversized checkpoint")
     state = torch.load(path, weights_only=True, map_location="cpu")
     if not isinstance(state, dict) or state.get("schema") != CHECKPOINT_SCHEMA:

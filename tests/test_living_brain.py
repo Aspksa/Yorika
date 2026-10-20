@@ -144,6 +144,7 @@ class ForgettingTests(LabBase):
         with self.assertRaisesRegex(ValueError, "активной"):
             brain.set_engine("own")
 
+    @unittest.skipUnless(HAS_TORCH, "starting a run needs PyTorch")
     def test_evolution_queues_mutants_of_the_parent(self):
         name = dataset()
         plan = tc.start_evolution(name, 4, device="cpu", total_steps=100, hours_each=0.1, launch=False, seed=2)

@@ -231,6 +231,7 @@ class NightTests(Base):
         saved = night.set_settings(True, "02:30", hours=2, teacher_tokens=5000, apply=False)
         self.assertTrue(saved["enabled"])
 
+    @unittest.skipUnless(HAS_TORCH, "starting a run needs PyTorch")
     def test_night_run_collects_teaches_exports_and_starts_training(self):
         os.environ["YORIKA_CLOUD_RU_API_KEY"] = "k"
         self.assertEqual(night.run(launch=False)["steps"][0]["result"], "выключен")

@@ -117,6 +117,25 @@ class PageTests(unittest.TestCase):
         self.assertIn("function renderAnswers", js)
         self.assertIn("function versionCard", js)
 
+    def test_three_tabs_with_sections_inside(self):
+        import re
+        html = (ROOT / "www" / "training.html").read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r'role="tab" id="tab-([a-z]+)"', html), ["today", "yorika", "settings"])
+        for icon in ("today", "fox", "tune"):
+            self.assertIn('data-icon="%s"' % icon, html)
+        self.assertEqual(re.findall(r'data-sub="([a-z]+)"', html),
+                         ["train", "brain", "evo", "exp", "night", "teacher", "data", "future"])
+        for section in ("train", "brain", "evo", "exp", "night", "teacher", "data", "future"):
+            self.assertEqual(html.count('id="pane-%s"' % section), 1)
+        today = html[html.index('id="group-today"'):html.index('id="group-yorika"')]
+        for part in ('id="wait-list"', 'id="proposal"', 'id="autopilot"', 'class="dawn"'):
+            self.assertIn(part, today)
+
+    def test_titles_carry_no_ordinal_numbers(self):
+        for page in ("settings.html", "memory.html", "updates.html", "training.html"):
+            self.assertNotIn("panel-index", (ROOT / "www" / page).read_text(encoding="utf-8"), page)
+        self.assertNotIn("07–19", (ROOT / "www" / "training.html").read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

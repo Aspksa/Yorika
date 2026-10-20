@@ -14,6 +14,18 @@ from backend.neural_language_bpe_v2 import check_arch, make_model
 SCHEMA = "yorika-language-longrun-v1"
 PRECISIONS = ("fp32", "bf16", "fp16")
 BPE_SAMPLE_CHARS = 2_000_000
+# Two files per run: the training file carries the optimizer (Adam keeps two numbers per weight,
+# so it is about three times the weights) and resumes the run; the ".best.pt" file holds only
+# weights and metadata and is what answers, exams, growth and activation read. Size M is ~110 MB
+# of weights and ~330 MB with the optimizer; L is ~210 MB and ~630 MB.
+MAX_TRAINING_BYTES = 2_000_000_000
+MAX_WEIGHTS_BYTES = 1_000_000_000  # same limit in neural_language_benchmark.load_candidate
+COMPACT_DROP = ("optimizer", "rng", "cuda_rng", "scaler")
+
+
+def compact(payload):
+    """The answering copy: everything but the optimizer and random-number states."""
+    return {k: v for k, v in payload.items() if k not in COMPACT_DROP}
 
 
 _ENCODED = {}
@@ -133,7 +145,7 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
     base = None
     if init_from is not None:
         base_path = Path(init_from)
-        if not base_path.is_file() or not 0 < base_path.stat().st_size <= 200_000_000:
+        if not base_path.is_file() or not 0 < base_path.stat().st_size <= MAX_TRAINING_BYTES:
             raise ValueError("Missing pretrained checkpoint")
         base = torch.load(base_path, map_location="cpu", weights_only=True)
         # A base is pretraining, the active brain (learning continues) or a grown copy of either.
@@ -147,7 +159,7 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
     path.parent.mkdir(parents=True, exist_ok=True)
     fingerprint = digest(train)
     if path.exists():
-        if not 0 < path.stat().st_size <= 200_000_000:
+        if not 0 < path.stat().st_size <= MAX_TRAINING_BYTES:
             raise ValueError("Invalid checkpoint size")
         state = torch.load(path, map_location="cpu", weights_only=True)
         if (state.get("schema") != SCHEMA or
@@ -334,7 +346,7 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
                 if improved:
                     best_temp = best_path.with_name(best_path.name + '.incomplete')
                     try:
-                        torch.save(payload, best_temp)
+                        torch.save(compact(payload), best_temp)
                         best_temp.replace(best_path)
                     finally:
                         if best_temp.exists():

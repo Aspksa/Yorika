@@ -56,6 +56,7 @@ class SizeAndSeriesTests(LabBase):
         with self.assertRaises(ValueError):
             tc.config_for("xl")
 
+    @unittest.skipUnless(HAS_TORCH, "starting a run needs PyTorch")
     def test_series_runs_sizes_one_after_another(self):
         name = dataset()
         with self.assertRaisesRegex(ValueError, "двух до трёх"):
@@ -77,12 +78,14 @@ class SizeAndSeriesTests(LabBase):
         self.assertEqual(tc.series()["queue"], [])
         self.assertIsNone(tc._continue_series(second))
 
+    @unittest.skipUnless(HAS_TORCH, "starting a run needs PyTorch")
     def test_stop_all_clears_the_queue(self):
         name = dataset()
         tc.start_series(name, ["s", "m", "l"], device="cpu", total_steps=100, hours_each=0.1, launch=False)
         tc.stop_all()
         self.assertEqual(tc.series()["queue"], [])
 
+    @unittest.skipUnless(HAS_TORCH, "starting a run needs PyTorch")
     def test_night_can_run_a_sandbox(self):
         with self.assertRaises(ValueError):
             night.set_settings(True, "02:00", sizes=["s", "xl"], apply=False)

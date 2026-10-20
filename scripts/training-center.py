@@ -17,7 +17,7 @@ from backend import training_center as tc
 READS = {"status", "sl-status", "teacher-status", "night-status", "brain-status"}
 WRITES = {"probe", "install-torch", "data-check", "folder", "open-folder", "start", "control",
           "activate", "rollback", "compare", "stop-all", "sl-collect-setting", "sl-collect",
-          "sl-list", "sl-rate", "sl-delete", "sl-export", "sl-dismiss", "text-approve",
+          "sl-list", "sl-rate", "sl-chat-rate", "sl-delete", "sl-export", "sl-dismiss", "text-approve",
           "teacher-limits", "teacher-estimate", "teacher-start", "teacher-stop", "teacher-accept",
           "night-settings", "series", "sl-pack-preview", "sl-pack-add", "blind-start", "blind-vote", "blind-results",
           "teacher-models", "chat-engine", "continual-settings", "continual-now", "evolve", "merge",
@@ -68,6 +68,8 @@ def handle(action, body):
         return sl.list_items(body.get("view", "unrated"), body.get("offset", 0), body.get("limit", 20))
     if action == "sl-rate":
         return sl.rate(body.get("id"), body.get("rating"), body.get("correction"))
+    if action == "sl-chat-rate":
+        return sl.rate_chat(body.get("prompt"), body.get("ts"), body.get("answer"), body.get("rating"), body.get("correction"))
     if action == "sl-delete":
         return sl.delete(body.get("id"))
     if action == "sl-export":

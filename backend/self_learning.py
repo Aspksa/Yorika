@@ -14,7 +14,7 @@ from backend import training_center as tc
 EMAIL = re.compile(r"(?<![\w.])[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}")
 SECRET = re.compile(r"(?i)(?:api[_ -]?key|password|token|пароль|ключ)\s*[:=]\s*\S+")
 # Fixed error texts the chat shows when no model answered; they are not Yorika's answers.
-NOT_AN_ANSWER = re.compile(r"^(?:Cloud\.ru:|Python 3 не найден|Ошибка|Нет ответа)", re.I)
+NOT_AN_ANSWER = re.compile(r"^(?:Cloud\.ru:|Python 3 не найден|Ошибка|Нет ответа|Языковая модель (?:не ответила|ещё не подключена)|Не удалось получить ответ)", re.I)
 MAX_TEXT = 2000
 MAX_ITEMS = 100000
 RATINGS = (None, "up", "down")
@@ -228,6 +228,29 @@ def rate(item_id, rating, correction=None):
             _save(store)
             return {"item": item, "counts": counts(store), "lesson": _after_review()}
     raise ValueError("Пример не найден")
+
+
+def rate_chat(prompt, ts, answer, rating, correction=None):
+    """A rating given right in the chat: the pair becomes an example (if it is not one yet) and is rated.
+    The click is the owner's choice for this one pair, so it works without «собирать опыт»."""
+    if rating not in ("up", "down"):
+        raise ValueError("Неизвестная оценка")
+    if not isinstance(prompt, str) or not isinstance(answer, str) or answer.rstrip().endswith("(ответ остановлен)"):
+        raise ValueError("Этот ответ нельзя оценить")
+    pairs = chat_pairs([{"from": "me", "text": prompt, "ts": ts}, {"from": "bot", "text": answer}])
+    if not pairs:
+        raise ValueError("Этот ответ нельзя оценить: ошибка, слишком длинный текст или похоже на почту или ключ")
+    pair = pairs[0]
+    store = _load()
+    if pair["id"] in store["removed"]:
+        store["removed"] = [r for r in store["removed"] if r != pair["id"]]
+    known = next((item for item in store["items"] if item["id"] == pair["id"]), None)
+    if known is None:
+        store["items"].append(dict(pair, rating=None, correction=None, source="yorika-chat"))
+    elif known["answer"] != pair["answer"]:
+        known.update(answer=pair["answer"], rating=None, correction=None)   # answered again: the new answer is rated
+    _save(store)
+    return rate(pair["id"], rating, correction)
 
 
 def _after_review():

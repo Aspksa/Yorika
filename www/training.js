@@ -120,6 +120,22 @@ function renderFlow(){
   $("flow").classList.toggle("live",!!live||!!(t&&t.job&&t.job.state==="running"));
 }
 const progressOf=r=>Math.min(1,Math.max(r.total_steps?r.steps/r.total_steps:0,r.time_limit?r.elapsed/r.time_limit:0));
+// Time left: whichever ends first, the step budget at the measured speed or the time limit.
+const etaOf=r=>{const byTime=r.time_limit?Math.max(0,r.time_limit-(r.elapsed||0)):Infinity;
+  const bySteps=r.speed&&r.total_steps?Math.max(0,(r.total_steps-r.steps)/r.speed):Infinity;const left=Math.min(byTime,bySteps);return isFinite(left)?left:null};
+const deg=g=>g&&g.temperature!=null?`${Math.round(g.temperature)} °C`:"—";
+const gpuMem=g=>g&&g.memory_used!=null?`${gb(g.memory_used)} из ${gb(g.memory_total)}`:null;
+
+// ---- live strip under the tabs: the running lesson, visible from every tab ----
+function renderLive(s){
+  const job=s.runs.find(r=>LIVE.has(r.state)),strip=$("live-strip");strip.hidden=!job;if(!job)return;
+  const g=job.device==="cuda"?s.gpu:null,pct=Math.round(progressOf(job)*100),left=etaOf(job);
+  $("live-strip-title").textContent=`${STATES[job.state]} обучение · ${runName(job)}${KINDS[job.kind]?" · "+KINDS[job.kind]:""}`;
+  $("live-strip-bar").style.width=pct+"%";$("live-strip-pct").textContent=pct+"%";
+  $("live-strip-more").textContent=[left!=null?"осталось "+duration(left):null,g?deg(g):null,g&&g.load!=null?`загрузка ${Math.round(g.load)}%`:null,gpuMem(g)].filter(Boolean).join(" · ");
+  strip.classList.toggle("hot",!!(g&&g.hot));
+}
+$("live-strip").onclick=()=>{openTab("train");$("job").scrollIntoView({behavior:"smooth",block:"start"})};
 
 // ---- training tab ----
 function renderReady(s){
@@ -200,9 +216,15 @@ function renderJob(runs){
   $("job-bar").style.width=`${Math.round(progressOf(job)*100)}%`;
   $("job-steps").textContent=job.mode==="pilot"?num(job.steps):`${num(job.steps)} из ${num(job.total_steps)}`;
   $("job-time").textContent=duration(job.elapsed);
-  $("job-left").textContent=LIVE.has(job.state)?"до "+duration(Math.max(0,(job.time_limit||0)-(job.elapsed||0))):"—";
+  const left=etaOf(job),g=LIVE.has(job.state)&&job.device==="cuda"?status&&status.gpu:null;
+  $("job-left").textContent=LIVE.has(job.state)&&left!=null?"≈ "+duration(left):"—";
   $("job-speed").textContent=job.examples_speed?num(job.examples_speed):job.speed?num(job.speed):"—";
-  $("job-vram").textContent=job.device==="cuda"?gb(job.peak_vram):"не используется";
+  $("job-temp").textContent=job.device!=="cuda"?"процессор":g?deg(g):"—";
+  $("job-temp").classList.toggle("warn-text",!!(g&&g.hot));
+  $("job-load").textContent=g&&g.load!=null?`${Math.round(g.load)}%${g.power!=null?` · ${Math.round(g.power)} Вт`:""}`:"—";
+  $("job-vram").textContent=job.device!=="cuda"?"не используется":gpuMem(g)?`${gpuMem(g)} · пик обучения ${gb(job.peak_vram)}`:`пик ${gb(job.peak_vram)}`;
+  $("job-hot").hidden=!(g&&g.hot);
+  $("job-hot").textContent=g&&g.hot?`Видеокарта горячая: ${deg(g)}. Поставьте ноутбук на твёрдую ровную поверхность. Если не остывает, нажмите «Пауза»: прогресс сохранится.`:"";
   $("job-nll").textContent=job.best_nll==null?"—":`${job.best_nll.toFixed(3)} · шаг ${num(job.best_step)}`;
   $("job-error").textContent=job.error||"";$("job-error").hidden=!job.error;
   $("pause").hidden=!(LIVE.has(job.state)&&job.mode!=="pilot");$("stop").hidden=!LIVE.has(job.state);$("resume").hidden=!job.resumable;
@@ -269,6 +291,7 @@ function renderVersions(s){
       c.onclick=()=>act(c,async()=>{c.textContent="Сжимаю…";const x=await post("compress",{id:r.id});alert(`Сжато: ${mb(x.bytes)} вместо ${mb(x.original_bytes)}. Экзамен ${fx(x.exam_before)} → ${fx(x.exam_after)} (ниже — лучше).`);await refresh()});
       more.append(c);li.append(more);
     }
+    if(r.mode!=="pilot")li.append(versionCard(r,active));
     list.append(li);
   }
   for(const id of ["cmp-a","cmp-b"]){
@@ -287,6 +310,55 @@ function renderVersions(s){
   $("blind-start").disabled=longs.length<2;
   renderSeries(s);
 }
+// ---- version card: what it is, how it scored, where it came from (one parent, never a tree) ----
+const ORIGIN={grown:"выросла из",base:"основа — предобучение",parent:"продолжает",merged:"скрещена из"};
+// The list is redrawn on every refresh: open cards and their answers survive it.
+const openCards=new Set(),cardAnswers=new Map();
+function versionCard(r,active){
+  const box=el("details","version-card");box.append(el("summary",null,"Подробнее"));
+  box.open=openCards.has(r.id);box.addEventListener("toggle",()=>{if(box.open)openCards.add(r.id);else openCards.delete(r.id)});
+  const dl=el("dl","card-grid"),add=(k,v,title)=>{const d=el("div");d.append(el("dt",null,k),el("dd",null,v));if(title)d.title=title;dl.append(d)};
+  const a=r.arch||{},parts=[r.layers&&r.width?`${r.layers} слоёв × ${r.width}`:null,a.mixer?MIXER[a.mixer]:"внимание",a.loops>1?`думает ×${a.loops}`:null,a.experts?`${a.experts} экспертов`:null,
+    a.dendrites?"дендриты":null,a.hopfield?"Хопфилд":null,a.fast?"быстрые веса":null,a.epigenetic?"эпигенетика":null,a.guest?"специалист внутри":null].filter(Boolean);
+  add("Размер",r.parameters?`${(r.parameters/1e6).toFixed(1).replace(".",",")} млн параметров`:"—");
+  add("Устройство",parts.join(", ")||"—");
+  add("Экзамен",r.exam_per_char!=null?`${fx(r.exam_per_char)} на символ`:r.exam_nll!=null?fx(r.exam_nll):"—","Ошибка на задачах, которых она не видела. Ниже — лучше");
+  add("Честность",r.honesty?`${r.honesty.honest} из ${r.honesty.total}`:"—","Сколько раз сказала «не знаю», где ответа знать нельзя");
+  const lv=(r.logic&&r.logic.levels)||{};
+  add("Логика",Object.keys(lv).length?Object.entries(lv).map(([k,v])=>`ур. ${k}: ${Math.round(v*100)}%`).join(", "):"—");
+  const lost=forgets(r);
+  add("Старые экзамены",(r.old_exams||[]).length?(lost.length?`хуже на ${lost.length} из ${r.old_exams.length}`:`не хуже на всех ${r.old_exams.length}`):"—");
+  add("Обучение",`${num(r.steps)} шагов · ${duration(r.elapsed)} · ${r.device==="cuda"?(r.gpu_name||"видеокарта"):"процессор"}`);
+  add("Данные",r.dataset||"—");
+  box.append(dl);
+  const o=r.origin;
+  if(o){const line=el("p","origin");line.append(el("b",null,"Происхождение: "),`${ORIGIN[o.how]||"от"} ${o.runs.map(when).join(" и ")}`);
+    if(o.changes.length)line.append(el("span","origin-changes",o.changes.join(" · ")));
+    else if(o.how!=="merged")line.append(el("span","origin-changes",o.missing?"родителя уже нет в папке":"устройство то же, другие уроки"));
+    box.append(line)}
+  if(r.has_best&&active&&active.run!==r.id&&r.mode==="long"){
+    const go=el("button","secondary small","Ответы рядом с активной"),note=el("p","hint"),out=el("div","answers");out.hidden=true;
+    const labels={[active.run]:"Активная",[r.id]:"Эта версия"},show=x=>{note.textContent=x.note;renderAnswers(out,x,labels)};
+    const kept=cardAnswers.get(r.id);if(kept&&kept.ids.join()===[active.run,r.id].join())show(kept);
+    go.onclick=()=>act(go,async()=>{go.textContent="Модели отвечают…";const x=await post("compare",{ids:[active.run,r.id],questions:[]});
+      cardAnswers.set(r.id,{...x,ids:[active.run,r.id]});show(x)});
+    box.append(el("div","button-row"),note,out);box.querySelector(".button-row").append(go);
+  }
+  return box;
+}
+
+// ---- answers side by side: one row per question, one column per version ----
+function renderAnswers(box,r,labels={}){
+  box.replaceChildren();box.hidden=false;
+  r.questions.forEach((q,i)=>{
+    const row=el("div","answer-row");row.append(el("p","answer-q",q));
+    const cols=el("div","answer-cols");cols.style.setProperty("--n",r.versions.length);
+    for(const v of r.versions){const c=el("div","answer-col");
+      c.append(el("span","answer-who",`${labels[v.id]?labels[v.id]+" · ":""}${when(v.id)}`),el("p",null,v.answers[i]||"(пустой ответ)"));cols.append(c)}
+    row.append(cols);box.append(row);
+  });
+}
+
 function renderSeries(s){
   const plan=s.series,box=$("series");box.hidden=!plan;if(!plan)return;
   $("series-when").textContent=`· ${when(plan.id)} · ${plan.dataset}`;
@@ -308,7 +380,7 @@ function renderSeries(s){
 async function refresh(){
   try{
     const s=status=await api("/api/training/status");
-    renderReady(s);renderData(s);renderJob(s.runs);renderVersions(s);renderFlow();if(!$("pane-brain").hidden)renderLogic();
+    renderReady(s);renderData(s);renderJob(s.runs);renderLive(s);renderVersions(s);renderFlow();if(!$("pane-brain").hidden)renderLogic();
     const busy=s.runs.some(r=>LIVE.has(r.state))||s.torch.install.running;
     clearTimeout(timer);timer=setTimeout(refresh,busy?3000:20000);
   }catch(e){showError(e.message);clearTimeout(timer);timer=setTimeout(refresh,10000)}
@@ -373,13 +445,8 @@ $("compare").onclick=e=>act(e.currentTarget,async()=>{
   $("compare-status").textContent="Модели отвечают…";
   const r=await post("compare",{ids,questions});
   $("compare-status").textContent=r.note;
-  const box=$("compare-result");box.replaceChildren();box.hidden=false;
-  const table=document.createElement("table"),head=table.createTHead().insertRow();
-  head.append(el("th",null,"Вопрос"));
-  for(const v of r.versions)head.append(el("th",null,`${when(v.id)} · шаг ${num(v.step)}`));
-  const body=table.createTBody();
-  r.questions.forEach((q,i)=>{const row=body.insertRow();row.insertCell().textContent=q;for(const v of r.versions)row.insertCell().textContent=v.answers[i]||"(пустой ответ)"});
-  box.append(table);
+  const act0=status&&status.active&&status.active.run;
+  renderAnswers($("compare-result"),r,act0?{[act0]:"Активная"}:{});
 });
 
 // ---- blind check: A and B without names, revealed after the last vote ----
@@ -504,6 +571,7 @@ async function loadExamples(reset){
 }
 const reloadExamples=async()=>{const keep=shown;await loadExamples(true);while(shown<keep&&!$("more").hidden)await loadExamples(false)};
 function renderProposal(p){
+  if(!p||!proposalNow||proposalNow.candidate.id!==p.candidate.id){$("prop-answers").hidden=true;$("prop-answers-note").textContent=""}
   proposalNow=p;$("proposal").hidden=!p;if(!p)return;
   const run=id=>status&&status.runs.find(r=>r.id===id);
   const meta=r=>{const full=run(r.id)||{};return[r.size?SIZE[r.size]:null,`${num(r.steps)} шагов`,full.honesty?`честность ${full.honesty.honest}/${full.honesty.total}`:null,full.exam_nll!=null?`экзамен ${full.exam_nll.toFixed(3)}`:r.best_nll!=null?`ошибка ${r.best_nll.toFixed(3)}`:null,r.dataset].filter(Boolean).join(" · ")};
@@ -530,7 +598,10 @@ $("more").onclick=e=>act(e.currentTarget,()=>loadExamples(false));
 $("accept-verdicts").onclick=e=>{if(confirm("Согласиться со всеми оценками учителя? Хорошие ответы станут 👍, слабые получат исправление учителя."))act(e.currentTarget,async()=>{const r=await post("teacher-accept");$("exp-result").textContent=`Одобрено ${num(r.up)}, исправлено ${num(r.fixed)}.`;await reloadExamples()})};
 $("prop-accept").onclick=e=>{if(proposalNow&&confirm("Включить новую версию? Прошлую можно будет вернуть."))act(e.currentTarget,async()=>{await post("activate",{id:proposalNow.candidate.id});await refresh();await refreshSelf()})};
 $("prop-dismiss").onclick=e=>{if(proposalNow)act(e.currentTarget,async()=>{await post("sl-dismiss",{id:proposalNow.candidate.id});await refreshSelf()})};
-$("prop-compare").onclick=()=>{if(!proposalNow)return;openTab("train");$("cmp-a").value=proposalNow.active?proposalNow.active.id:proposalNow.candidate.id;$("cmp-b").value=proposalNow.active?proposalNow.candidate.id:"";$("compare-box").open=true;$("compare-box").scrollIntoView({behavior:"smooth",block:"start"})};
+$("prop-compare").onclick=e=>{if(!proposalNow)return;const p=proposalNow,ids=p.active?[p.active.id,p.candidate.id]:[p.candidate.id];
+  act(e.currentTarget,async()=>{e.currentTarget.textContent="Модели отвечают…";$("prop-answers-note").textContent="";
+    const r=await post("compare",{ids,questions:[]});$("prop-answers-note").textContent=r.note;
+    renderAnswers($("prop-answers"),r,{[p.candidate.id]:"Новая",...(p.active?{[p.active.id]:"Сейчас"}:{})})})};
 
 // ---- built-in lessons: preview, then approve the whole pack ----
 for(const b of document.querySelectorAll("[data-pack-open]"))b.onclick=()=>act(b,async()=>{

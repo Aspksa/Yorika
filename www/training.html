@@ -30,6 +30,7 @@
  </section>
  <p id="page-error" class="banner banner-err" role="alert" hidden></p>
 
+ <div class="tabs-dock">
  <div class="tabs" role="tablist" aria-label="Разделы обучения">
   <button class="tab" role="tab" id="tab-train" aria-controls="pane-train" aria-selected="true" data-tab="train"><span class="tab-ic" data-icon="zap" aria-hidden="true"></span>Обучение</button>
   <button class="tab" role="tab" id="tab-brain" aria-controls="pane-brain" aria-selected="false" data-tab="brain" tabindex="-1"><span class="tab-ic" data-icon="brain" aria-hidden="true"></span>Мозг</button>
@@ -38,6 +39,13 @@
   <button class="tab" role="tab" id="tab-teacher" aria-controls="pane-teacher" aria-selected="false" data-tab="teacher" tabindex="-1"><span class="tab-ic" data-icon="teacher" aria-hidden="true"></span>Учитель</button>
   <button class="tab" role="tab" id="tab-night" aria-controls="pane-night" aria-selected="false" data-tab="night" tabindex="-1"><span class="tab-ic" data-icon="calendar" aria-hidden="true"></span>Расписание</button>
   <button class="tab" role="tab" id="tab-future" aria-controls="pane-future" aria-selected="false" data-tab="future" tabindex="-1"><span class="tab-ic" data-icon="sparkles" aria-hidden="true"></span>Будущее</button>
+ </div>
+ <button class="live-strip" id="live-strip" type="button" hidden aria-describedby="live-strip-more">
+  <span class="live-dot" aria-hidden="true"></span><b id="live-strip-title">Идёт обучение</b>
+  <span class="live-track" aria-hidden="true"><i id="live-strip-bar"></i></span>
+  <span id="live-strip-pct" class="live-pct">0%</span>
+  <span id="live-strip-more" class="live-more">—</span>
+ </button>
  </div>
 
  <!-- ============ Обучение ============ -->
@@ -119,14 +127,17 @@
    <div id="job" class="job" data-state="idle" hidden>
     <div class="job-head"><span class="state-pill" id="job-pill">—</span><span id="job-title" class="job-title"></span></div>
     <div class="job-progress" aria-hidden="true"><span id="job-bar"></span></div>
-    <dl class="stats">
+    <dl class="stats stats-four">
      <div><dt>Шаг</dt><dd id="job-steps">—</dd></div>
      <div><dt>Прошло</dt><dd id="job-time">—</dd></div>
      <div><dt>Осталось</dt><dd id="job-left">—</dd></div>
      <div><dt>Примеров в секунду</dt><dd id="job-speed">—</dd></div>
-     <div><dt>Память видеокарты</dt><dd id="job-vram">—</dd></div>
      <div><dt>Лучшая ошибка</dt><dd id="job-nll">—</dd></div>
+     <div><dt>Температура</dt><dd id="job-temp">—</dd></div>
+     <div><dt>Загрузка видеокарты</dt><dd id="job-load">—</dd></div>
+     <div><dt>Память видеокарты</dt><dd id="job-vram">—</dd></div>
     </dl>
+    <p id="job-hot" class="banner banner-warn" hidden></p>
     <figure class="chart"><svg id="chart" viewBox="0 0 600 170" role="img" aria-label="График ошибки на проверочных данных"></svg>
      <figcaption>Ошибка на проверочных данных: чем ниже, тем лучше.</figcaption></figure>
     <p id="job-error" class="banner banner-err" hidden></p>
@@ -193,12 +204,11 @@
      <div><label class="token-label" for="cmp-a">Версия 1</label><select id="cmp-a" class="field"></select></div>
      <div><label class="token-label" for="cmp-b">Версия 2</label><select id="cmp-b" class="field"></select></div>
     </div>
-    <label class="token-label" for="questions">Вопросы, по одному в строке (до 5)</label>
-    <textarea id="questions" class="field" rows="3">Привет! Как тебя зовут?
-Что ты умеешь?</textarea>
+    <label class="token-label" for="questions">Свои вопросы, по одному в строке (до 5)</label>
+    <textarea id="questions" class="field" rows="3" placeholder="Пусто: возьму 3 вопроса из экзамена, которых не видела ни одна версия"></textarea>
     <div class="button-row"><button class="secondary" id="compare">Сравнить</button><button class="ghost" id="merge" title="Усреднить веса двух версий с одинаковым устройством">Скрестить эти две</button></div>
     <p id="compare-status" class="hint" role="status" aria-live="polite"></p>
-    <div id="compare-result" class="compare" hidden></div>
+    <div id="compare-result" class="compare answers" hidden></div>
    </details>
   </section>
  </div>
@@ -549,7 +559,9 @@
     <div class="version-tile new"><span>Новая</span><strong id="prop-new">—</strong><small id="prop-new-meta"></small></div>
    </div>
    <p id="prop-warn" class="banner banner-warn" hidden></p>
-   <div class="button-row"><button class="primary" id="prop-accept">Включить</button><button class="secondary" id="prop-compare">Сравнить ответы</button><button class="ghost" id="prop-dismiss">Отклонить</button></div>
+   <div class="button-row"><button class="primary" id="prop-accept">Включить</button><button class="secondary" id="prop-compare">Ответы рядом</button><button class="ghost" id="prop-dismiss">Отклонить</button></div>
+   <p id="prop-answers-note" class="hint" role="status" aria-live="polite"></p>
+   <div id="prop-answers" class="answers" hidden></div>
   </section>
 
   <section class="card" aria-labelledby="exp-title">

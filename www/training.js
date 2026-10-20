@@ -11,6 +11,9 @@ const ICONS={
  seed:["M12 22V12","M12 12C12 7 8 4 3 4c0 5 4 8 9 8z","M12 14c0-4 3-7 8-7 0 4-3 7-8 7z"],
  bubble:["M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 21l1.9-5.1A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z","M8 11h.01M12 11h.01M16 11h.01"],
  dna:["M7 2c0 6 10 6 10 12s-10 6-10 8","M17 2c0 6-10 6-10 12s10 6 10 8","M8 6h8M8 18h8M10 10h4M10 14h4"],
+ // Two lines of descent joining into one; a ballot box with a tick.
+ merge:["M6 3v5a6 6 0 0 0 6 6","M18 3v5a6 6 0 0 1-6 6","M12 14v7","M4 5l2-2 2 2","M16 5l2-2 2 2"],
+ vote:["M4 13h16v8H4z","M8 13V4h8v9","M10 8.5l1.5 1.5 3-3","M8 17h.01M10.5 17h.01M13 17h.01"],
  hex:["M12 2l8.7 5v10L12 22l-8.7-5V7z","M12 8l3.5 2v4L12 16l-3.5-2v-4z"],
  stairs:["M3 21h5v-5h5v-5h5V6h3","M3 21V3"],
  flask:["M9 2h6","M10 2v6L4 19a2 2 0 0 0 1.8 3h12.4a2 2 0 0 0 1.8-3L14 8V2","M7 15h10"],
@@ -999,7 +1002,7 @@ function renderMap(){
 }
 $("map-look").onclick=e=>act(e.currentTarget,async()=>{const ref=mapRef();if(!ref)return;await post("introspect",{id:ref.id});$("map-sub").textContent="Заглядываю внутрь: замер идёт в фоне, карта обновится сама.";setTimeout(async()=>{await refresh();renderMap()},15000)});
 
-const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей",recipes:"Конкурс рецептов",shrink:"Сжатие после роста",hemispheres:"Два полушария",thoughts:"Язык мыслей",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина",es:"Эволюция весов",dataevo:"Эволюция уроков",symbiosis:"Эндосимбиоз"};
+const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей",recipes:"Конкурс рецептов",shrink:"Сжатие после роста",hemispheres:"Два полушария",thoughts:"Язык мыслей",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина",es:"Эволюция весов",dataevo:"Эволюция уроков",symbiosis:"Эндосимбиоз",breed:"Скрещивание по рецепту",evolrl:"Большинство и новизна"};
 const PLAN_STATE={preparing:"готовится",running:"идёт",finished:"готово",failed:"ошибка",stopped:"остановлен"};
 function renderPlan(p){
   const plan=p.plan,box=$("plan-box");box.hidden=!plan;
@@ -1158,7 +1161,7 @@ function renderDawn(r,t,ap){
   }
   fillIcons(ul);
 }
-const ACT_NAME={sleep:"Сон",distill:"Учёба у себя будущей",search:"Ветки времени",swarm:"Копии",evolution:"Эволюция",fresh:"Новая версия",rest:"Отдых",recipes:"Рецепты учёбы",grow:"Рост глубже",experts:"Рост вширь (эксперты)",shrink:"Сжатие после роста",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина",es:"Эволюция весов",dataevo:"Эволюция уроков",symbiosis:"Эндосимбиоз"};
+const ACT_NAME={sleep:"Сон",distill:"Учёба у себя будущей",search:"Ветки времени",swarm:"Копии",evolution:"Эволюция",fresh:"Новая версия",rest:"Отдых",recipes:"Рецепты учёбы",grow:"Рост глубже",experts:"Рост вширь (эксперты)",shrink:"Сжатие после роста",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина",es:"Эволюция весов",dataevo:"Эволюция уроков",symbiosis:"Эндосимбиоз",breed:"Скрещивание по рецепту",evolrl:"Большинство и новизна"};
 function renderHealth(h,ap){
   $("health-dot").dataset.state=h.state||"";
   const ul=$("health-list");ul.replaceChildren();
@@ -1283,6 +1286,21 @@ function renderSelection(e,status){
   const guest=(e.symbiosis||{}).guest;
   fillList("sym-list",guest?[["кандидат",guest]]:[],"Нет меньшей версии с тем же словарём.");
   $("sym-go").dataset.none=guest?"":"1";
+  const br=(e.breeding||{}).last,sk={logic:"логика",honesty:"честность",dialogue:"разговор"};
+  fillList("breed-list",br?[["родителей",String((br.parents||[]).length)],["рецептов испытано",String(br.children||0)],
+    ...Object.entries(br.gains||{}).map(([k,v])=>[sk[k]||k,(v>0?"+":"")+String(v).replace(".",",")]),
+    ["итог",br.run?(ES_VERDICT[br.verdict]||"на экзамене"):(br.why||"версия не создана")]]:[],
+    "Ещё не скрещивала. Нужна вторая версия с тем же устройством.");
+  $("breed-go").dataset.none=(e.breeding||{}).ready?"":"1";
+  const ev=e.selfevolve||{},last=ev.last;
+  fillList("evolrl-list",last?[["три из пяти согласны",`${last.kept} из ${last.asked}`],
+    ["право в задачах",last.tasks?`${last.right} из ${last.tasks}`:"—"],["новизна",last.novelty==null?"—":String(last.novelty).replace(".",",")]]:[],
+    "Ещё не училась у большинства.");
+  if(ev.majority_right!=null)$("evolrl-list").append(el("li","co-foot",`За всё время большинство право в ${Math.round(ev.majority_right*100)}% задач; ответы не подсказывались`));
+  const rh=Array.isArray(e.rhythm)?e.rhythm:[],moved=rh.filter(r=>r.change);
+  fillList("rhythm-list",moved.slice(0,5).map(r=>[r.title,`${String(r.days).replace(".",",")} дн. · ${r.change}`]),
+    "Пока всё по обычному ритму: раз в неделю или две.");
+  if(moved.length)$("rhythm-list").append(el("li","co-foot",`Остальные ${rh.length-moved.length} — по обычному ритму`));
   const tb=e.tabu||{};
   fillList("tabu-list",(tb.active||[]).slice(0,4).map(t=>[t.change,`ещё ${t.left}`]),"Запретов нет.");
   if(tb.count>4)$("tabu-list").append(el("li","co-foot",`Всего под запретом ${tb.count}`));

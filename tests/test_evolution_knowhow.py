@@ -188,7 +188,7 @@ class KnowHowMachineTests(LabBase):
         # Planner: after a week each new activity is chosen with its reason.
         state = planner._state()
         state["history"] = {k: time.time() for k in ("rebirth", "hemispheres", "thoughts", "ecosystem", "redqueen", "baldwin",
-                                                       "dataevo", "es", "symbiosis", "evolution")}
+                                                       "dataevo", "es", "symbiosis", "evolution", "breed", "evolrl")}
         planner._save_state(state)
         recipes.remember([{"recipe": recipes.DEFAULT, "run": base["id"], "gain_per_hour": 0.1, "gain": 0.1, "hours": 1}])
         quiet = dict(tc._summary(tc._run_dir(base["id"])), introspection=None)

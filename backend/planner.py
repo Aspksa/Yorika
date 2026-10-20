@@ -11,10 +11,13 @@ rule that fits picks the activity, and its reason is written into the log and th
 6. The study recipe was not tested for a week: a recipes contest.
 7. The archive has fewer than three kinds: evolution from any elite.
 8. Approved books and no pretrained base yet: reading.
-9. A week without the two hemispheres, the language of thought or gene exchange: that one.
-10. A week without coevolution of tasks or a Red Queen match, two weeks without a generation of
-    starting points (the Baldwin effect): that one.
-11. Otherwise the week plan's activity for today (sleep, copies, branches, future self...).
+9. Evolutionary activities in turn, each when its time has come: the two hemispheres, the
+   language of thought, gene exchange, coevolution of tasks, the Red Queen, starting points (the
+   Baldwin effect), evolution of genes, of lessons and of weights, endosymbiosis, breeding by an
+   evolved recipe, learning from the majority of her drafts. Their rhythm adapts: an activity
+   whose versions never helped in the last month (three tries or more) comes half as often, one
+   that helped at least every second time comes twice as often, but not more than every three days.
+10. Otherwise the week plan's activity for today (sleep, copies, branches, future self...).
 
 Every activity is a lesson that ends in the usual exams and the tournament; nothing here
 activates a version or spends money.
@@ -23,6 +26,12 @@ import time
 from datetime import datetime, timezone
 
 RECIPES_EVERY = WEEK = 7 * 24 * 3600
+DAY = 24 * 3600
+MONTH = 30 * DAY
+# How often each evolutionary activity comes when nothing is known about it yet.
+EVERY = {"hemispheres": WEEK, "thoughts": WEEK, "ecosystem": WEEK, "coevolve": WEEK, "redqueen": WEEK,
+         "baldwin": 2 * WEEK, "evolution": WEEK, "dataevo": WEEK, "es": 2 * WEEK, "symbiosis": 2 * WEEK,
+         "breed": WEEK, "evolrl": WEEK}
 
 
 def _state():
@@ -92,29 +101,74 @@ def today(week_activity=None):
         return {"activity": "evolution", "why": "в архиве меньше трёх разных видов"}
     if _pretrain_waits():
         return {"activity": "pretrain", "why": "есть одобренные книги, а прочитанной основы ещё нет"}
-    from backend import mind
-    if mind.partner(item["id"]) and _since(state, "hemispheres") > WEEK:
-        return {"activity": "hemispheres", "why": "неделю не было спора двух полушарий"}
-    if _since(state, "thoughts") > WEEK:
-        return {"activity": "thoughts", "why": "неделю не тренировала язык мыслей"}
-    if _since(state, "ecosystem") > WEEK and len(tc.runs()) > 2:
-        return {"activity": "ecosystem", "why": "неделю не было обмена генами между версиями одной линии"}
-    if _since(state, "coevolve") > WEEK:
-        return {"activity": "coevolve", "why": "неделю не искала свои слабые места"}
-    if mind.partner(item["id"]) and _since(state, "redqueen") > WEEK:
-        return {"activity": "redqueen", "why": "неделю не было матча Красной Королевы"}
-    if _since(state, "baldwin") > 2 * WEEK:
-        return {"activity": "baldwin", "why": "две недели не испытывала врождённые стартовые точки"}
-    if _since(state, "evolution") > WEEK:
-        return {"activity": "evolution", "why": "неделю не пробовала новые гены устройства мозга"}
-    if _since(state, "dataevo") > WEEK:
-        return {"activity": "dataevo", "why": "неделю не отбирала уроки по пользе"}
-    if _since(state, "es") > 2 * WEEK:
-        return {"activity": "es", "why": "две недели не пробовала эволюцию весов без градиентов"}
-    if _since(state, "symbiosis") > 2 * WEEK and plans.symbiont(item["id"]):
+    from backend import breeding, mind
+    rows = []
+
+    def due(activity):
+        # The rhythm adapts: an activity that never helped comes half as often, one that usually
+        # helps comes twice as often (not more often than every three days).
+        if not rows:
+            rows.append(_tried())
+        return _since(state, activity) > period(activity, rows[0])
+    if mind.partner(item["id"]) and due("hemispheres"):
+        return {"activity": "hemispheres", "why": "давно не было спора двух полушарий"}
+    if due("thoughts"):
+        return {"activity": "thoughts", "why": "давно не тренировала язык мыслей"}
+    if due("ecosystem") and len(tc.runs()) > 2:
+        return {"activity": "ecosystem", "why": "давно не было обмена генами между версиями одной линии"}
+    if due("coevolve"):
+        return {"activity": "coevolve", "why": "давно не искала свои слабые места"}
+    if mind.partner(item["id"]) and due("redqueen"):
+        return {"activity": "redqueen", "why": "давно не было матча Красной Королевы"}
+    if due("baldwin"):
+        return {"activity": "baldwin", "why": "давно не испытывала врождённые стартовые точки"}
+    if due("evolution"):
+        return {"activity": "evolution", "why": "давно не пробовала новые гены устройства мозга"}
+    if due("dataevo"):
+        return {"activity": "dataevo", "why": "давно не отбирала уроки по пользе"}
+    if due("es"):
+        return {"activity": "es", "why": "давно не пробовала эволюцию весов без градиентов"}
+    if due("symbiosis") and plans.symbiont(item["id"]):
         return {"activity": "symbiosis", "why": "есть меньшая версия-специалист с тем же словарём, её можно встроить"}
+    if due("breed") and breeding.ready(item["id"]):
+        return {"activity": "breed", "why": "есть версии с тем же устройством: можно вывести рецепт скрещивания"}
+    if due("evolrl"):
+        return {"activity": "evolrl", "why": "давно не училась на ответах, в которых согласно большинство черновиков"}
     what = week_activity or "sleep"
     return {"activity": what, "why": "по плану недели"}
+
+
+def _tried():
+    from backend import summary
+    try:
+        return {r["kind"]: r for r in summary.tried(window=MONTH)}
+    except Exception:  # noqa: BLE001 - without a summary the rhythm stays the default one
+        return {}
+
+
+def period(activity, rows):
+    """Seconds between two nights of this activity, from what it gave in the last month."""
+    base = EVERY[activity]
+    row = rows.get(activity)
+    if row and row["tried"] >= 3 and not row["helped"]:
+        return 2 * base
+    if row and row["tried"] >= 2 and 2 * row["helped"] >= row["tried"]:
+        return max(3 * DAY, base // 2)
+    return base
+
+
+def rhythm():
+    """Every evolutionary activity: how often it comes now, how often by default, and why."""
+    from backend import summary
+    rows = _tried()
+    out = []
+    for activity, base in EVERY.items():
+        row = rows.get(activity) or {"tried": 0, "helped": 0}
+        every = period(activity, rows)
+        out.append({"activity": activity, "title": summary.NAMES.get(activity, activity), "tried": row["tried"],
+                    "helped": row["helped"], "days": round(every / DAY, 1), "base_days": round(base / DAY, 1),
+                    "change": "чаще" if every < base else "реже" if every > base else None})
+    return out
 
 
 def _since(state, activity):

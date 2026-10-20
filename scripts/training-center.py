@@ -235,8 +235,8 @@ def _symbiosis(plans):
 
 def _evolution():
     """Archive, study recipes, the task ladder, health, tonight's choice and the morning report."""
-    from backend import (archive, baldwin, coevolution, data_evolution, diary, es, extinction, health, mind, mutation, planner,
-                         plans, recipes, selfcheck, simworld, species, tabu)
+    from backend import (archive, baldwin, breeding, coevolution, data_evolution, diary, es, extinction, health, mind, mutation,
+                         planner, plans, recipes, selfcheck, selfevolve, simworld, species, tabu)
     parts = {}
     for key, read in (("archive", archive.cells), ("recipes", recipes.status), ("ladder", simworld.ladder),
                       ("health", health.check), ("report", planner.morning), ("tonight", lambda: planner.today(night.activity())),
@@ -245,7 +245,8 @@ def _evolution():
                       ("coevolution", coevolution.status), ("baldwin", baldwin.status), ("mutation", mutation.status),
                       ("species", species.status), ("extinction", extinction.status),
                       ("pareto", archive.pareto_status), ("es", es.status), ("dataevo", data_evolution.status),
-                      ("tabu", tabu.status), ("symbiosis", lambda: _symbiosis(plans))):
+                      ("tabu", tabu.status), ("symbiosis", lambda: _symbiosis(plans)), ("breeding", breeding.status),
+                      ("selfevolve", selfevolve.status), ("rhythm", planner.rhythm)):
         try:
             parts[key] = read()
         except Exception as error:  # noqa: BLE001 - one broken part never hides the page

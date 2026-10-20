@@ -32,6 +32,10 @@ Weights without gradients, lessons that evolve, endosymbiosis (es.py, data_evolu
 growth.engulf): the active version's weights evolve by evolution strategies alone; the lessons
 are selected by how much each one helps; a smaller specialist moves inside her.
 
+Breeding by an evolved recipe and learning without answers (breeding.py, selfevolve.py): parents
+with healthy kinship are merged by a recipe evolved per layer while skills take turns as the goal;
+lessons are her own drafts that most of five agree on, the most novel of them.
+
 Nothing here activates a version by itself, except through «включать сама, если не хуже».
 """
 import random
@@ -43,7 +47,7 @@ from backend import self_learning as sl
 from backend import training_center as tc
 
 KINDS = ("swarm", "search", "distill", "recipes", "shrink", "hemispheres", "thoughts", "coevolve", "redqueen", "baldwin",
-         "es", "dataevo", "symbiosis")
+         "es", "dataevo", "symbiosis", "breed", "evolrl")
 SKILLS = ("logic", "sim", "programs", "tools", "experience")
 SKILL_NAMES = {"logic": "логика", "sim": "мир задач", "programs": "программы", "tools": "инструменты",
                "experience": "ваши разговоры"}
@@ -64,8 +68,8 @@ def current():
     return tc._read(_path())
 
 
-def history():
-    return (tc._read(tc.folder() / "plans-log.json", []) or [])[-10:]
+def history(limit=10):
+    return (tc._read(tc.folder() / "plans-log.json", []) or [])[-limit:]
 
 
 def _save(plan):
@@ -81,8 +85,9 @@ def _note(plan, text):
 def _end(plan, state, result):
     plan.update(state=state, result=result, finished=_now(), queue=[])
     _note(plan, result)
-    tc._write(tc.folder() / "plans-log.json", (history() + [{k: plan.get(k) for k in (
-        "id", "kind", "state", "result", "created", "finished", "runs")}])[-10:])
+    # Forty plans: the autopilot's rhythm looks a month back at what each activity gave.
+    tc._write(tc.folder() / "plans-log.json", (history(40) + [{k: plan.get(k) for k in (
+        "id", "kind", "state", "result", "created", "finished", "runs", "result_run")}])[-40:])
     return plan
 
 
@@ -234,8 +239,12 @@ def start(kind, *, copies=None, branches=3, rounds=2, minutes=20, prompts=120, d
         if type(branches) is not int or not 2 <= branches <= 6:
             raise ValueError("Стартов от 2 до 6")
         plan.update(branches=branches, rounds=1)
-    elif kind in ("thoughts", "coevolve", "es", "dataevo"):
+    elif kind in ("thoughts", "coevolve", "es", "dataevo", "breed"):
         plan.update(rounds=1)
+    elif kind == "evolrl":
+        if type(prompts) is not int or not 20 <= prompts <= 1000:
+            raise ValueError("Вопросов от 20 до 1000")
+        plan.update(rounds=1, prompts=prompts)
     elif kind == "symbiosis":
         guest = teacher or symbiont(current_brain["run"])
         if not guest:
@@ -268,6 +277,8 @@ def worker():
     try:
         if plan["kind"] == "es":
             return _run_es(plan)
+        if plan["kind"] == "breed":
+            return _run_breed(plan)
         _prepare_round(plan)
         _next(plan)
     except Exception as error:  # noqa: BLE001 - the page shows why the plan stopped
@@ -377,6 +388,20 @@ def _prepare_round(plan):
         queue.append({"label": "уроки поколения %d: выжило %d, умерло %d, новых %d" % (
             made["generation"], made["kept"], made["died"], made["fresh"]), "records": records, "kind": "branch", "config": config})
         _note(plan, "эволюция уроков: выжило %d, умерло %d, новых %d" % (made["kept"], made["died"], made["fresh"]))
+    elif plan["kind"] == "evolrl":
+        from backend import selfevolve
+        pairs, made = selfevolve.build(tc.folder() / base_ckpt, plan["prompts"], seed=int(plan["id"][-6:]) + plan["round"],
+                                       should_stop=lambda: (current() or {}).get("state") not in ("preparing", "running"))
+        plan["made"] = made
+        selfevolve.remember(made)
+        if made["kept"] < 10:
+            raise ValueError("Большинство черновиков согласилось только в %d вопросах из %d: учить нечему" % (made["kept"], made["asked"]))
+        records = _with_replay(_synthetic(pairs, "evolrl"), plan["round"])
+        queue.append({"label": "большинство и новизна: %d согласных ответов" % made["kept"], "records": records,
+                      "kind": "branch", "config": config})
+        _note(plan, "согласие большинства в %d вопросах из %d%s" % (made["kept"], made["asked"], (
+            "; в задачах большинство право в %d из %d (ответы не подсказывались)" % (made["right"], made["tasks"]))
+            if made["tasks"] else ""))
     elif plan["kind"] == "symbiosis":
         from backend import growth, recipes
         guest_ckpt = tc._run_dir(plan["guest"]) / "language-longrun.pt.best.pt"
@@ -473,7 +498,7 @@ def on_finished(run_id):
             return _finish_recipes(plan)
         if plan["kind"] == "shrink":
             return _finish_shrink(plan)
-        if plan["kind"] in ("hemispheres", "thoughts", "coevolve", "dataevo", "symbiosis"):
+        if plan["kind"] in ("hemispheres", "thoughts", "coevolve", "dataevo", "symbiosis", "evolrl"):
             return _finish_single(plan)
         if plan["kind"] == "redqueen":
             return _finish_redqueen(plan)
@@ -696,7 +721,8 @@ def _finish_single(plan):
     tc._write(tc._run_dir(run_id) / "progress.json", progress)
     return _end(plan, "finished", "%s: урок %s, %s" % ({"hemispheres": "Два полушария", "thoughts": "Язык мыслей",
                                                          "coevolve": "Коэволюция задач", "dataevo": "Эволюция уроков",
-                                                         "symbiosis": "Эндосимбиоз"}[plan["kind"]],
+                                                         "symbiosis": "Эндосимбиоз",
+                                                         "evolrl": "Большинство и новизна"}[plan["kind"]],
                 run_id, {"rolled_back": "хуже активной, отложен (%s)" % verdict["why"], "waiting": "не хуже, ждёт вашего решения",
                          "activated": "не хуже, включён сам"}[verdict["result"]]))
 
@@ -791,6 +817,49 @@ def _run_es(plan):
     plan["result_run"] = run_id
     es.remember(made, run_id, verdict["result"])
     _end(plan, "finished", "Эволюция весов без градиентов: %s, %s" % (run_id, {
+        "rolled_back": "хуже активной, отложена (%s)" % verdict["why"], "waiting": "не хуже, ждёт вашего решения",
+        "activated": "не хуже, включена сама"}[verdict["result"]]))
+    return 0
+
+
+def _run_breed(plan):
+    """Parents with healthy kinship, a recipe evolved while skills take turns, then the exams."""
+    from backend import breeding, continual
+    plan["state"], plan["round"], plan["round_runs"] = "running", 1, []
+    _save(plan)
+    info = tc._read(tc._run_dir(plan["base"]["run"]) / "run.json")
+    try:
+        records = tc._read(tc._run_dir(plan["base"]["run"]) / "dataset.json") if info.get("internal") else tc._load_records(info["dataset"])
+    except (ValueError, OSError):
+        records = None
+    weights, made = breeding.breed(plan["base"]["checkpoint"], plan["base"]["run"], seconds=plan["minutes"] * 60,
+                                   seed=int(plan["id"][-6:]), records=records, previous=breeding.load()["recipe"],
+                                   should_stop=lambda: (current() or {}).get("state") != "running")
+    if (current() or {}).get("state") != "running":
+        return 0
+    plan["made"] = {k: made.get(k) for k in ("parents", "skipped", "generations", "children", "cells", "gains", "why")}
+    names = ", ".join("%s (родство %s)" % (p["run"], "/".join("—" if k is None else str(k) for k in p["kin"]) or "первый")
+                      for p in made["parents"])
+    if made["parents"]:
+        _note(plan, "родители: %s; рецептов испытано %d" % (names, made.get("children", 0)))
+    if weights is None:
+        breeding.remember(made, None)
+        _end(plan, "finished", "Скрещивание по рецепту: версия не создана, %s" % made["why"])
+        return 0
+    run_id = new_version(plan["base"]["checkpoint"], weights, "breed",
+                         "(скрещивание по рецепту: %d родителя, %d рецептов)" % (len(made["parents"]), made["children"]),
+                         plan["base"]["run"])
+    info = tc._read(tc._run_dir(run_id) / "run.json")
+    tc._write(tc._run_dir(run_id) / "run.json", dict(info, merged=[plan["base"]["run"]] + [p["run"] for p in made["parents"]]))
+    tc.exam_worker(run_id)
+    verdict = continual.judge(run_id)
+    progress = tc._read(tc._run_dir(run_id) / "progress.json", {}) or {}
+    progress["verdict"] = verdict
+    tc._write(tc._run_dir(run_id) / "progress.json", progress)
+    plan["result_run"] = run_id
+    breeding.remember(made, run_id, verdict["result"])
+    gains = ", ".join("%s %+.3f" % (breeding.SKILL_NAMES[s], g) for s, g in made["gains"].items())
+    _end(plan, "finished", "Скрещивание по рецепту: %s (на уроках навыков: %s), %s" % (run_id, gains, {
         "rolled_back": "хуже активной, отложена (%s)" % verdict["why"], "waiting": "не хуже, ждёт вашего решения",
         "activated": "не хуже, включена сама"}[verdict["result"]]))
     return 0

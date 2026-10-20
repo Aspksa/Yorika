@@ -40,7 +40,7 @@ SIZES = {"s": {"width": 320, "heads": 8, "layers": 4, "max_merges": 1024},
          "m": {"width": 512, "heads": 8, "layers": 8, "max_merges": 2048},
          "l": {"width": 640, "heads": 10, "layers": 10, "batch_size": 8, "accumulate": 2, "max_merges": 2048}}
 KINDS = ("quick", "sleep", "evolution", "merge", "grow", "swarm", "copy", "branch", "distill", "selfcheck",
-         "hemispheres", "rebirth", "ecosystem", "coevolve", "redqueen", "baldwin", "es")
+         "hemispheres", "rebirth", "ecosystem", "coevolve", "redqueen", "baldwin", "es", "breed")
 RUN_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-(pilot|long|pretrain)\Z")
 TEXT_NAME = re.compile(r"^[^\\/:*?\"<>|]{1,120}\.txt\Z")
 TEXT_LICENSES = ("public-domain", "user-consent")
@@ -832,6 +832,11 @@ def merge(run_a, run_b, launch=True):
             sa["tokenizer"]["sha256"] != sb["tokenizer"]["sha256"]):
         raise ValueError("Скрестить можно только версии с одинаковым устройством и словарём "
                          "(например, выросшие из одной основы)")
+    from backend import breeding
+    kin = breeding.pair_kinship(run_a, run_b, sa, sb)
+    if kin is not None and kin > breeding.KIN_MAX:
+        raise ValueError("Эти версии почти клоны (родство %.3f): скрещивание ничего нового не даст. "
+                         "Выберите менее родственную пару" % kin)
     weights = {k: (v + sb["weights"][k]) / 2 if v.is_floating_point() else v for k, v in sa["weights"].items()}
     run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-long"
     path = folder() / "runs" / run_id

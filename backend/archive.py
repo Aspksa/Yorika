@@ -56,7 +56,9 @@ def family_of(arch):
     if not arch.get("lab"):
         return "классика"
     features = [name for name, on in (("петли", arch.get("loops", 1) > 1), ("эксперты", bool(arch.get("experts"))),
-                                      ("память", bool(arch.get("memory")))) if on]
+                                      ("память", bool(arch.get("memory") or arch.get("hopfield") or arch.get("fast"))),
+                                      ("без внимания", arch.get("mixer", "attn") != "attn"),
+                                      ("дендриты", bool(arch.get("dendrites")))) if on]
     if len(features) >= 2:
         return "всё сразу"
     return features[0] if features else "новое"

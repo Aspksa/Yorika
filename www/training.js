@@ -730,14 +730,105 @@ async function refreshBrain(){
     const cur=b.curiosity,running=cur&&cur.state==="running";
     $("cur-now").disabled=running;$("cur-now").textContent=running?"Занимается…":"Позаниматься сейчас";
     $("cur-last").textContent=cur?(running?"Решает задачи на краю своих сил…":`Последний раз: ${cur.state==="failed"?"не получилось":""} ${cur.result||""}`):"Ещё не занималась. Ночью это происходит само, если включено.";
-    renderLogic();renderAutopilot(b.autopilot);renderMap();renderPlan(b.plans);renderSkills(b.skills);renderWorld(b.sim);
+    renderLogic();renderAutopilot(b.autopilot);renderSummary(b.summary||{});renderMap();renderPlan(b.plans);renderSkills(b.skills);renderWorld(b.sim);
     const planLive=b.plans.plan&&["preparing","running"].includes(b.plans.plan.state),simLive=b.sim.job&&b.sim.job.state==="running";
     clearTimeout(brainTimer);if(running||planLive||simLive)brainTimer=setTimeout(refreshBrain,4000);
   }catch(e){showError(e.message)}
 }
 
 // ---- autopilot, a look inside, superpowers, program skills, the game world ----
+let manualOpen=false;
+function syncManual(on){document.body.classList.toggle("auto-hide",!!on&&!manualOpen);
+  $("manual-toggle").hidden=!on;$("manual-note").hidden=!on;$("manual-toggle").setAttribute("aria-expanded",String(manualOpen));
+  $("manual-toggle").textContent=manualOpen?"Свернуть ручные занятия":"Вручную"}
+$("manual-toggle").onclick=()=>{manualOpen=!manualOpen;syncManual($("ap-on").checked)};
+// ---- the autopilot summary: four charts from measurements only ----
+const SVGNS="http://www.w3.org/2000/svg";
+const sv=(tag,attrs={},text)=>{const n=document.createElementNS(SVGNS,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,v);if(text!=null)n.textContent=text;return n};
+const fmt=(v,d=3)=>v==null?"—":Number(v).toFixed(d).replace(".",",");
+const day=t=>t?new Date(t).toLocaleDateString("ru-RU",{day:"numeric",month:"short"}):"—";
+let tipEl=null;
+function tip(e,text){if(!tipEl){tipEl=el("div","sm-tip");tipEl.setAttribute("role","status");document.body.append(tipEl)}
+  tipEl.textContent=text;tipEl.hidden=false;const r=e.currentTarget.getBoundingClientRect?e.currentTarget.getBoundingClientRect():{left:e.clientX,top:e.clientY,width:0};
+  tipEl.style.left=`${Math.min(window.innerWidth-220,Math.max(8,r.left+r.width/2-100))}px`;tipEl.style.top=`${Math.max(8,r.top-44)+window.scrollY}px`}
+const untip=()=>{if(tipEl)tipEl.hidden=true};
+function hoverable(node,text){node.setAttribute("tabindex","0");node.setAttribute("aria-label",text);
+  node.addEventListener("pointerenter",e=>tip(e,text));node.addEventListener("pointerleave",untip);
+  node.addEventListener("focus",e=>tip(e,text));node.addEventListener("blur",untip);return node}
+function chartFrame(id,empty){const box=$(id);box.replaceChildren();if(empty){box.append(el("p","sm-empty",empty));return null}
+  const s=sv("svg",{viewBox:"0 0 320 180",class:"sm-svg",role:"img"});box.append(s);return s}
+function axisY(s,lo,hi,y,label){for(const v of [lo,(lo+hi)/2,hi]){s.append(sv("line",{x1:40,x2:312,y1:y(v),y2:y(v),class:"sm-rule"}));
+  s.append(sv("text",{x:36,y:y(v)+3,class:"sm-tick","text-anchor":"end"},fmt(v,2)))}
+  s.append(sv("text",{x:4,y:8,class:"sm-axis"},label))}
+
+// 1. Growth: the exam of each active version, and the record so far (lower is better).
+function drawGrowth(g){
+  const pts=(g&&g.active)||[],rec=(g&&g.record)||[];
+  const s=chartFrame("ch-growth",pts.length+rec.length<2?"Кривая появится, когда будет хотя бы две версии с экзаменом.":null);if(!s)return;
+  const all=[...pts,...rec],times=all.map(p=>Date.parse(p.at)||0),t0=Math.min(...times),t1=Math.max(...times,t0+1);
+  const vals=all.map(p=>p.exam),lo=Math.min(...vals),hi=Math.max(...vals,lo+1e-3);
+  const x=t=>48+(t-t0)/(t1-t0)*256,y=v=>22+(v-lo)/(hi-lo)*134;  // lower loss is drawn higher
+  axisY(s,lo,hi,y,"экзамен на символ: выше точка — меньше ошибка");
+  s.append(sv("text",{x:48,y:172,class:"sm-tick"},day(new Date(t0))),sv("text",{x:304,y:172,class:"sm-tick","text-anchor":"end"},day(new Date(t1))));
+  const line=(list,cls)=>{if(list.length<2)return;s.append(sv("path",{d:list.map((p,k)=>`${k?"L":"M"}${x(Date.parse(p.at)||0).toFixed(1)},${y(p.exam).toFixed(1)}`).join(""),class:cls}))};
+  line(rec,"sm-line rest");line(pts,"sm-line");
+  for(const p of pts)s.append(hoverable(sv("circle",{cx:x(Date.parse(p.at)||0),cy:y(p.exam),r:4,class:"sm-dot"}),`${p.run}: экзамен ${fmt(p.exam)}, активна с ${day(p.at)}`));
+  s.setAttribute("aria-label",`Экзамен активных версий: от ${fmt(pts[0]?.exam)} до ${fmt(pts.at(-1)?.exam)}`);
+  legend("lg-growth",[["sm-key","активные версии"],["sm-key rest","лучший экзамен среди всех"]]);
+}
+function legend(id,items){const box=$(id);box.replaceChildren();for(const [cls,text] of items){const s=el("span","sm-leg");s.append(el("i",cls),text);box.append(s)}}
+
+// 2. Pareto: size against exam; the front joined by a line.
+function drawPareto(p){
+  const pts=((p&&p.points)||[]).filter(q=>q.parameters);
+  const s=chartFrame("ch-pareto",pts.length<2?"Нужно хотя бы две версии с экзаменом.":null);if(!s)return;
+  const lx=v=>Math.log10(v),xs=pts.map(q=>lx(q.parameters)),x0=Math.min(...xs),x1=Math.max(...xs,x0+0.1);
+  const vals=pts.map(q=>q.exam),lo=Math.min(...vals),hi=Math.max(...vals,lo+1e-3);
+  const x=v=>48+(lx(v)-x0)/(x1-x0)*256,y=v=>22+(v-lo)/(hi-lo)*134;
+  axisY(s,lo,hi,y,"экзамен на символ: выше — лучше");
+  const mln=v=>`${(v/1e6).toFixed(1).replace(".",",")} млн`;
+  s.append(sv("text",{x:48,y:172,class:"sm-tick"},mln(10**x0)),sv("text",{x:304,y:172,class:"sm-tick","text-anchor":"end"},mln(10**x1)),
+    sv("text",{x:176,y:172,class:"sm-axis","text-anchor":"middle"},"размер →"));
+  const front=pts.filter(q=>q.rank===0).sort((a,b)=>a.parameters-b.parameters);
+  if(front.length>1)s.append(sv("path",{d:front.map((q,k)=>`${k?"L":"M"}${x(q.parameters).toFixed(1)},${y(q.exam).toFixed(1)}`).join(""),class:"sm-line"}));
+  for(const q of pts){const on=q.rank===0;
+    s.append(hoverable(sv("circle",{cx:x(q.parameters),cy:y(q.exam),r:on?5:4,class:on?"sm-dot":"sm-dot rest"}),
+      `${q.run}: ${(q.parameters/1e6).toFixed(1).replace(".",",")} млн, экзамен ${fmt(q.exam)}, логика ${Math.round((q.logic||0)*100)}%${on?" · на фронте":` · слой ${q.rank+1}`}`))}
+  s.setAttribute("aria-label",`Фронт Парето: ${front.length} из ${pts.length} версий`);
+  legend("lg-pareto",[["sm-key","на фронте: никто не лучше по всем трём"],["sm-key rest","остальные"]]);
+}
+
+// 3. Brain map: what each block and part contributes (switched off: how much worse the exam is).
+function drawBrain(b){
+  const box=$("ch-brain");box.replaceChildren();
+  const rows=b&&b.blocks&&b.blocks.length?[...b.blocks.map(k=>({name:`слой ${k.layer}`,v:k.contribution,e:k.expression})),...(b.parts||[]).map(p=>({name:p.label,v:p.contribution}))]:[];
+  if(!rows.length){box.append(el("p","sm-empty","Карта появится после взгляда внутрь активной версии."));return}
+  const top=Math.max(...rows.map(r=>Math.max(0,r.v||0)),0.001);
+  const grid=el("div","sm-heat");grid.setAttribute("role","list");
+  for(const r of rows){const c=el("div","sm-cell");c.setAttribute("role","listitem");
+    const share=Math.max(0,r.v||0)/top;c.style.setProperty("--h",share.toFixed(3));
+    c.append(el("span",null,r.name),el("b",null,r.v==null?"—":`${(r.v*100).toFixed(1).replace(".",",")}%`));
+    hoverable(c,`${r.name}: без него экзамен хуже на ${r.v==null?"—":(r.v*100).toFixed(2).replace(".",",")+"%"}${r.e!=null?`, сила выражения ×${fmt(r.e,2)}`:""}`);grid.append(c)}
+  box.append(grid);
+  legend("lg-brain",[["sm-key sm-lo","почти не нужен"],["sm-key","нужен больше всех"]]);
+}
+
+// 4. What helped this week: versions per activity, the part that helped filled in.
+function drawTried(list){
+  const box=$("ch-tried");box.replaceChildren();
+  const rows=(Array.isArray(list)?list:[]).filter(r=>r.tried).slice(0,8);
+  if(!rows.length){box.append(el("p","sm-empty","За неделю новых версий не было."));return}
+  const most=Math.max(...rows.map(r=>r.tried));
+  for(const r of rows){const row=el("div","tried-row");const bar=el("div","tried-bar");
+    const a=el("i","help"),b=el("i","miss");a.style.setProperty("--w",(r.helped/most).toFixed(3));b.style.setProperty("--w",((r.tried-r.helped)/most).toFixed(3));
+    if(r.helped)bar.append(a);if(r.tried>r.helped)bar.append(b);row.append(el("span",null,r.title),bar,el("b",null,`${r.helped} из ${r.tried}`));
+    hoverable(row,`${r.title}: помогло ${r.helped} из ${r.tried}${r.waiting?`, ещё на экзамене ${r.waiting}`:""}`);box.append(row)}
+  legend("lg-tried",[["sm-key","помогло: не хуже активной или вошла в архив"],["sm-key rest","не помогло"]]);
+}
+function renderSummary(sm){drawGrowth(sm.growth);drawPareto(sm.pareto);drawBrain(sm.brain);drawTried(sm.tried)}
+
 function renderAutopilot(a){
+  syncManual(a.on);
   $("ap-on").checked=a.on;$("ap-state").textContent=a.on?"Включён":"Выключен";$("autopilot").classList.toggle("on",a.on);
   $("ap-line").textContent=a.on?`Сегодня по плану: ${a.today.toLowerCase()}. Часов учёбы в неделю: ${a.schedule.hours_week}${a.schedule.now?", сейчас учится":""}.`:"Одна кнопка: собирает опыт, учится после разговоров, тренируется и ищет навыки в часы учёбы.";
   const ul=$("ap-parts");ul.replaceChildren();

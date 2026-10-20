@@ -105,6 +105,8 @@ def today(week_activity=None):
         return {"activity": "redqueen", "why": "неделю не было матча Красной Королевы"}
     if _since(state, "baldwin") > 2 * WEEK:
         return {"activity": "baldwin", "why": "две недели не испытывала врождённые стартовые точки"}
+    if _since(state, "evolution") > WEEK:
+        return {"activity": "evolution", "why": "неделю не пробовала новые гены устройства мозга"}
     if _since(state, "dataevo") > WEEK:
         return {"activity": "dataevo", "why": "неделю не отбирала уроки по пользе"}
     if _since(state, "es") > 2 * WEEK:

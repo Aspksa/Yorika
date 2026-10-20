@@ -5,7 +5,11 @@ the week runs the study cycle (practice, programs, the planned training). Off: a
 It never turns on spending: the teacher's nightly tokens and auto-activation keep your choice.
 
 With it she also picks each night's activity from measurements (planner.py), checks her own
-health and tidies stale working copies (health.py). Both can be turned off separately.
+health and tidies stale working copies (health.py). Both can be turned off separately. The
+planner's choices cover every activity, including trying new brain genes by evolution; the page
+folds the manual activity buttons away while the autopilot is on and shows one summary of what
+was tried and what helped (summary.py). The owner's own buttons never fold: making a version
+active, an extinction, Cloud.ru spending and «Стоп всё».
 """
 import os
 

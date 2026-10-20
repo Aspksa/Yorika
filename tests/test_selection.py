@@ -90,7 +90,7 @@ class RulesTests(LabBase):
         self.assertTrue(seen)
         state = planner._state()
         state["history"] = {k: time.time() for k in ("rebirth", "hemispheres", "thoughts", "ecosystem", "redqueen",
-                                                     "baldwin", "coevolve")}
+                                                     "baldwin", "coevolve", "evolution")}
         planner._save_state(state)
         item = {"id": "x", "introspection": None, "layers": 4}
         recipes.remember([{"recipe": recipes.DEFAULT, "run": "x", "gain_per_hour": 0.1, "gain": 0.1, "hours": 1}])

@@ -39,7 +39,8 @@ DEFAULT_CONFIG = {"width": 320, "heads": 8, "layers": 4, "context": 256,
 SIZES = {"s": {"width": 320, "heads": 8, "layers": 4, "max_merges": 1024},
          "m": {"width": 512, "heads": 8, "layers": 8, "max_merges": 2048},
          "l": {"width": 640, "heads": 10, "layers": 10, "batch_size": 8, "accumulate": 2, "max_merges": 2048}}
-KINDS = ("quick", "sleep", "evolution", "merge", "grow", "swarm", "copy", "branch", "distill")
+KINDS = ("quick", "sleep", "evolution", "merge", "grow", "swarm", "copy", "branch", "distill", "selfcheck",
+         "hemispheres", "rebirth", "ecosystem")
 RUN_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-(pilot|long|pretrain)\Z")
 TEXT_NAME = re.compile(r"^[^\\/:*?\"<>|]{1,120}\.txt\Z")
 TEXT_LICENSES = ("public-domain", "user-consent")
@@ -439,7 +440,9 @@ def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, c
         if source["mode"] != "long" or not source["has_best"]:
             raise ValueError("Вырастить можно обученную версию диалогов")
         config = dict(_read(_run_dir(source["id"]) / "run.json")["config"])
-        if grow.get("experts"):
+        if grow.get("rebirth"):
+            pass  # same shape: dead neurons are born again (backend/growth.py rebirth)
+        elif grow.get("experts"):
             # Wider instead of deeper: two experts split or removed (backend/growth.py).
             from backend.neural_language_bpe_v2 import check_arch
             try:
@@ -492,10 +495,15 @@ def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, c
         _write(path / "dataset.json", records)
         dataset = dataset or "(%s)" % kind
     if grow is not None:
-        from backend.growth import grow as grow_brain, reshape_experts
+        from backend.growth import grow as grow_brain, rebirth, reshape_experts
         try:
             source_best = _run_dir(grow["from"]) / "language-longrun.pt.best.pt"
-            if grow.get("experts"):
+            if grow.get("rebirth"):
+                born = rebirth(source_best, path / "grown.pt", list(data["train"])[:64])
+                if not born["total"]:
+                    raise ValueError("Мёртвых нейронов нет: перерождать некого")
+                _write(path / "reborn.json", born)
+            elif grow.get("experts"):
                 usage = ((_read(_run_dir(grow["from"]) / "progress.json", {}) or {}).get("introspection") or {}).get("experts")
                 reshape_experts(source_best, path / "grown.pt", usage, grow["experts"])
             else:
@@ -503,7 +511,7 @@ def start(mode, *, dataset=None, device="cuda", total_steps=100000, hours=8.0, c
         except ValueError:
             shutil.rmtree(path, ignore_errors=True)
             raise
-        init, kind = "runs/%s/grown.pt" % run_id, kind or "grow"
+        init, kind = "runs/%s/grown.pt" % run_id, kind or ("rebirth" if grow.get("rebirth") else "grow")
     parent = _parent_of(init, base, grow) or config.get("from_run")
     _write(path / "run.json", {"schema": "yorika-training-run-v1", "id": run_id, "mode": mode,
                                "dataset": dataset, "manifest": data["manifest"], "device": device,
@@ -976,7 +984,7 @@ def worker(run_id):
                          max_run_seconds=chunk, device=device, batch_size=cfg.get("batch_size", 1),
                          accumulate=cfg.get("accumulate", 1), precision=precision,
                          objective="lm" if lm else "dialogue", init_from=init_from, arch=cfg.get("arch"),
-                         lr=float(cfg.get("lr", 0.0003)))
+                         lr=float(cfg.get("lr", 0.0003)), rule=cfg.get("rule"))
             elapsed += time.monotonic() - began
             if status["steps"] <= status["resumed_from"] and status["steps"] < run_info["total_steps"]:
                 raise RuntimeError("Обучение не продвигается")

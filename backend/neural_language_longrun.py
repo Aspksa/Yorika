@@ -45,6 +45,43 @@ class _LazyRows:
         return self.rows[index]
 
 
+RULE_KEYS = {"wd": (0.0, 0.2), "clip": (0.1, 5.0), "warmup": (0, 2000), "plasticity": (0.25, 4.0)}
+
+
+def check_rule(rule):
+    """A learning rule: weight decay, gradient clip, warm-up steps and plasticity across depth.
+
+    plasticity is the learning-rate ratio between the deepest and the first block: above 1 the
+    deep blocks change faster, below 1 the early ones do. None keeps the original rule."""
+    if rule is None:
+        return None
+    if not isinstance(rule, dict) or set(rule) - set(RULE_KEYS):
+        raise ValueError("Invalid learning rule")
+    for key, value in rule.items():
+        low, high = RULE_KEYS[key]
+        if type(value) not in (int, float) or isinstance(value, bool) or not low <= value <= high:
+            raise ValueError("Invalid learning rule")
+    return dict(sorted(rule.items()))
+
+
+def _groups(model, lr, rule):
+    """Parameter groups: each block gets its own learning rate along the plasticity profile."""
+    ratio = (rule or {}).get("plasticity", 1.0)
+    blocks = list(getattr(model, "blocks", []))
+    if ratio == 1.0 or len(blocks) < 2:
+        return [{"params": list(model.parameters()), "base_lr": lr}]
+    seen, groups = set(), []
+    for k, block in enumerate(blocks):
+        params = [p for p in block.parameters() if id(p) not in seen]
+        seen.update(id(p) for p in params)
+        scaled = lr * ratio ** (k / (len(blocks) - 1))
+        groups.append({"params": params, "lr": scaled, "base_lr": scaled})
+    rest = [p for p in model.parameters() if id(p) not in seen]
+    if rest:
+        groups.append({"params": rest, "lr": lr, "base_lr": lr})
+    return groups
+
+
 def digest(pairs):
     return hashlib.sha256(json.dumps(pairs, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
@@ -52,7 +89,7 @@ def digest(pairs):
 def run(train, validation, output, *, total_steps, checkpoint_every=20,
         width=320, heads=8, layers=4, context=256, max_merges=128, seed=42,
         max_run_seconds=None, device='cpu', batch_size=1, accumulate=1, precision="fp32",
-        objective="dialogue", init_from=None, arch=None, lr=0.0003):
+        objective="dialogue", init_from=None, arch=None, lr=0.0003, rule=None):
     import torch
     from torch.nn import functional as F
     if max_run_seconds is not None and (type(max_run_seconds) not in (int, float) or
@@ -71,6 +108,7 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
         raise ValueError("Unknown training objective")
     if type(lr) is not float or not 1e-6 <= lr <= 1e-2:
         raise ValueError("Invalid learning rate")
+    rule = check_rule(rule)
     train_device = torch.device(device)
     started_at = time.monotonic()
     if (not isinstance(train, (list, tuple)) or not train or
@@ -119,7 +157,8 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
                 state.get("speed", [1, 1, "fp32"]) != speed or
                 state.get("objective", "dialogue") != objective or
                 state.get("init_sha256") != (base_sha if base else None) or
-                state.get("arch", {}) != arch or state.get("lr", 0.0003) != lr):
+                state.get("arch", {}) != arch or state.get("lr", 0.0003) != lr or
+                state.get("rule") != rule):
             raise ValueError("Checkpoint incompatible with current experiment")
         tokenizer = state["tokenizer"]
         check_bpe(tokenizer)
@@ -146,7 +185,7 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
         if base.get("vocab_size") != vocab:
             raise ValueError("Vocab mismatch")
         model.load_state_dict(base["weights"], strict=True)
-    opt = torch.optim.AdamW(model.parameters(), lr=lr)
+    opt = torch.optim.AdamW(_groups(model, lr, rule), lr=lr, weight_decay=(rule or {}).get("wd", 0.01))
     half = {"bf16": torch.bfloat16, "fp16": torch.float16}.get(precision)
     scaler = torch.amp.GradScaler("cuda") if precision == "fp16" else None
     start = 0
@@ -256,7 +295,12 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
             (scaler.scale(l) if scaler else l).backward()
         if scaler:
             scaler.unscale_(opt)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.)
+        if rule and rule.get("warmup"):
+            # Warm-up counts from this run's own first step, so a lesson from a base starts gently.
+            ramp = min(1.0, (i + 1) / rule["warmup"])
+            for group in opt.param_groups:
+                group["lr"] = group["base_lr"] * ramp
+        torch.nn.utils.clip_grad_norm_(model.parameters(), (rule or {}).get("clip", 1.))
         if scaler:
             scaler.step(opt)
             scaler.update()
@@ -275,7 +319,7 @@ def run(train, validation, output, *, total_steps, checkpoint_every=20,
                        "best_validation_nll": best_nll, "best_step": best_step,
                        "config": [width, heads, layers, context, max_merges, seed],
                        "training_device": device, "speed": speed, "objective": objective,
-                       "init_sha256": base_sha if base else None, "arch": arch, "lr": lr}
+                       "init_sha256": base_sha if base else None, "arch": arch, "lr": lr, "rule": rule}
             if scaler is not None:
                 payload["scaler"] = scaler.state_dict()
             if device == "cuda":

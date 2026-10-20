@@ -130,7 +130,7 @@ def update(run_id, loaded=None, play=True):
     path = tc._run_dir(run_id)
     item = tc._summary(path)
     score = fitness(item)
-    if item["mode"] != "long" or score is None or not item["has_best"]:
+    if item["mode"] != "long" or score is None or not item["has_best"] or item.get("kind") == "selfcheck":
         return None
     match = None
     parent = item.get("parent")

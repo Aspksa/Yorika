@@ -656,3 +656,79 @@ textarea.field{resize:vertical;line-height:1.5;font-family:inherit}
  .recipe-board li{grid-template-columns:minmax(0,1fr) 54px}.rb-bar{display:none}
 }
 @media(prefers-reduced-motion:reduce){.dawn-sun,.gene,.step.here::before,.sp-cell.active::after,.dawn-lines li,.health-dot{animation:none}}
+
+/* ---- self-check ---- */
+.selfcheck{margin-top:16px;padding:16px;border:1px dashed var(--line-strong);border-radius:calc(16px*var(--r));background:var(--surface)}
+.selfcheck[data-state=ok]{border-style:solid;border-color:color-mix(in srgb,var(--ok) 60%,transparent)}
+.selfcheck[data-state=bad]{border-style:solid;border-color:color-mix(in srgb,var(--err) 60%,transparent)}
+.sc-head{display:flex;align-items:center;gap:14px}
+.sc-head>div{flex:1;min-width:0}.sc-head b{display:block;font-size:14px;color:var(--text)}.sc-head small{font-size:12px;line-height:1.45;color:var(--text-muted)}
+.sc-ring{flex:none;position:relative;width:44px;height:44px;border-radius:50%;background:conic-gradient(var(--ok) calc(var(--p,0)*360deg),var(--line) 0)}
+.sc-ring span{position:absolute;inset:5px;border-radius:50%;background:var(--surface)}
+.selfcheck[data-state=live] .sc-ring{animation:spin 1.6s linear infinite;background:conic-gradient(var(--brand-hi),transparent 70%)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sc-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:12px 0 0;padding:0;list-style:none}
+.sc-steps:empty{display:none}
+.sc-steps li{display:flex;flex-direction:column;gap:2px;padding:8px 10px 8px 26px;position:relative;border-radius:calc(10px*var(--r));background:var(--bg);font-size:12px}
+.sc-steps li::before{content:"";position:absolute;left:10px;top:13px;width:8px;height:8px;border-radius:50%;background:var(--line-strong)}
+.sc-steps li.ok::before{background:var(--ok)}.sc-steps li.bad::before{background:var(--err)}
+.sc-steps li.wait::before{background:var(--brand-hi);animation:pulse-bad 1.2s infinite}
+.sc-steps b{color:var(--text)}.sc-steps small{color:var(--text-muted);overflow-wrap:anywhere}
+.sc-steps li.bad small{color:var(--err)}
+#sc-copy-row{margin-top:10px;align-items:center}
+
+/* ---- more data ---- */
+.harvest{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.harvest-bar{display:flex;gap:2px;height:24px;margin-top:10px;border-radius:calc(8px*var(--r));overflow:hidden}
+
+/* ---- screen help ---- */
+.screen-ask{display:flex;gap:8px}
+.screen-ask .field{flex:1}
+.btn-ic{display:inline-block;width:16px;height:16px;margin-right:6px;vertical-align:-3px}
+.screen-out{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:14px}
+.screen-text,.screen-answer{padding:12px;border-radius:calc(12px*var(--r));background:var(--bg);border:1px solid var(--line)}
+.screen-text b,.screen-answer b{display:block;margin-bottom:6px;font-size:12px;color:var(--brand)}
+.screen-text pre{margin:0;max-height:180px;overflow:auto;font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--text-soft);white-space:pre-wrap}
+.screen-answer p{margin:0 0 6px;font-size:13.5px;line-height:1.5;color:var(--text)}
+.screen-answer small{font-size:11px;color:var(--text-muted)}
+
+/* ---- the diary: pages of a notebook ---- */
+.diary{padding:24px;border:1px solid var(--line);border-radius:calc(22px*var(--r));background:var(--bg-raise)}
+.diary-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px}
+.diary-head>div{flex:1}.diary-head h2{margin:2px 0 3px;font-size:18px;color:var(--brand)}.diary-head p{margin:0;font-size:12.5px;color:var(--text-muted)}
+.diary-pages{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;perspective:900px}
+.diary-page{position:relative;padding:18px 18px 16px 30px;min-height:170px;border-radius:calc(6px*var(--r)) calc(16px*var(--r)) calc(16px*var(--r)) calc(6px*var(--r));
+ background:repeating-linear-gradient(180deg,transparent 0 23px,color-mix(in srgb,var(--line-strong) 55%,transparent) 23px 24px),color-mix(in srgb,var(--brand) 6%,var(--surface));
+ box-shadow:0 10px 26px var(--shadow);transform:rotateY(4deg);transform-origin:left;transition:transform .3s}
+.diary-page::before{content:"";position:absolute;left:14px;top:0;bottom:0;width:2px;background:color-mix(in srgb,var(--err) 45%,transparent)}
+.diary-page:hover,.diary-page.today{transform:none}
+.diary-page.today{box-shadow:0 12px 30px var(--shadow),0 0 0 1px var(--brand-fill)}
+.diary-page time{display:block;margin-bottom:6px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}
+.diary-page p{margin:0;font-family:Georgia,"Times New Roman",serif;font-style:italic;font-size:13.5px;line-height:24px;color:var(--text)}
+.diary-nums{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.diary-pages>.empty-line{grid-column:1/-1}
+
+/* ---- the mind lab ---- */
+.mindlab .mind-sub{margin:-6px 0 14px;font-size:13px;color:var(--text-muted)}
+.mind-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.mind{--hue:var(--brand-hi);position:relative;display:flex;flex-direction:column;gap:8px;padding:18px;border:1px solid var(--line);border-radius:calc(20px*var(--r));overflow:hidden;
+ background:radial-gradient(circle at 1px 1px,color-mix(in srgb,var(--hue) 22%,transparent) 1px,transparent 1.5px) 0 0/14px 14px,var(--bg-raise);transition:transform .2s,border-color .2s}
+.mind::after{content:"";position:absolute;right:-40px;top:-40px;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--hue) 30%,transparent),transparent 70%);animation:drift 7s ease-in-out infinite alternate;pointer-events:none}
+@keyframes drift{to{transform:translate(-18px,16px) scale(1.15)}}
+.mind:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--hue) 60%,transparent)}
+.mind[data-mind=dreams]{--hue:var(--gene-b)}.mind[data-mind=rebirth]{--hue:var(--gene-c)}.mind[data-mind=hemispheres]{--hue:var(--gene-d)}
+.mind[data-mind=rule]{--hue:var(--gene-a)}.mind[data-mind=thoughts]{--hue:var(--gene-e)}.mind[data-mind=ecosystem]{--hue:var(--ok)}
+.mind-ic{position:relative;z-index:1;width:44px;height:44px;padding:10px;border-radius:calc(14px*var(--r));background:color-mix(in srgb,var(--hue) 18%,var(--surface));color:var(--hue);box-shadow:0 0 22px color-mix(in srgb,var(--hue) 30%,transparent)}
+.mind h3{position:relative;z-index:1;margin:2px 0 0;font-size:15px;color:var(--text)}
+.mind p{position:relative;z-index:1;margin:0;font-size:12.5px;line-height:1.5;color:var(--text-soft);flex:1}
+.mind .secondary{position:relative;z-index:1;align-self:flex-start}
+.mind-stat{position:relative;z-index:1;font-size:11.5px;color:var(--hue)}
+.trust{position:relative;z-index:1;display:grid;gap:4px}
+.trust-row{display:grid;grid-template-columns:74px minmax(0,1fr) 52px;align-items:center;gap:6px;font-size:11px;color:var(--text-muted)}
+.trust-bar{position:relative;height:8px;border-radius:4px;background:var(--surface)}
+.trust-bar::before,.trust-bar::after{content:"";position:absolute;top:0;bottom:0;border-radius:4px}
+.trust-bar::before{right:50%;width:calc(var(--l)*50%);background:var(--brand-hi)}
+.trust-bar::after{left:50%;width:calc(var(--r)*50%);background:var(--gene-d)}
+@media(max-width:900px){.mind-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.diary-pages{grid-template-columns:1fr}.diary-page{transform:none}}
+@media(max-width:760px){.mind-grid{grid-template-columns:1fr}.sc-steps{grid-template-columns:1fr}.screen-out{grid-template-columns:1fr}.screen-ask{flex-direction:column}.sc-head{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){.mind::after,.sc-ring,.sc-steps li.wait::before{animation:none}.mind:hover{transform:none}}

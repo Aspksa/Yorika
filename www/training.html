@@ -51,6 +51,15 @@
    </ol>
    <p id="gpu-note" class="hint" role="status" aria-live="polite"></p>
    <pre id="install-log" class="log" hidden></pre>
+   <div class="selfcheck" id="selfcheck">
+    <div class="sc-head">
+     <span class="sc-ring" id="sc-ring" aria-hidden="true"><span></span></span>
+     <div><b>Самопроверка</b><small id="sc-line">Одна кнопка: минута обучения на видеокарте, экзамены, мир задач, программы и расписание. Пробная версия удаляется после.</small></div>
+     <button class="primary small" id="sc-go">Проверить всё</button>
+    </div>
+    <ol class="sc-steps" id="sc-steps"></ol>
+    <div class="button-row" id="sc-copy-row" hidden><button class="secondary small" id="sc-copy">Скопировать отчёт</button><small class="hint">Пришлите отчёт в чат проекта, я исправлю то, что упало.</small></div>
+   </div>
   </section>
 
   <section class="card" aria-labelledby="start-title">
@@ -127,6 +136,11 @@
      <select id="data-file" class="field" aria-label="Файл диалогов"><option value="">Файлов пока нет</option></select>
      <p id="data-result" class="hint" role="status" aria-live="polite">Выберите файл и проверьте его.</p>
      <div class="button-row"><button class="secondary small" id="check-data" disabled>Проверить</button><button class="ghost small" id="open-data">Открыть папку</button></div>
+     <div class="harvest">
+      <button class="primary small" id="harvest-go">Собрать 10 000 для долгого обучения</button>
+      <div class="harvest-bar" id="harvest-bar" hidden></div>
+      <p class="hint" id="harvest-note">Ваши одобренные разговоры плюс уроки с проверенными ответами: логика, мир задач, программы, инструменты, сны. Чем больше ваших разговоров, тем больше она похожа на вас.</p>
+     </div>
     </div>
     <div class="data-box">
      <h3>Тексты для предобучения <small>.txt</small></h3>
@@ -208,6 +222,15 @@
    </div>
    <p class="hint">Своя модель отвечает сама и никогда не подменяется Cloud.ru: если она не справится, чат покажет ошибку. Черновики проверяются: неверный счёт отбрасывается, инструменты считают точно.</p>
    <div class="button-row"><button class="primary" id="engine-save">Сохранить</button></div>
+  </section>
+
+  <section class="card screen-card" aria-labelledby="screen-title">
+   <header class="card-head"><span class="card-ic" data-icon="eye" aria-hidden="true"></span><div><h2 id="screen-title">Посмотри на экран</h2><p>Только по кнопке: Windows читает текст на экране, Yorika отвечает про него. Картинка и текст нигде не сохраняются.</p></div></header>
+   <div class="screen-ask"><input id="screen-q" class="field" maxlength="300" value="Что здесь не так и что делать?" aria-label="Вопрос про экран"><button class="primary" id="screen-go"><span class="btn-ic" data-icon="eye" aria-hidden="true"></span>Посмотреть</button></div>
+   <div class="screen-out" id="screen-out" hidden>
+    <div class="screen-text"><b>Прочитано с экрана</b><pre id="screen-text"></pre></div>
+    <div class="screen-answer"><b>Yorika</b><p id="screen-answer"></p><small id="screen-note"></small></div>
+   </div>
   </section>
 
   <section class="card" aria-labelledby="live-title">
@@ -337,6 +360,50 @@
     </div>
     <button class="ghost small" id="tidy-now">Убрать сейчас</button>
    </aside>
+  </section>
+
+  <section class="diary" aria-labelledby="diary-title">
+   <header class="diary-head"><span class="card-ic" data-icon="book" aria-hidden="true"></span><div><h2 id="diary-title">Дневник Yorika</h2><p>После каждой учёбы — запись от первого лица. Все цифры в ней измерены, ни одной выдуманной.</p></div><button class="ghost small head-btn" id="diary-now">Записать сейчас</button></header>
+   <div class="diary-pages" id="diary-pages"></div>
+  </section>
+
+  <section class="mindlab" aria-labelledby="mind-title">
+   <h2 id="mind-title" class="section-title">Лаборатория разума</h2>
+   <p class="mind-sub">Шесть способов думать, взятых у живого мозга. Каждый проверяется программой и экзаменами, а не верой.</p>
+   <div class="mind-grid">
+    <article class="mind" data-mind="dreams">
+     <span class="mind-ic" data-icon="moon" aria-hidden="true"></span><h3>Сны: от ответа к причине</h3>
+     <p>Ночью задачи дня прокручиваются наоборот: ответ дан, надо найти, откуда он. Только проверенные сны становятся уроками.</p>
+     <small class="mind-stat" id="mind-dreams">Каждую ночь, сами</small>
+    </article>
+    <article class="mind" data-mind="rebirth">
+     <span class="mind-ic" data-icon="seed" aria-hidden="true"></span><h3>Нейрогенез</h3>
+     <p>Нейроны, которые ни разу не включились, рождаются заново с новыми связями и получают работу на уроке.</p>
+     <button class="secondary small" data-mind-go="rebirth">Возродить молчащих</button>
+    </article>
+    <article class="mind" data-mind="hemispheres">
+     <span class="mind-ic" data-icon="brain" aria-hidden="true"></span><h3>Два полушария</h3>
+     <p>Две версии решают одно и то же. Где права только вторая, её слова становятся уроком для первой.</p>
+     <div class="trust" id="trust"></div>
+     <button class="secondary small" data-mind-go="hemispheres">Устроить спор</button>
+    </article>
+    <article class="mind" data-mind="rule">
+     <span class="mind-ic" data-icon="dna" aria-hidden="true"></span><h3>Эволюция законов обучения</h3>
+     <p>Эволюционирует не только мозг, но и закон, по которому меняются нейроны: распад, срез, разгон, пластичность по глубине.</p>
+     <small class="mind-stat" id="mind-rule">В конкурсе рецептов</small>
+    </article>
+    <article class="mind" data-mind="thoughts">
+     <span class="mind-ic" data-icon="bubble" aria-hidden="true"></span><h3>Язык мыслей</h3>
+     <p>Перед ответом — скрытые шаги ⟦…⟧. Чат их не показывает. Остаются только мысли, после которых ответ верен.</p>
+     <button class="secondary small" data-mind-go="thoughts">Учить думать</button>
+    </article>
+    <article class="mind" data-mind="ecosystem">
+     <span class="mind-ic" data-icon="swarm" aria-hidden="true"></span><h3>Обмен генами</h3>
+     <p>Версии одной линии меняются целыми блоками нейронов. Блок берётся, только если экзамен с ним лучше.</p>
+     <small class="mind-stat" id="mind-exchange"></small>
+     <button class="secondary small" data-mind-go="exchange">Обменяться</button>
+    </article>
+   </div>
   </section>
 
   <section class="card species-card" aria-labelledby="species-title">

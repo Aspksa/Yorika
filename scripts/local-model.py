@@ -31,10 +31,13 @@ def answer(query: str, *, checkpoint=None, generator=None) -> dict:
     if generator is None and _is_language_checkpoint(path):
         # Versions from the «Обучение» page answer with drafts, self-check and tools.
         from backend.brain import load, think
+        from backend.mind import strip_thoughts, thoughts_of
         result = think(*load(path), query)
-        if not result["answer"].strip():
+        # Hidden steps ⟦…⟧ are her thoughts: the chat shows only the answer after them.
+        shown = strip_thoughts(result["answer"]) or result["answer"].replace("⟦", "").replace("⟧", "")
+        if not shown.strip():
             raise RuntimeError("Yorika experimental model generated an empty response")
-        return {"answer": result["answer"], "provider": "yorika-own", "experimental": True,
+        return {"answer": shown, "thoughts": thoughts_of(result["answer"]), "provider": "yorika-own", "experimental": True,
                 "checkpoint": Path(path).name, "quality_verified": False, "drafts": result["drafts"]}
     kwargs = {"checkpoint": path, "enabled": True}
     if generator is not None:

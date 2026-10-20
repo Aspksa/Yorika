@@ -126,7 +126,7 @@ class DevelopmentMetacogLatentTests(LabBase):
 class PlannerTests(LabBase):
     def test_school_of_reasoning_in_order_and_stages_first(self):
         state = planner._state()
-        state["history"] = {k: time.time() for k in planner.EVERY if k not in ("development",) + reasoning.KINDS + ("grok",)}
+        state["history"] = {k: time.time() for k in planner.EVERY if k not in reasoning.KINDS + reasoning.LAB}
         planner._save_state(state)
         from backend import archive, recipes
         recipes.remember([{"recipe": recipes.DEFAULT, "run": "x", "gain_per_hour": 0.1, "gain": 0.1, "hours": 1}])
@@ -134,11 +134,13 @@ class PlannerTests(LabBase):
                 mock.patch.object(archive, "cells", lambda: {"filled": 3}), \
                 mock.patch.object(plans, "shrink_teacher", lambda: None):
             order = []
-            for _ in range(10):
+            for _ in range(len(reasoning.KINDS + reasoning.LAB) + 2):
                 choice = planner.today("sleep")
                 order.append(choice["activity"])
                 planner.done(choice)
-        self.assertEqual(order, ["development", "solver", "prover", "concepts", "analogy", "metacog", "latent", "grok", "sleep", "sleep"])
+        self.assertEqual(order, ["development", "solver", "prover", "concepts", "analogy", "metacog", "latent", "emergent",
+                                 "grounded", "scientist", "counterfactual", "teaching", "grok", "observer", "budget",
+                                 "sleep", "sleep"])
         state = planner._state()
         state["history"]["development"] = 0
         planner._save_state(state)
@@ -182,9 +184,13 @@ class SchoolMachineTests(LabBase):
             store["items"].append({"id": "k%d" % i, "prompt": "Как дела %d?" % i, "answer": "Хорошо %d." % i,
                                    "ts": time.time(), "rating": "up", "correction": None, "source": "yorika-chat"})
         sl._save(store)
-        small = {"solver": 40, "concepts": 80, "analogy": 30, "development": 60, "latent": 40}
+        small = {"solver": 40, "concepts": 80, "analogy": 30, "development": 60, "latent": 40, "grounded": 60,
+                 "counterfactual": 40}
+        from backend import teaching
         for kind in reasoning.KINDS:
-            with mock.patch.object(reasoning, "make", lambda k, loaded, seed=0, run_id=None: _small(k, loaded, seed, run_id, small)):
+            # The tiny test model never solves anything; here the younger one solves whenever it gets a hint.
+            with mock.patch.object(reasoning, "make", lambda k, loaded, seed=0, run_id=None: _small(k, loaded, seed, run_id, small)), \
+                    mock.patch.object(teaching, "_solves", lambda student, q, answer: q.startswith("Подсказка")):
                 plan = self.run_plan(kind)
             self.assertEqual(plan["state"], "finished", (kind, plan.get("result")))
             self.assertTrue(reasoning.describe(kind, plan["made"]), kind)
@@ -198,6 +204,17 @@ class SchoolMachineTests(LabBase):
         self.assertEqual(plan["state"], "finished", plan.get("result"))
         self.assertIn("Озарение", plan["result"])
         self.assertTrue(grokking.status()["last"]["strong"]["curve"])
+        from backend import budget, observer
+        for kind, module, count in (("observer", observer, 16), ("budget", budget, 4)):
+            real_lab = module.experiment
+            time.sleep(1.1)
+            with mock.patch.object(module, "experiment", lambda loaded, run_id, seed=0, real_lab=real_lab, count=count:
+                                   real_lab(loaded, run_id, seed, count=count)):
+                plan = self.run_plan(kind)
+            self.assertEqual(plan["state"], "finished", (kind, plan.get("result")))
+            self.assertIn(reasoning.TITLES[kind], plan["result"])
+            self.assertTrue(reasoning.status()["last"][kind]["text"])
+        self.assertEqual(reasoning.status()["observer"]["run"], run)
 
 
 def _small(kind, loaded, seed, run_id, small):
@@ -207,7 +224,15 @@ def _small(kind, loaded, seed, run_id, small):
         return me.lessons(loaded, seed, count=20, run_id=run_id)
     if kind == "prover":
         return pr.lessons(loaded, seed, count=12)
-    module = {"solver": so, "concepts": co, "analogy": an, "development": de, "latent": la}[kind]
+    from backend import counterfactual as cf, emergent as em, grounded as gr, scientist as sc, teaching as te
+    if kind == "emergent":
+        return em.lessons(loaded, seed, generations=2)
+    if kind == "scientist":
+        return sc.lessons(loaded, seed)
+    if kind == "teaching":
+        return te.lessons(loaded, seed, count=24, run_id=run_id)
+    module = {"solver": so, "concepts": co, "analogy": an, "development": de, "latent": la, "grounded": gr,
+              "counterfactual": cf}[kind]
     return module.lessons(loaded, seed, count=small[kind])
 
 
@@ -218,7 +243,8 @@ class PageTests(unittest.TestCase):
         js = (root / "www" / "training.js").read_text(encoding="utf-8")
         self.assertIn('id="reason-title"', html)
         from backend import night_cycle, summary
-        for kind in reasoning.KINDS + ("grok",):
+        self.assertIn('id="beyond-title"', html)
+        for kind in reasoning.KINDS + reasoning.LAB:
             self.assertIn('data-evo-plan="%s"' % kind, html)
             self.assertIn('id="rs-%s"' % kind, html)
             self.assertIn(kind, plans.KINDS)

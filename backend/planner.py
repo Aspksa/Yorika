@@ -16,7 +16,9 @@ rule that fits picks the activity, and its reason is written into the log and th
    Baldwin effect), evolution of genes, of lessons and of weights, endosymbiosis, breeding by an
    evolved recipe, learning from the majority of her drafts, and the school of reasoning
    (reasoning.py: Piaget's stages until passed, the logic engine, prover and checker, concepts,
-   analogies, knowing her limits, steps moved inside, the insight experiment). Their rhythm adapts: an activity
+   analogies, knowing her limits, steps moved inside, her own language, words through actions, the
+   scientist, counterfactuals, teaching a younger one; and the laboratory: insight, the inner observer,
+   the price of a thought). Their rhythm adapts: an activity
    whose versions never helped in the last month (three tries or more) comes half as often, one
    that helped at least every second time comes twice as often, but not more than every three days.
 10. Otherwise the week plan's activity for today (sleep, copies, branches, future self...).
@@ -34,7 +36,8 @@ MONTH = 30 * DAY
 EVERY = {"hemispheres": WEEK, "thoughts": WEEK, "ecosystem": WEEK, "coevolve": WEEK, "redqueen": WEEK,
          "baldwin": 2 * WEEK, "evolution": WEEK, "dataevo": WEEK, "es": 2 * WEEK, "symbiosis": 2 * WEEK,
          "breed": WEEK, "evolrl": WEEK, "development": 3 * DAY, "solver": WEEK, "prover": WEEK, "concepts": WEEK,
-         "analogy": WEEK, "metacog": WEEK, "latent": WEEK, "grok": 2 * WEEK}
+         "analogy": WEEK, "metacog": WEEK, "latent": WEEK, "grok": 2 * WEEK, "emergent": WEEK, "grounded": WEEK,
+         "scientist": WEEK, "counterfactual": WEEK, "teaching": WEEK, "observer": 2 * WEEK, "budget": 2 * WEEK}
 
 
 def _state():
@@ -138,7 +141,7 @@ def today(week_activity=None):
     if due("evolrl"):
         return {"activity": "evolrl", "why": "давно не училась на ответах, в которых согласно большинство черновиков"}
     from backend import development, reasoning
-    for kind in ("development",) + reasoning.KINDS[1:] + ("grok",):
+    for kind in ("development",) + reasoning.KINDS[1:] + reasoning.LAB:
         if kind == "development" and development.finished():
             continue
         if due(kind):

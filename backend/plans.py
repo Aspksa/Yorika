@@ -37,8 +37,10 @@ with healthy kinship are merged by a recipe evolved per layer while skills take 
 lessons are her own drafts that most of five agree on, the most novel of them.
 
 The school of reasoning (reasoning.py): Piaget's stages, a logic engine for her facts, legible
-solutions and a checker, her own concepts, analogies, knowing her limits, steps moved inside, and a
-laboratory experiment on insight (grok, no version made).
+solutions and a checker, her own concepts, analogies, knowing her limits, steps moved inside, her own
+language born in a game, words through actions, a scientist, counterfactuals, teaching a younger
+one; and laboratory measurements that make no version (LAB: insight, the inner observer, the
+price of a thought).
 
 Nothing here activates a version by itself, except through «включать сама, если не хуже».
 """
@@ -52,8 +54,11 @@ from backend import training_center as tc
 
 KINDS = ("swarm", "search", "distill", "recipes", "shrink", "hemispheres", "thoughts", "coevolve", "redqueen", "baldwin",
          "es", "dataevo", "symbiosis", "breed", "evolrl",
-         "development", "solver", "prover", "concepts", "analogy", "metacog", "latent", "grok")
-REASONING = ("development", "solver", "prover", "concepts", "analogy", "metacog", "latent")   # reasoning.KINDS
+         "development", "solver", "prover", "concepts", "analogy", "metacog", "latent", "emergent", "grounded", "scientist",
+         "counterfactual", "teaching", "grok", "observer", "budget")
+REASONING = ("development", "solver", "prover", "concepts", "analogy", "metacog", "latent",
+             "emergent", "grounded", "scientist", "counterfactual", "teaching")   # reasoning.KINDS
+LAB = ("grok", "observer", "budget")   # reasoning.LAB
 SKILLS = ("logic", "sim", "programs", "tools", "experience")
 SKILL_NAMES = {"logic": "логика", "sim": "мир задач", "programs": "программы", "tools": "инструменты",
                "experience": "ваши разговоры"}
@@ -245,7 +250,7 @@ def start(kind, *, copies=None, branches=3, rounds=2, minutes=20, prompts=120, d
         if type(branches) is not int or not 2 <= branches <= 6:
             raise ValueError("Стартов от 2 до 6")
         plan.update(branches=branches, rounds=1)
-    elif kind in ("thoughts", "coevolve", "es", "dataevo", "breed", "grok") + REASONING:
+    elif kind in ("thoughts", "coevolve", "es", "dataevo", "breed") + REASONING + LAB:
         plan.update(rounds=1)
     elif kind == "evolrl":
         if type(prompts) is not int or not 20 <= prompts <= 1000:
@@ -285,8 +290,8 @@ def worker():
             return _run_es(plan)
         if plan["kind"] == "breed":
             return _run_breed(plan)
-        if plan["kind"] == "grok":
-            return _run_grok(plan)
+        if plan["kind"] in LAB:
+            return _run_lab(plan)
         _prepare_round(plan)
         _next(plan)
     except Exception as error:  # noqa: BLE001 - the page shows why the plan stopped
@@ -888,9 +893,9 @@ def _run_breed(plan):
     return 0
 
 
-def _run_grok(plan):
-    """The insight experiment: two small networks of her kind, strong and weak weight decay."""
-    from backend import grokking
+def _run_lab(plan):
+    """A laboratory measurement (insight, the inner observer, the price of a thought): no version."""
+    from backend import reasoning
     plan["state"], plan["round"], plan["round_runs"] = "running", 1, []
     _save(plan)
     device = plan.get("device") or "cpu"
@@ -900,13 +905,18 @@ def _run_grok(plan):
             device = "cpu"
     except ImportError:
         raise ValueError("Для опыта нужен PyTorch")
-    made = grokking.experiment(seconds=plan["minutes"] * 60, seed=int(plan["id"][-6:]) % 1000, device=device,
-                               should_stop=lambda: (current() or {}).get("state") != "running")
+    loaded = None
+    if plan["kind"] != "grok":
+        from backend.neural_language_benchmark import load_candidate
+        loaded = load_candidate(tc.folder() / plan["base"]["checkpoint"])
+    made = reasoning.lab(plan["kind"], loaded, plan["base"]["run"], seed=int(plan["id"][-6:]) % 1000,
+                         seconds=plan["minutes"] * 60, device=device,
+                         should_stop=lambda: (current() or {}).get("state") != "running")
     if (current() or {}).get("state") != "running":
         return 0
-    grokking.remember(made)
-    plan["made"] = {k: made[k] for k in ("p", "verdict")}
-    _end(plan, "finished", "Озарение (опыт, версия не создаётся): %s" % made["verdict"])
+    plan["made"] = made
+    reasoning.remember(plan["kind"], made, plan["base"]["run"], "lab")
+    _end(plan, "finished", "%s (опыт, версия не создаётся): %s" % (reasoning.TITLES[plan["kind"]], made["verdict"]))
     return 0
 
 

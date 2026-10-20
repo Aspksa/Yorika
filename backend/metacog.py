@@ -90,16 +90,27 @@ def calibrate(loaded, run_id, seed=0, count=60):
 def sure(model, state, question, confidence, run_id=None):
     """Probability of being right from her calibration, or None when there is none worth using
     (no calibration, one that is not better than the average, or one made for another version)."""
+    try:
+        # The inner observer reads her hidden state; when it beat this calibration, it decides.
+        from backend import observer
+        inner = observer.sure(model, state, question, run_id)
+        if inner is not None:
+            return inner
+    except Exception:  # noqa: BLE001 - a broken probe leaves the calibration
+        pass
     data = load()
     if not data.get("useful") or not data.get("w") or (run_id and data.get("run") != run_id):
         return None
     return round(_p(data["w"], features(model, state, question, confidence)), 3)
 
 
-def drafts_for(p, default):
+def drafts_for(p, default, run_id=None):
+    """Drafts from the self-estimate; the thresholds are the ones the budget measured for this version."""
     if p is None:
         return default
-    return 1 if p >= 0.8 else 5 if p < 0.4 else max(3, default)
+    from backend import budget
+    hi, lo = budget.thresholds(run_id)
+    return 1 if p >= hi else 5 if p < lo else max(3, default)
 
 
 def lessons(loaded, seed=0, count=80, run_id=None):

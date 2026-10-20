@@ -152,7 +152,7 @@ def chat(query, conversation_id=None):
         from backend import metacog
         first = generate(loaded[0], loaded[1], query[:2000], 24)
         sure = metacog.sure(loaded[0], loaded[1], query[:2000], first["confidence"], current.get("run"))
-        drafts = metacog.drafts_for(sure, drafts)
+        drafts = metacog.drafts_for(sure, drafts, current.get("run"))
     except Exception:  # noqa: BLE001 - without self-knowledge the owner's setting stays
         pass
     result = dict(think(*loaded, query[:2000], drafts=drafts), sure=sure)

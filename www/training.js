@@ -1002,7 +1002,7 @@ function renderMap(){
 }
 $("map-look").onclick=e=>act(e.currentTarget,async()=>{const ref=mapRef();if(!ref)return;await post("introspect",{id:ref.id});$("map-sub").textContent="Заглядываю внутрь: замер идёт в фоне, карта обновится сама.";setTimeout(async()=>{await refresh();renderMap()},15000)});
 
-const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей",recipes:"Конкурс рецептов",shrink:"Сжатие после роста",hemispheres:"Два полушария",thoughts:"Язык мыслей",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина",es:"Эволюция весов",dataevo:"Эволюция уроков",symbiosis:"Эндосимбиоз",breed:"Скрещивание по рецепту",evolrl:"Большинство и новизна",development:"Развитие по этапам",solver:"Язык и решатель",prover:"Доказывающая и проверяющая",concepts:"Свои понятия",analogy:"Аналогии",metacog:"Знает, чего не знает",latent:"Мышление без слов",grok:"Озарение"};
+const PLAN_NAME={swarm:"Копии и слияние",search:"Ветки времени",distill:"Учёба у себя будущей",recipes:"Конкурс рецептов",shrink:"Сжатие после роста",hemispheres:"Два полушария",thoughts:"Язык мыслей",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина",es:"Эволюция весов",dataevo:"Эволюция уроков",symbiosis:"Эндосимбиоз",breed:"Скрещивание по рецепту",evolrl:"Большинство и новизна",development:"Развитие по этапам",solver:"Язык и решатель",prover:"Доказывающая и проверяющая",concepts:"Свои понятия",analogy:"Аналогии",metacog:"Знает, чего не знает",latent:"Мышление без слов",grok:"Озарение",emergent:"Свой язык",grounded:"Язык через действия",scientist:"Учёный внутри",counterfactual:"Что было бы, если",teaching:"Учит младшую",observer:"Внутренний наблюдатель",budget:"Цена мысли"};
 const PLAN_STATE={preparing:"готовится",running:"идёт",finished:"готово",failed:"ошибка",stopped:"остановлен"};
 function renderPlan(p){
   const plan=p.plan,box=$("plan-box");box.hidden=!plan;
@@ -1161,7 +1161,7 @@ function renderDawn(r,t,ap){
   }
   fillIcons(ul);
 }
-const ACT_NAME={sleep:"Сон",distill:"Учёба у себя будущей",search:"Ветки времени",swarm:"Копии",evolution:"Эволюция",fresh:"Новая версия",rest:"Отдых",recipes:"Рецепты учёбы",grow:"Рост глубже",experts:"Рост вширь (эксперты)",shrink:"Сжатие после роста",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина",es:"Эволюция весов",dataevo:"Эволюция уроков",symbiosis:"Эндосимбиоз",breed:"Скрещивание по рецепту",evolrl:"Большинство и новизна",development:"Развитие по этапам",solver:"Язык и решатель",prover:"Доказывающая и проверяющая",concepts:"Свои понятия",analogy:"Аналогии",metacog:"Знает, чего не знает",latent:"Мышление без слов",grok:"Озарение"};
+const ACT_NAME={sleep:"Сон",distill:"Учёба у себя будущей",search:"Ветки времени",swarm:"Копии",evolution:"Эволюция",fresh:"Новая версия",rest:"Отдых",recipes:"Рецепты учёбы",grow:"Рост глубже",experts:"Рост вширь (эксперты)",shrink:"Сжатие после роста",coevolve:"Коэволюция задач",redqueen:"Красная Королева",baldwin:"Эффект Болдуина",es:"Эволюция весов",dataevo:"Эволюция уроков",symbiosis:"Эндосимбиоз",breed:"Скрещивание по рецепту",evolrl:"Большинство и новизна",development:"Развитие по этапам",solver:"Язык и решатель",prover:"Доказывающая и проверяющая",concepts:"Свои понятия",analogy:"Аналогии",metacog:"Знает, чего не знает",latent:"Мышление без слов",grok:"Озарение",emergent:"Свой язык",grounded:"Язык через действия",scientist:"Учёный внутри",counterfactual:"Что было бы, если",teaching:"Учит младшую",observer:"Внутренний наблюдатель",budget:"Цена мысли"};
 function renderHealth(h,ap){
   $("health-dot").dataset.state=h.state||"";
   const ul=$("health-list");ul.replaceChildren();
@@ -1324,6 +1324,20 @@ function renderReasoning(r){
   const g=(r.grok||{}).last;
   fillList("rs-grok",g?[["сильная регуляризация",g.strong.grokked?`озарение на шаге ${g.strong.grokked}`:`новых верно ${pct(g.strong.test)}`],["слабая",g.weak.grokked?`озарение на шаге ${g.weak.grokked}`:`новых верно ${pct(g.weak.test)}`]]:[],"Опыт ещё не ставился.");
   if(g)$("rs-grok").append(el("li","co-foot",g.verdict));
+  const em=r.emergent||{},ts=em.topsim||[];
+  row("rs-emergent","emergent",m=>[["поколение",String(em.generation??m.generation??0)],["понимают друг друга",pct(m.accuracy)],["составность",ts.length?`${String(ts[0]).replace(".",",")} → ${String(ts[ts.length-1]).replace(".",",")}`:"—"],["незнакомые сигналы",`${m.unseen_right??0} из ${m.unseen??0}`]],"Язык ещё не рождался.");
+  if((em.words||[]).length)$("rs-emergent").append(el("li","co-foot",em.words.slice(0,3).map(w=>`«${w.signal}» — ${w.object}`).join(", ")));
+  row("rs-grounded","grounded",m=>[["незнакомый предмет",`${m.transfer??0} из ${m.asked??0}`]],"Ещё не училась в мире.");
+  const sc=r.scientist||{},cnt=sc.counts||[0,0];
+  row("rs-scientist","scientist",m=>[["законов",String(cnt[0])],["опровергнуто",String(cnt[1])],["угадала исход",`${m.predicted??0} из ${m.asked??0}`]],"Гипотез ещё не проверяла.");
+  if((sc.refuted||[]).length){const x=sc.refuted.find(f=>f.n>20)||sc.refuted[0];$("rs-scientist").append(el("li","co-foot",`«${x.text}»: нет при n = ${x.n}`))}
+  row("rs-counterfactual","counterfactual",m=>[["до урока верно",`${m.right??0} из ${m.asked??0}`]],"Ещё не представляла.");
+  row("rs-teaching","teaching",m=>[["младшая сама",`${m.alone??0} из ${m.asked??0}`],["помогло её объяснение",String(m.her_helped??0)],["помогло объяснение кодом",String(m.code_helped??0)]],"Ещё не объясняла.");
+  const ob=r.observer||{},num=v=>v==null?"—":String(v).replace(".",",");
+  fillList("rs-observer",ob.verdict?[["ошибка наблюдателя",num(ob.brier)],["у самооценки",num(ob.metacog)],["у угадывания",num(ob.base)],["в чате",ob.useful?"решает он":"не используется"]]:[],"Опыт ещё не ставился.");
+  const bu=r.budget||{},fx=bu.fixed||{};
+  fillList("rs-budget",bu.verdict?[...["1","3","5"].filter(d=>fx[d]).map(d=>[`${d} черн.`,`${pct(fx[d].accuracy)} · работа ${num(fx[d].work)}`]),...(bu.rule?[["пороги",`${num(bu.rule.hi)} / ${num(bu.rule.lo)}`]]:[])]:[],"Опыт ещё не ставился.");
+  if(bu.verdict&&!bu.rule)$("rs-budget").append(el("li","co-foot","Без самооценки пороги не настроены"));
 }
 // ---- evolutionary know-how: coevolution, the Red Queen, Baldwin, mutation strength, species, extinction ----
 function renderKnow(e){

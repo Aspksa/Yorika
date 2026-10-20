@@ -43,7 +43,7 @@ class SummaryTests(LabBase):
         data["log"].append({"run": "r3", "result": "вошла в архив"})
         archive._save(data)
         with mock.patch.object(tc, "runs", lambda: runs), \
-                mock.patch.object(plans, "history", lambda: [{"kind": "dataevo", "runs": [{"id": "r5"}]}]):
+                mock.patch.object(plans, "history", lambda limit=10: [{"kind": "dataevo", "runs": [{"id": "r5"}]}]):
             rows = {r["kind"]: r for r in summary.tried()}
         self.assertEqual((rows["sleep"]["tried"], rows["sleep"]["helped"]), (2, 1))
         self.assertEqual((rows["evolution"]["tried"], rows["evolution"]["helped"], rows["evolution"]["waiting"]), (1, 1, 1))

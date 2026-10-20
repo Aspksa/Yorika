@@ -2,7 +2,7 @@
 
 - growth: the exam score (loss per character, lower is better) of every version that was
   active, in the order it became active, and the best exam among all versions so far;
-- tried: for the last WEEK, every activity that produced versions, how many it produced and how
+- tried: for the last WEEK (or another window), every activity that produced versions, how many it produced and how
   many helped. A version helped when its verdict says it is not worse than the active one, or
   when it entered the archive. A lesson that was rolled back did not help;
 - brain: the active version's blocks and parts from introspection;
@@ -17,7 +17,8 @@ NAMES = {"quick": "Урок после разговора", "sleep": "Сон", "
          "selfcheck": "Самопроверка", "hemispheres": "Два полушария", "rebirth": "Нейрогенез", "ecosystem": "Обмен генами",
          "coevolve": "Коэволюция задач", "redqueen": "Красная Королева", "baldwin": "Эффект Болдуина", "es": "Эволюция весов",
          "search": "Ветки времени", "recipes": "Рецепты учёбы", "shrink": "Сжатие", "thoughts": "Язык мыслей",
-         "dataevo": "Эволюция уроков", "symbiosis": "Эндосимбиоз", None: "Обучение вручную"}
+         "dataevo": "Эволюция уроков", "symbiosis": "Эндосимбиоз", "breed": "Скрещивание по рецепту",
+         "evolrl": "Большинство и новизна", None: "Обучение вручную"}
 
 
 def _ts(text):
@@ -49,17 +50,17 @@ def growth():
     return {"active": points[-20:], "record": record[-20:]}
 
 
-def tried(now=None):
+def tried(now=None, window=WEEK):
     from backend import plans
     from backend import training_center as tc
     now = now or time.time()
     plan_of = {}
-    for p in plans.history():
+    for p in plans.history(40):
         for r in p.get("runs") or []:
             plan_of[r["id"] if isinstance(r, dict) else r] = p.get("kind")
     rows = {}
     for r in tc.runs():
-        if r["mode"] != "long" or now - _ts(r.get("created")) > WEEK:
+        if r["mode"] != "long" or now - _ts(r.get("created")) > window:
             continue
         kind = plan_of.get(r["id"]) or r.get("kind")
         row = rows.setdefault(kind, {"kind": kind, "title": NAMES.get(kind, kind), "tried": 0, "helped": 0, "waiting": 0})

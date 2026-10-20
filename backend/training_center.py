@@ -150,6 +150,44 @@ def torch_state():
             "python": "%d.%d" % sys.version_info[:2]}
 
 
+_GPU_CACHE = {"t": 0.0, "value": None}
+GPU_QUERY = "temperature.gpu,utilization.gpu,memory.used,memory.total,power.draw"
+GPU_HOT = 85
+
+
+def _gpu_number(text):
+    try:
+        return float(text.strip())
+    except ValueError:  # "[N/A]" on laptops that hide a value
+        return None
+
+
+def gpu_now():
+    """The video card right now, from the NVIDIA driver's own nvidia-smi: temperature (°C), load (%),
+    memory used and total (bytes) and power (W). None when there is no NVIDIA driver. Read at
+    most every 5 seconds, so the page polling every 3 seconds costs nothing to training."""
+    if time.time() - _GPU_CACHE["t"] < 5:
+        return _GPU_CACHE["value"]
+    value = None
+    tool = shutil.which("nvidia-smi")
+    if tool:
+        try:
+            out = subprocess.run([tool, "--query-gpu=" + GPU_QUERY, "--format=csv,noheader,nounits"],
+                                 capture_output=True, text=True, timeout=3,
+                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            fields = out.stdout.splitlines()[0].split(",") if out.returncode == 0 and out.stdout.strip() else []
+            if len(fields) == 5:
+                temp, load, used, total, power = (_gpu_number(f) for f in fields)
+                value = {"temperature": temp, "load": load, "power": power,
+                         "memory_used": used * 1048576 if used is not None else None,
+                         "memory_total": total * 1048576 if total is not None else None,
+                         "hot": temp is not None and temp >= GPU_HOT}
+        except (OSError, subprocess.SubprocessError, IndexError):
+            value = None
+    _GPU_CACHE.update(t=time.time(), value=value)
+    return value
+
+
 def probe():
     """Runs the read-only CUDA probe and keeps its last result."""
     spec = importlib.util.spec_from_file_location("cuda_probe", ROOT / "scripts" / "probe-language-cuda.py")
@@ -395,7 +433,60 @@ def _summary(path):
             "tournament": progress.get("tournament"),
             "introspection": progress.get("introspection"), "lr": (run.get("config") or {}).get("lr"),
             "history": progress.get("history", []), "has_best": best.is_file(),
+            "width": (run.get("config") or {}).get("width"), "origin": _origin(run),
             "resumable": progress.get("state") in ("paused", "interrupted") and run.get("mode") in ("long", "pretrain")}
+
+
+# Readable names for the settings a child can change from its parent, for the version card.
+CHANGE_NAMES = (("layers", "слоёв", None), ("width", "ширина", None), ("heads", "голов внимания", None),
+                ("context", "окно", None), ("lr", "скорость учёбы", None), ("arch.loops", "думает ×", 1),
+                ("arch.experts", "экспертов", 0), ("arch.memory", "ячеек памяти", 0),
+                ("arch.dendrites", "дендриты ×", 0), ("arch.hopfield", "Хопфилд", 0))
+SWITCH_NAMES = (("arch.fast", "быстрые веса"), ("arch.epigenetic", "эпигенетика"),
+                ("arch.guest", "специалист внутри"), ("rule.ff", "разгон Forward-Forward"))
+
+
+def _setting(config, key):
+    value = config or {}
+    for part in key.split("."):
+        value = value.get(part) if isinstance(value, dict) else None
+    return value
+
+
+def changes(parent, child):
+    """What a child changed from its parent, in words: "слоёв: 4 → 6", "+ быстрые веса"."""
+    out = []
+    for key, name, default in CHANGE_NAMES:
+        a, b = _setting(parent, key), _setting(child, key)
+        a, b = default if a is None else a, default if b is None else b
+        if a != b and a is not None and b is not None:
+            out.append("%s: %s → %s" % (name, a, b))
+    before, after = (MIXER_NAMES.get(_setting(c, "arch.mixer"), "внимание") for c in (parent, child))
+    if before != after:
+        out.append("слои: %s → %s" % (before, after))
+    for key, name in SWITCH_NAMES:
+        a, b = bool(_setting(parent, key)), bool(_setting(child, key))
+        if a != b:
+            out.append(("+ " if b else "− ") + name)
+    return out
+
+
+def _origin(run):
+    """Where a version came from: one parent (or two for a merge) and what changed. No family tree."""
+    if run.get("merged"):
+        return {"how": "merged", "runs": list(run["merged"])[:2], "changes": []}
+    parent = run.get("grown_from") or run.get("parent") or run.get("base")
+    if not parent:
+        return None
+    how = "grown" if run.get("grown_from") else "base" if parent == run.get("base") else "parent"
+    try:
+        info = _read(_run_dir(parent) / "run.json", {}) or {}
+    except ValueError:
+        return {"how": how, "runs": [parent], "changes": [], "missing": True}
+    found = changes(info.get("config"), run.get("config"))
+    if info.get("dataset") and run.get("dataset") and info["dataset"] != run["dataset"]:
+        found.append("данные: %s" % run["dataset"])
+    return {"how": how, "runs": [parent], "changes": found}
 
 
 def runs():
@@ -1145,6 +1236,11 @@ def _with_tools(answer):
 def compare(run_ids, questions):
     if not isinstance(run_ids, list) or not 1 <= len(run_ids) <= 2 or len(set(run_ids)) != len(run_ids):
         raise ValueError("Выберите одну или две версии")
+    picked = not questions
+    if picked:
+        # No questions given: three from the newer version's exam, which neither version trained on.
+        from backend import blind
+        questions = blind._questions(run_ids, 3)
     if (not isinstance(questions, list) or not 1 <= len(questions) <= 5 or
             any(not isinstance(q, str) or not q.strip() or len(q) > 300 for q in questions)):
         raise ValueError("Нужно от 1 до 5 вопросов, каждый до 300 символов")
@@ -1157,14 +1253,18 @@ def compare(run_ids, questions):
         model, state = load_candidate(best)
         columns.append({"id": run_id, "step": state["step"],
                         "answers": [_with_tools(_answer(model, state, q.strip(), 64)) for q in questions]})
-    return {"questions": [q.strip() for q in questions], "versions": columns,
-            "note": "Ответы получены жадным выбором слов; сравнивайте сами, это не оценка людьми"}
+    return {"questions": [q.strip() for q in questions], "versions": columns, "picked": picked,
+            "note": ("Вопросы из экзамена: их не видела при обучении ни одна из версий. " if picked else "") +
+                    "Ответы получены жадным выбором слов; сравнивайте сами, это не оценка людьми"}
 
 
 def status():
     where = folder()
+    items = runs()
+    # The card's live numbers are read only while something trains on the video card.
+    gpu = gpu_now() if any(r["state"] in ("starting", "running") and r.get("device") == "cuda" for r in items) else None
     return {"folder": str(where), "onedrive": "onedrive" in str(where).lower(),
-            "data_folder": str(where / "data"), "torch": torch_state(),
-            "probe": _read(_system() / "probe.json"), "data": data_files(), "runs": runs(),
+            "data_folder": str(where / "data"), "torch": torch_state(), "gpu": gpu,
+            "probe": _read(_system() / "probe.json"), "data": data_files(), "runs": items,
             "active": active(), "min_long_records": MIN_LONG_RECORDS, "texts": texts(),
             "sizes": {k: dict(v) for k, v in SIZES.items()}, "series": series()}

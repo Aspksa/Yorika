@@ -28,6 +28,10 @@ Coevolution, the Red Queen and the Baldwin effect (coevolution.py, baldwin.py): 
 the task genomes she fails; a match of two quiz masters after which both study their losses;
 newborn starting points that compete on how fast they learn the same lesson.
 
+Weights without gradients, lessons that evolve, endosymbiosis (es.py, data_evolution.py,
+growth.engulf): the active version's weights evolve by evolution strategies alone; the lessons
+are selected by how much each one helps; a smaller specialist moves inside her.
+
 Nothing here activates a version by itself, except through «включать сама, если не хуже».
 """
 import random
@@ -38,7 +42,8 @@ from datetime import datetime, timezone
 from backend import self_learning as sl
 from backend import training_center as tc
 
-KINDS = ("swarm", "search", "distill", "recipes", "shrink", "hemispheres", "thoughts", "coevolve", "redqueen", "baldwin")
+KINDS = ("swarm", "search", "distill", "recipes", "shrink", "hemispheres", "thoughts", "coevolve", "redqueen", "baldwin",
+         "es", "dataevo", "symbiosis")
 SKILLS = ("logic", "sim", "programs", "tools", "experience")
 SKILL_NAMES = {"logic": "логика", "sim": "мир задач", "programs": "программы", "tools": "инструменты",
                "experience": "ваши разговоры"}
@@ -229,8 +234,13 @@ def start(kind, *, copies=None, branches=3, rounds=2, minutes=20, prompts=120, d
         if type(branches) is not int or not 2 <= branches <= 6:
             raise ValueError("Стартов от 2 до 6")
         plan.update(branches=branches, rounds=1)
-    elif kind in ("thoughts", "coevolve"):
+    elif kind in ("thoughts", "coevolve", "es", "dataevo"):
         plan.update(rounds=1)
+    elif kind == "symbiosis":
+        guest = teacher or symbiont(current_brain["run"])
+        if not guest:
+            raise ValueError("Нет версии-специалиста меньше активной с тем же словарём")
+        plan.update(guest=guest, rounds=1)
     elif kind == "search":
         if type(branches) is not int or not 2 <= branches <= 6 or type(rounds) is not int or not 1 <= rounds <= 5:
             raise ValueError("Веток от 2 до 6, раундов от 1 до 5")
@@ -256,6 +266,8 @@ def worker():
     if not plan or plan.get("state") != "preparing":
         return 0
     try:
+        if plan["kind"] == "es":
+            return _run_es(plan)
         _prepare_round(plan)
         _next(plan)
     except Exception as error:  # noqa: BLE001 - the page shows why the plan stopped
@@ -354,6 +366,29 @@ def _prepare_round(plan):
         for k, (genome, path) in enumerate(zip(genomes, files)):
             queue.append({"label": "старт %d: %s" % (k + 1, baldwin.describe(genome)), "records": records, "kind": "baldwin",
                           "config": config, "init": path, "baldwin": k})
+    elif plan["kind"] == "dataevo":
+        from backend import data_evolution, recipes
+        from backend.neural_language_benchmark import load_candidate
+        seed = int(plan["id"][-6:]) % 100000
+        recipe = recipes.best()
+        records, made = data_evolution.evolve(load_candidate(tc.folder() / base_ckpt), recipes.records(recipe, seed=seed),
+                                              lambda source, n, s: _refill(recipe, source, n, s), seed=seed)
+        plan["made"] = made
+        queue.append({"label": "уроки поколения %d: выжило %d, умерло %d, новых %d" % (
+            made["generation"], made["kept"], made["died"], made["fresh"]), "records": records, "kind": "branch", "config": config})
+        _note(plan, "эволюция уроков: выжило %d, умерло %d, новых %d" % (made["kept"], made["died"], made["fresh"]))
+    elif plan["kind"] == "symbiosis":
+        from backend import growth, recipes
+        guest_ckpt = tc._run_dir(plan["guest"]) / "language-longrun.pt.best.pt"
+        target = tc.folder() / "plan" / "symbiosis.pt"
+        made = growth.engulf(tc.folder() / base_ckpt, guest_ckpt, target)
+        import torch
+        arch = torch.load(target, map_location="cpu", weights_only=True)["arch"]
+        plan["made"] = made
+        records = _with_replay(recipes.records(recipes.best(), seed=plan["round"]), plan["round"])
+        queue.append({"label": "эндосимбиоз: %s внутри активной" % plan["guest"], "records": records, "kind": "branch",
+                      "config": dict(config, arch=arch), "init": "plan/symbiosis.pt"})
+        _note(plan, "специалист %s встроен: %d параметров внутри %d" % (plan["guest"], made["guest_parameters"], made["parameters"]))
     elif plan["kind"] == "swarm":
         for k, skill in enumerate(plan["copies"]):
             records = skill_set(skill, seed=k)
@@ -438,7 +473,7 @@ def on_finished(run_id):
             return _finish_recipes(plan)
         if plan["kind"] == "shrink":
             return _finish_shrink(plan)
-        if plan["kind"] in ("hemispheres", "thoughts", "coevolve"):
+        if plan["kind"] in ("hemispheres", "thoughts", "coevolve", "dataevo", "symbiosis"):
             return _finish_single(plan)
         if plan["kind"] == "redqueen":
             return _finish_redqueen(plan)
@@ -660,9 +695,105 @@ def _finish_single(plan):
     progress["verdict"] = verdict
     tc._write(tc._run_dir(run_id) / "progress.json", progress)
     return _end(plan, "finished", "%s: урок %s, %s" % ({"hemispheres": "Два полушария", "thoughts": "Язык мыслей",
-                                                         "coevolve": "Коэволюция задач"}[plan["kind"]],
+                                                         "coevolve": "Коэволюция задач", "dataevo": "Эволюция уроков",
+                                                         "symbiosis": "Эндосимбиоз"}[plan["kind"]],
                 run_id, {"rolled_back": "хуже активной, отложен (%s)" % verdict["why"], "waiting": "не хуже, ждёт вашего решения",
                          "activated": "не хуже, включён сам"}[verdict["result"]]))
+
+
+def _refill(recipe, source, n, seed):
+    """Fresh lessons of one source for data evolution."""
+    from backend import recipes
+    if source in recipe["mix"]:
+        only = dict(recipe, mix={k: (1 if k == source else 0) for k in recipe["mix"]})
+        return recipes.records(only, seed=seed, total=n)[:n]
+    return _experience(n, seed)
+
+
+def symbiont(host_run):
+    """The best smaller version with the same word pieces and context: a specialist to engulf."""
+    from backend import archive
+    host = tc._summary(tc._run_dir(host_run))
+    try:
+        info = tc._read(tc._run_dir(host_run) / "run.json")["config"]
+        import torch
+        sha = torch.load(tc._run_dir(host_run) / "language-longrun.pt.best.pt", map_location="cpu", weights_only=True)["tokenizer"]["sha256"]
+    except Exception:  # noqa: BLE001 - no host, no guest
+        return None
+    found = []
+    for item in tc.runs():
+        if (item["id"] == host_run or item["mode"] != "long" or not item["has_best"] or not item.get("parameters")
+                or item["parameters"] >= (host.get("parameters") or 0) or not (item.get("arch") or {}).get("lab")
+                or (item.get("arch") or {}).get("guest") or archive.fitness(item) is None):
+            continue
+        try:
+            cfg = tc._read(tc._run_dir(item["id"]) / "run.json")["config"]
+            if cfg["context"] != info["context"] or cfg["max_merges"] != info["max_merges"]:
+                continue
+            state = torch.load(tc._run_dir(item["id"]) / "language-longrun.pt.best.pt", map_location="cpu", weights_only=True)
+        except Exception:  # noqa: BLE001
+            continue
+        if state["tokenizer"]["sha256"] == sha:
+            found.append((archive.fitness(item), item["id"]))
+    return max(found)[1] if found else None
+
+
+def new_version(base_checkpoint, weights, kind, label, source_run):
+    """A version made without ordinary training: saved, then examined like any other."""
+    import torch
+    base = torch.load(tc.folder() / base_checkpoint, map_location="cpu", weights_only=True)
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-long"
+    path = tc.folder() / "runs" / run_id
+    while path.exists():
+        time.sleep(1.1)
+        run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-long"
+        path = tc.folder() / "runs" / run_id
+    path.mkdir(parents=True)
+    payload = dict(base, weights=weights)
+    for key in ("optimizer", "rng", "cuda_rng", "scaler"):
+        payload.pop(key, None)
+    torch.save(payload, path / "language-longrun.pt.best.pt")
+    info = tc._read(tc._run_dir(source_run) / "run.json")
+    tc._write(path / "run.json", dict(info, id=run_id, created=_now(), kind=kind, series=None, parent=source_run,
+                                      dataset=label if info.get("internal") else info["dataset"], made_as=label))
+    shutil_copy(tc._run_dir(source_run) / "dataset.json", path / "dataset.json")
+    tc._write(path / "progress.json", {"state": "finished", "steps": 0, "best_step": 0, "history": [], "t": time.time(),
+                                       "parameters": sum(v.numel() for v in weights.values())})
+    return run_id
+
+
+def _run_es(plan):
+    """Evolution strategies on the active version's weights, then the usual exam and judgement."""
+    from backend import continual, es, recipes
+    from backend.neural_language_benchmark import load_candidate
+    plan["state"], plan["round"], plan["round_runs"] = "running", 1, []
+    _save(plan)
+    records = _with_replay(recipes.records(recipes.best(), seed=int(plan["id"][-6:]) % 1000), 1)
+    weights, made = es.evolve(load_candidate(tc.folder() / plan["base"]["checkpoint"]), records,
+                              seconds=plan["minutes"] * 60, seed=int(plan["id"][-6:]),
+                              should_stop=lambda: (current() or {}).get("state") != "running")
+    if (current() or {}).get("state") != "running":
+        return 0
+    plan["made"] = made
+    _note(plan, "поколений %d, копий %d: потеря на проверочных уроках %.4f → %.4f" % (
+        made["generations"], made["copies"], made["loss_before"], made["loss_after"]))
+    if made["loss_after"] >= made["loss_before"]:
+        es.remember(made, None)
+        _end(plan, "finished", "Эволюция весов не нашла лучше за %d поколений: версия не создана" % made["generations"])
+        return 0
+    run_id = new_version(plan["base"]["checkpoint"], weights, "es", "(эволюция весов: %d поколений)" % made["generations"],
+                         plan["base"]["run"])
+    tc.exam_worker(run_id)
+    verdict = continual.judge(run_id)
+    progress = tc._read(tc._run_dir(run_id) / "progress.json", {}) or {}
+    progress["verdict"] = verdict
+    tc._write(tc._run_dir(run_id) / "progress.json", progress)
+    plan["result_run"] = run_id
+    es.remember(made, run_id, verdict["result"])
+    _end(plan, "finished", "Эволюция весов без градиентов: %s, %s" % (run_id, {
+        "rolled_back": "хуже активной, отложена (%s)" % verdict["why"], "waiting": "не хуже, ждёт вашего решения",
+        "activated": "не хуже, включена сама"}[verdict["result"]]))
+    return 0
 
 
 def _with_replay(records, seed):

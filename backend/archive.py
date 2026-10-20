@@ -165,8 +165,11 @@ def update(run_id, loaded=None, play=True):
         if born["founded"] and "вошла" not in entry["result"]:
             entry["result"] += "; но она основала новый вид №%d, он под защитой" % born["species"]
     if item.get("kind") == "evolution":
-        from backend import mutation
+        from backend import mutation, tabu
         mutation.record("архитектура", entry["result"].startswith("вошла"))
+        changes = (tc._read(path / "run.json", {}) or {}).get("config", {}).get("changes") or []
+        if changes:
+            tabu.record("архитектура", changes, entry["result"].startswith("вошла"))
     data["log"].append(entry)
     _save(data)
     return dict(entry, tournament=match)
@@ -201,14 +204,63 @@ def elites():
     return [cell["run"] for cell in load()["cells"].values() if _exists(cell["run"])]
 
 
+OBJECTIVES = (("exam", "экзамен"), ("small", "размер"), ("logic", "логика"))
+
+
+def _objectives(item):
+    """Higher is better on every axis: a lower exam loss, fewer parameters, more logic solved."""
+    return {"exam": -item["exam_per_char"], "small": -(item.get("parameters") or 0),
+            "logic": round(_mean(((item.get("logic") or {}).get("levels") or {}).values()), 4)}
+
+
+def _dominates(a, b):
+    return all(a[k] >= b[k] for k, _ in OBJECTIVES) and any(a[k] > b[k] for k, _ in OBJECTIVES)
+
+
+def pareto():
+    """Pareto selection: versions no other version beats on every axis at once (rank 0), then the
+    next layer, and so on. A small version with a slightly worse exam can stay on the front."""
+    from backend import training_center as tc
+    points = []
+    for item in tc.runs():
+        if item["mode"] != "long" or item.get("exam_per_char") is None or not item["has_best"]:
+            continue
+        points.append({"run": item["id"], "parameters": item.get("parameters"), "exam": item["exam_per_char"],
+                       **{"o_" + k: v for k, v in _objectives(item).items()}})
+    left, rank = list(points), 0
+    while left:
+        front = [p for p in left if not any(_dominates({k: q["o_" + k] for k, _ in OBJECTIVES},
+                                                       {k: p["o_" + k] for k, _ in OBJECTIVES}) for q in left)]
+        for p in front:
+            p["rank"] = rank
+        left = [p for p in left if p not in front]
+        rank += 1
+    for p in points:
+        p["logic"] = p.pop("o_logic")
+        p.pop("o_exam")
+        p.pop("o_small")
+    return points
+
+
+def pareto_status():
+    points = pareto()
+    front = sorted((p for p in points if p["rank"] == 0), key=lambda p: p["parameters"] or 0)
+    return {"points": points[-60:], "front": front[:12], "count": len(points), "axes": [name for _, name in OBJECTIVES]}
+
+
 def pick_parent(rng=None):
     """Any elite, so evolution keeps exploring different kinds; sometimes the best of a young
-    protected species (backend/species.py); None while both are empty."""
+    protected species (backend/species.py), sometimes a version from the Pareto front;
+    None while all are empty."""
     from backend import species
     rng = rng or random
     novel = species.novel_parent(rng, _exists)
     if novel:
         return novel
+    if rng.random() < 0.3:
+        front = sorted(p["run"] for p in pareto() if p["rank"] == 0)
+        if front:
+            return rng.choice(front)
     found = sorted(elites())
     return rng.choice(found) if found else None
 

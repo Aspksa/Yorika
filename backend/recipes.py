@@ -100,7 +100,8 @@ def candidates(count, seed=None):
         if len(out) >= count:
             break
         child = mutation.apply(mutate, parent, rng)
-        if valid(child) and describe(child) not in seen:
+        from backend import tabu
+        if valid(child) and describe(child) not in seen and not tabu.banned("рецепты", tabu.diff(parent, child)):
             seen.add(describe(child))
             out.append(child)
     return out
@@ -172,6 +173,12 @@ def remember(results):
     data["tried"] = data["tried"][-40:]
     data["generations"] += 1
     winner = max(results, key=lambda r: r["gain_per_hour"]) if results else None
+    from backend import tabu
+    parent = best()
+    for r in results:
+        changes = tabu.diff(parent, r["recipe"])
+        if changes:
+            tabu.record("рецепты", changes, r is winner and r["gain"] > 0)
     changed = False
     if winner and winner["gain"] > 0:
         changed = describe(winner["recipe"]) != describe(best())

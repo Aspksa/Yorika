@@ -9,7 +9,8 @@ of these numbers, nothing more.
 USELESS = 0.002    # under 0.2 % worse without the block: it barely contributes
 CROWDED = 0.03     # every block costs more than 3 % when removed: there is no slack, grow
 SAMPLE = 48
-PARTS = (("memory", "память внутри сети"), ("hopfield", "память Хопфилда"), ("fast", "быстрые веса"))
+PARTS = (("memory", "память внутри сети"), ("hopfield", "память Хопфилда"), ("fast", "быстрые веса"),
+         ("epigenome", "эпигенетика"), ("guest", "встроенный специалист"))
 
 
 def _loss(model, state, examples):
@@ -114,6 +115,16 @@ def inspect(loaded, examples):
         finally:
             for m in traced:
                 m.trace = None
+    if hasattr(model, "epigenome"):
+        # How strongly each block is expressed on average (1 = as at birth, 0 = silenced, 2 = doubled).
+        model.trace = []
+        try:
+            _loss(model, state, examples)
+            mean = torch.stack(model.trace).mean(0)[:len(blocks)]
+            for entry, value in zip(blocks, mean.tolist()):
+                entry["expression"] = round(value, 3)
+        finally:
+            model.trace = None
     report["advice"] = advice(report)
     return report
 
